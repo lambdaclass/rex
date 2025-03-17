@@ -22,9 +22,9 @@ pub async fn start() -> eyre::Result<()> {
     command.run().await
 }
 
-#[allow(clippy::upper_case_acronyms)] // TODO: Find a cool name
+#[allow(clippy::upper_case_acronyms)] 
 #[derive(Parser)]
-#[command(name="cli", author, version=VERSION_STRING, about, long_about = None)]
+#[command(name="rex", author, version=VERSION_STRING, about, long_about = None)]
 pub(crate) struct CLI {
     #[command(subcommand)]
     command: Command,
