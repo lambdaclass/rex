@@ -84,7 +84,7 @@ pub(crate) enum Command {
         private_key: SecretKey,
     },
     #[clap(
-        about = "Get either the keccak for a given input, the zero hash, or a random hash",
+        about = "Get either the keccak for a given input, the zero hash, the empty string, or a random hash",
         visible_alias = "h"
     )]
     Hash {
