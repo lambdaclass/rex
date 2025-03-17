@@ -3,6 +3,48 @@ use clap::Parser;
 use ethrex_common::{Address, Bytes, U256};
 use secp256k1::SecretKey;
 
+#[derive(Clone)]
+pub enum HashOpts {
+    Input(Bytes),
+    Zero,
+    Random,
+    String,
+}
+
+impl TryFrom<&str> for HashOpts {
+    type Error = eyre::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "zero" => Ok(HashOpts::Zero),
+            "random" => Ok(HashOpts::Random),
+            "string" => Ok(HashOpts::String),
+            "input" => Ok(HashOpts::Input(parse_hex(value)?)),
+            other => Err(eyre::eyre!("Invalid hash cmd option: {other}")),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum AddressOpts {
+    FromPrivateKey(SecretKey),
+    Random,
+    Zero,
+}
+
+impl TryFrom<&str> for AddressOpts {
+    type Error = eyre::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "random" => Ok(AddressOpts::Random),
+            "zero" => Ok(AddressOpts::Zero),
+            "private-key" => Ok(AddressOpts::FromPrivateKey(parse_private_key(value)?)),
+            other => Err(eyre::eyre!("Invalid address cmd option: {other}")),
+        }
+    }
+}
+
 #[derive(Parser)]
 pub struct BalanceArgs {
     pub account: Address,
