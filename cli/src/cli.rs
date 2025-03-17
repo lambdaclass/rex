@@ -88,12 +88,14 @@ pub(crate) enum Command {
         visible_alias = "h"
     )]
     Hash {
-        #[arg(long, value_parser = parse_hex, conflicts_with_all = ["zero", "random"], required_unless_present_any = ["zero", "random"], env = "INPUT", help = "The input to hash.")]
+        #[arg(long, value_parser = parse_hex, conflicts_with_all = ["zero", "random", "string"], required_unless_present_any = ["zero", "random"], env = "INPUT", help = "The input to hash.")]
         input: Option<Bytes>,
-        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "random"], required_unless_present_any = ["input", "random"], help = "The zero address.")]
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "random", "string"], required_unless_present_any = ["input", "random"], help = "The zero hash.")]
         zero: bool,
-        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "zero"], required_unless_present_any = ["input", "zero"], help = "A random address.")]
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "zero", "string"], required_unless_present_any = ["input", "zero"], help = "A random hash.")]
         random: bool,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "zero", "random"], required_unless_present_any = ["input", "zero"], help = "Hash of empty string")]
+        string: bool,
     },
     #[clap(about = "Transfer funds to another wallet.")]
     Transfer {
@@ -191,6 +193,7 @@ impl Command {
                 input,
                 zero,
                 random,
+                string,
             } => {
                 let hash = if let Some(input) = input {
                     keccak(&input)
@@ -198,6 +201,8 @@ impl Command {
                     H256::zero()
                 } else if random {
                     H256::random()
+                } else if string {
+                    keccak(b"")
                 } else {
                     return Err(eyre::Error::msg("No option provided"));
                 };
