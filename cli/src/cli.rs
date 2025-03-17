@@ -1,16 +1,18 @@
 use crate::commands::l2;
+use crate::utils::{parse_hex, parse_message};
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
     utils::parse_private_key,
 };
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use ethertools_sdk::{
     balance_in_eth,
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
-use ethrex_common::{Address, H256};
+use ethrex_common::{Address, Bytes, H256};
+use keccak_hash::keccak;
 use secp256k1::SecretKey;
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
@@ -76,12 +78,22 @@ pub(crate) enum Command {
         rpc_url: String,
     },
     #[clap(
-        about = "Get the account's address from private key.",
+        about = "Get either the account's address from private key, the zero address, or a random address",
         visible_aliases = ["addr", "a"]
     )]
     Address {
-        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
-        private_key: SecretKey,
+        #[arg(long, value_parser = parse_private_key, conflicts_with_all = ["zero", "random"], required_unless_present_any = ["zero", "random"], env = "PRIVATE_KEY", help = "The private key to derive the address from.")]
+        from_private_key: Option<SecretKey>,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "random"], required_unless_present_any = ["from_private_key", "random"], help = "The zero address.")]
+        zero: bool,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "zero"], required_unless_present_any = ["from_private_key", "zero"], help = "A random address.")]
+        random: bool,
+    },
+    Signer {
+        #[arg(value_parser = parse_message)]
+        message: secp256k1::Message,
+        #[arg(value_parser = parse_hex)]
+        signature: Bytes,
     },
     #[clap(about = "Transfer funds to another wallet.")]
     Transfer {
@@ -180,10 +192,43 @@ impl Command {
 
                 println!("{nonce}");
             }
-            Command::Address { private_key } => {
-                let address = get_address_from_secret_key(&private_key)?;
+            Command::Address {
+                from_private_key,
+                zero,
+                random,
+            } => {
+                let address = if let Some(private_key) = from_private_key {
+                    get_address_from_secret_key(&private_key)?
+                } else if zero {
+                    Address::zero()
+                } else if random {
+                    Address::random()
+                } else {
+                    return Err(eyre::Error::msg("No option provided"));
+                };
 
                 println!("{address:#x}");
+            }
+            Command::Signer { message, signature } => {
+                let raw_recovery_id = if signature[64] >= 27 {
+                    signature[64] - 27
+                } else {
+                    signature[64]
+                };
+
+                let recovery_id = secp256k1::ecdsa::RecoveryId::from_i32(raw_recovery_id as i32)?;
+
+                let signature = secp256k1::ecdsa::RecoverableSignature::from_compact(
+                    &signature[..64],
+                    recovery_id,
+                )?;
+
+                let signer_public_key = signature.recover(&message)?;
+
+                let signer =
+                    hex::encode(&keccak(&signer_public_key.serialize_uncompressed()[1..])[12..]);
+
+                println!("0x{signer}");
             }
             Command::Transfer { args, rpc_url } => {
                 if args.token_address.is_some() {
