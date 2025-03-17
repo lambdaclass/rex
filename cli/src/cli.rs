@@ -88,7 +88,7 @@ pub(crate) enum Command {
         visible_alias = "h"
     )]
     Hash {
-        #[arg(long, value_parser = parse_hex, conflicts_with_all = ["zero", "random", "string"], required_unless_present_any = ["zero", "random", "string"], env = "INPUT", help = "The input to hash.")]
+        #[arg(long, value_parser = parse_hex, conflicts_with_all = ["zero", "random", "string"], required_unless_present_any = ["zero", "random", "string"], help = "The input to hash.")]
         input: Option<Bytes>,
         #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "random", "string"], required_unless_present_any = ["input", "random", "string"], help = "The zero hash.")]
         zero: bool,
