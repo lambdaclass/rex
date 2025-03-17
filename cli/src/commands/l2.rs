@@ -4,7 +4,8 @@ use crate::{
     utils::{parse_private_key, parse_u256},
 };
 use clap::Subcommand;
-use ethertools_sdk::{
+use ethrex_common::{Address, H256, U256};
+use rex_sdk::{
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     l2::{
         deposit::deposit,
@@ -12,7 +13,6 @@ use ethertools_sdk::{
     },
     wait_for_transaction_receipt,
 };
-use ethrex_common::{Address, H256, U256};
 use secp256k1::SecretKey;
 
 #[derive(Subcommand)]
