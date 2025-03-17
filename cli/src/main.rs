@@ -1,4 +1,4 @@
-use ethertools_cli::cli;
+use rex::cli;
 
 #[tokio::main]
 async fn main() {
