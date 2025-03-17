@@ -1,5 +1,5 @@
 [package]
-name = "ethertools-sdk"
+name = "rex-sdk"
 version.workspace = true
 edition.workspace = true
 

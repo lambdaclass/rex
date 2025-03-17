@@ -29,8 +29,8 @@ overflow_check_conditional = "warn"
 manual_saturating_arithmetic = "warn"
 
 [workspace.dependencies]
-ethertools-cli = { path = "cli" }
-ethertools-sdk = { path = "sdk" }
+rex-cli = { path = "cli" }
+rex-sdk = { path = "sdk" }
 
 ethrex-l2 = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2" }
 ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common" }

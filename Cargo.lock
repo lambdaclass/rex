@@ -2182,34 +2182,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethertools-sdk"
-version = "0.1.0"
-dependencies = [
- "dirs 6.0.0",
- "envy",
- "ethrex-blockchain",
- "ethrex-common",
- "ethrex-l2",
- "ethrex-prover",
- "ethrex-rlp",
- "ethrex-rpc",
- "hex",
- "itertools 0.14.0",
- "jsonwebtoken",
- "keccak-hash",
- "log",
- "reqwest",
- "secp256k1",
- "serde",
- "serde_json",
- "thiserror 2.0.11",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber 0.3.19",
-]
-
-[[package]]
 name = "ethrex-blockchain"
 version = "0.1.0"
 source = "git+https://github.com/lambdaclass/ethrex#9b2f4c9ea0a39b6af80ae234cef3b8f7dd889f1e"
@@ -5224,7 +5196,6 @@ dependencies = [
  "colored 3.0.0",
  "dialoguer",
  "dirs 6.0.0",
- "ethertools-sdk",
  "ethrex-blockchain",
  "ethrex-common",
  "ethrex-l2",
@@ -5236,11 +5207,40 @@ dependencies = [
  "itertools 0.14.0",
  "keccak-hash",
  "log",
+ "rex-sdk",
  "secp256k1",
  "serde",
  "serde_json",
  "spinoff",
  "strum 0.27.1",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber 0.3.19",
+]
+
+[[package]]
+name = "rex-sdk"
+version = "0.1.0"
+dependencies = [
+ "dirs 6.0.0",
+ "envy",
+ "ethrex-blockchain",
+ "ethrex-common",
+ "ethrex-l2",
+ "ethrex-prover",
+ "ethrex-rlp",
+ "ethrex-rpc",
+ "hex",
+ "itertools 0.14.0",
+ "jsonwebtoken",
+ "keccak-hash",
+ "log",
+ "reqwest",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.11",
  "tokio",
  "toml",
  "tracing",

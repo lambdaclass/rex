@@ -6,13 +6,13 @@ use crate::{
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
-use ethertools_sdk::{
+use ethrex_common::{Address, Bytes, H256};
+use keccak_hash::keccak;
+use rex_sdk::{
     balance_in_eth,
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
-use ethrex_common::{Address, Bytes, H256};
-use keccak_hash::keccak;
 use secp256k1::SecretKey;
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
