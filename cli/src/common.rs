@@ -15,11 +15,11 @@ impl TryFrom<&str> for HashOpts {
     type Error = eyre::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "zero" => Ok(HashOpts::Zero),
-            "random" => Ok(HashOpts::Random),
-            "string" => Ok(HashOpts::String),
-            "input" => Ok(HashOpts::Input(parse_hex(value)?)),
+        match value.to_lowercase().as_str() {
+            "--zero" | "-z" => Ok(HashOpts::Zero),
+            "--random" | "-r" => Ok(HashOpts::Random),
+            "--string" | "-s" => Ok(HashOpts::String),
+            "--input" | "-i" => Ok(HashOpts::Input(parse_hex(value)?)),
             other => Err(eyre::eyre!("Invalid hash cmd option: {other}")),
         }
     }
@@ -36,10 +36,10 @@ impl TryFrom<&str> for AddressOpts {
     type Error = eyre::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "random" => Ok(AddressOpts::Random),
-            "zero" => Ok(AddressOpts::Zero),
-            "private-key" => Ok(AddressOpts::FromPrivateKey(parse_private_key(value)?)),
+        match value.to_lowercase().as_str() {
+            "--random" | "-r" => Ok(AddressOpts::Random),
+            "--zero" | "-z" => Ok(AddressOpts::Zero),
+            "--from-private-key" => Ok(AddressOpts::FromPrivateKey(parse_private_key(value)?)),
             other => Err(eyre::eyre!("Invalid address cmd option: {other}")),
         }
     }

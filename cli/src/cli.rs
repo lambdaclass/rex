@@ -81,7 +81,7 @@ pub(crate) enum Command {
         visible_aliases = ["addr", "a"]
     )]
     Address {
-        #[arg(value_parser = parse_address_opts)]
+        #[arg(value_parser = parse_address_opts, help = "Address options. (random, zero, from-private-key)", long_help = "random - random address, zero - zero address, from-private-key - address from the private key")]
         opts: AddressOpts,
     },
     #[clap(
@@ -89,7 +89,7 @@ pub(crate) enum Command {
         visible_alias = "h"
     )]
     Hash {
-        #[arg(value_parser = parse_hash_opts)]
+        #[arg(value_parser = parse_hash_opts, help = "Hash options. (zero, random, string, input)", long_help = "zero - zero hash, random - random hash, string - empty string hash, input - hash of the input")]
         opts: HashOpts,
     },
     Signer {
