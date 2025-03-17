@@ -4,7 +4,7 @@ use crate::{
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
     utils::parse_private_key,
 };
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use ethertools_sdk::{
     balance_in_eth,
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
@@ -74,12 +74,16 @@ pub(crate) enum Command {
         rpc_url: String,
     },
     #[clap(
-        about = "Get the account's address from private key.",
+        about = "Get either the account's address from private key, the zero address, or a random address",
         visible_aliases = ["addr", "a"]
     )]
     Address {
-        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
-        private_key: SecretKey,
+        #[arg(long, value_parser = parse_private_key, conflicts_with_all = ["zero", "random"], required_unless_present_any = ["zero", "random"], env = "PRIVATE_KEY")]
+        from_private_key: Option<SecretKey>,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "random"], required_unless_present_any = ["from_private_key", "random"])]
+        zero: bool,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "zero"], required_unless_present_any = ["from_private_key", "zero"])]
+        random: bool,
     },
     #[clap(about = "Transfer funds to another wallet.")]
     Transfer {
@@ -168,8 +172,20 @@ impl Command {
 
                 println!("{nonce}");
             }
-            Command::Address { private_key } => {
-                let address = get_address_from_secret_key(&private_key)?;
+            Command::Address {
+                from_private_key,
+                zero,
+                random,
+            } => {
+                let address = if let Some(private_key) = from_private_key {
+                    get_address_from_secret_key(&private_key)?
+                } else if zero {
+                    Address::zero()
+                } else if random {
+                    Address::random()
+                } else {
+                    return Err(eyre::Error::msg("No option provided"));
+                };
 
                 println!("{address:#x}");
             }
