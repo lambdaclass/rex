@@ -2182,38 +2182,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethertools-cli"
-version = "0.1.0"
-dependencies = [
- "clap",
- "clap_complete",
- "colored 3.0.0",
- "dialoguer",
- "dirs 6.0.0",
- "ethertools-sdk",
- "ethrex-blockchain",
- "ethrex-common",
- "ethrex-l2",
- "ethrex-prover",
- "ethrex-rlp",
- "ethrex-rpc",
- "eyre",
- "hex",
- "itertools 0.14.0",
- "keccak-hash",
- "log",
- "secp256k1",
- "serde",
- "serde_json",
- "spinoff",
- "strum 0.27.1",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber 0.3.19",
-]
-
-[[package]]
 name = "ethertools-sdk"
 version = "0.1.0"
 dependencies = [
@@ -5245,6 +5213,38 @@ dependencies = [
  "enumn",
  "hex",
  "serde",
+]
+
+[[package]]
+name = "rex"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "clap_complete",
+ "colored 3.0.0",
+ "dialoguer",
+ "dirs 6.0.0",
+ "ethertools-sdk",
+ "ethrex-blockchain",
+ "ethrex-common",
+ "ethrex-l2",
+ "ethrex-prover",
+ "ethrex-rlp",
+ "ethrex-rpc",
+ "eyre",
+ "hex",
+ "itertools 0.14.0",
+ "keccak-hash",
+ "log",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "spinoff",
+ "strum 0.27.1",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber 0.3.19",
 ]
 
 [[package]]
