@@ -205,6 +205,18 @@ pub(crate) enum Command {
         )]
         rpc_url: String,
     },
+    #[clap(about = "Get the network's chain id.")]
+    ChainId {
+        #[arg(
+            short,
+            long,
+            default_value_t = false,
+            help = "Display the chain id as a hex-string."
+        )]
+        hex: bool,
+        #[arg(default_value = "http://localhost:1729", env = "RPC_URL")]
+        rpc_url: String,
+    },
 }
 
 impl Command {
@@ -363,6 +375,9 @@ impl Command {
             }
             Command::Deploy { args, rpc_url } => {
                 Box::pin(async { EthCommand::Deploy { args, rpc_url }.run().await }).await?
+            }
+            Command::ChainId { hex, rpc_url } => {
+                Box::pin(async { EthCommand::ChainId { hex, rpc_url }.run().await }).await?
             }
         };
         Ok(())

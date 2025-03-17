@@ -1,5 +1,5 @@
 use crate::commands::l2;
-use crate::utils::parse_hex;
+use crate::utils::{parse_hex, parse_message};
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
@@ -22,7 +22,7 @@ pub async fn start() -> eyre::Result<()> {
     command.run().await
 }
 
-#[allow(clippy::upper_case_acronyms)] 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Parser)]
 #[command(name="rex", author, version=VERSION_STRING, about, long_about = None)]
 pub(crate) struct CLI {
@@ -32,6 +32,8 @@ pub(crate) struct CLI {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    #[clap(subcommand, about = "L2 specific commands.")]
+    L2(l2::Command),
     #[clap(subcommand, about = "Generate shell completion scripts.")]
     Autocomplete(autocomplete::Command),
     #[clap(about = "Get the current block_number.", visible_alias = "bl")]
@@ -101,6 +103,12 @@ pub(crate) enum Command {
         #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "zero", "random"], required_unless_present_any = ["input", "zero", "random"], help = "Hash of empty string")]
         string: bool,
     },
+    Signer {
+        #[arg(value_parser = parse_message)]
+        message: secp256k1::Message,
+        #[arg(value_parser = parse_hex)]
+        signature: Bytes,
+    },
     #[clap(about = "Transfer funds to another wallet.")]
     Transfer {
         #[clap(flatten)]
@@ -129,8 +137,18 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
-    #[clap(subcommand, about = "L2 specific commands.")]
-    L2(l2::Command),
+    #[clap(about = "Get the network's chain id.")]
+    ChainId {
+        #[arg(
+            short,
+            long,
+            default_value_t = false,
+            help = "Display the chain id as a hex-string."
+        )]
+        hex: bool,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
 }
 
 impl Command {
@@ -224,6 +242,27 @@ impl Command {
                 };
 
                 println!("{hash:#x}");
+            }
+            Command::Signer { message, signature } => {
+                let raw_recovery_id = if signature[64] >= 27 {
+                    signature[64] - 27
+                } else {
+                    signature[64]
+                };
+
+                let recovery_id = secp256k1::ecdsa::RecoveryId::from_i32(raw_recovery_id as i32)?;
+
+                let signature = secp256k1::ecdsa::RecoverableSignature::from_compact(
+                    &signature[..64],
+                    recovery_id,
+                )?;
+
+                let signer_public_key = signature.recover(&message)?;
+
+                let signer =
+                    hex::encode(&keccak(&signer_public_key.serialize_uncompressed()[1..])[12..]);
+
+                println!("0x{signer}");
             }
             Command::Transfer { args, rpc_url } => {
                 if args.token_address.is_some() {
@@ -350,6 +389,17 @@ impl Command {
 
                 if !args.background {
                     wait_for_transaction_receipt(tx_hash, &client, 100).await?;
+                }
+            }
+            Command::ChainId { hex, rpc_url } => {
+                let eth_client = EthClient::new(&rpc_url);
+
+                let chain_id = eth_client.get_chain_id().await?;
+
+                if hex {
+                    println!("{chain_id:#x}");
+                } else {
+                    println!("{chain_id}");
                 }
             }
         };
