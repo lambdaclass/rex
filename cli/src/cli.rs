@@ -1,16 +1,18 @@
 use crate::commands::l2;
+use crate::utils::parse_hex;
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
     utils::parse_private_key,
 };
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use ethertools_sdk::{
     balance_in_eth,
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
-use ethrex_common::{Address, H256};
+use ethrex_common::{Address, Bytes, H256};
+use keccak_hash::keccak;
 use secp256k1::SecretKey;
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
@@ -80,6 +82,18 @@ pub(crate) enum Command {
     Address {
         #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
+    },
+    #[clap(
+        about = "Get either the keccak for a given input, the zero hash, or a random hash",
+        visible_alias = "h"
+    )]
+    Hash {
+        #[arg(long, value_parser = parse_hex, conflicts_with_all = ["zero", "random"], required_unless_present_any = ["zero", "random"], env = "INPUT", help = "The input to hash.")]
+        input: Option<Bytes>,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "random"], required_unless_present_any = ["input", "random"], help = "The zero address.")]
+        zero: bool,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "zero"], required_unless_present_any = ["input", "zero"], help = "A random address.")]
+        random: bool,
     },
     #[clap(about = "Transfer funds to another wallet.")]
     Transfer {
@@ -172,6 +186,23 @@ impl Command {
                 let address = get_address_from_secret_key(&private_key)?;
 
                 println!("{address:#x}");
+            }
+            Command::Hash {
+                input,
+                zero,
+                random,
+            } => {
+                let hash = if let Some(input) = input {
+                    keccak(&input)
+                } else if zero {
+                    H256::zero()
+                } else if random {
+                    H256::random()
+                } else {
+                    return Err(eyre::Error::msg("No option provided"));
+                };
+
+                println!("{hash:#x}");
             }
             Command::Transfer { args, rpc_url } => {
                 if args.token_address.is_some() {
