@@ -74,10 +74,7 @@ You can find the CLI documentation [here](cli/README.md).
 
 ## `rex` SDK
 
-The `rex` SDK provides a set of utilities for Ethereum development.
-<TODO: Explain basic usage>
-<TODO: Explain client>
-<TODO: Explain l2?
+The `rex` SDK provides a set of utilities for Ethereum and ethrex L2 development.
 
 ### Getting Started with the SDK
 
