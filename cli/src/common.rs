@@ -33,7 +33,7 @@ pub struct TransferArgs {
     #[clap(
         short = 'b',
         required = false,
-        help = "Do not wait for the transaction receipt"
+        help = "Send the request asynchronously."
     )]
     pub cast: bool,
     #[clap(
@@ -71,7 +71,7 @@ pub struct SendArgs {
     #[clap(
         short = 'b',
         required = false,
-        help = "Do not wait for the transaction receipt"
+        help = "Send the request asynchronously."
     )]
     pub cast: bool,
     #[clap(
@@ -134,7 +134,7 @@ pub struct DeployArgs {
     #[clap(
         short = 'b',
         required = false,
-        help = "Do not wait for the transaction receipt"
+        help = "Send the request asynchronously."
     )]
     pub cast: bool,
     #[clap(

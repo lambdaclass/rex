@@ -66,7 +66,7 @@ pub(crate) enum Command {
         #[clap(
             short = 'b',
             required = false,
-            help = "Do not wait for the transaction receipt"
+            help = "Send the request asynchronously."
         )]
         cast: bool,
         #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
@@ -108,7 +108,7 @@ pub(crate) enum Command {
         #[clap(
             short = 'b',
             required = false,
-            help = "Do not wait for the transaction receipt"
+            help = "Send the request asynchronously."
         )]
         cast: bool,
         #[clap(
@@ -189,7 +189,7 @@ pub(crate) enum Command {
         #[clap(
             short = 'b',
             required = false,
-            help = "Do not wait for the transaction receipt"
+            help = "Send the request asynchronously."
         )]
         cast: bool,
         #[clap(
