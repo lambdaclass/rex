@@ -9,7 +9,6 @@ rex-sdk.workspace = true
 ethrex-l2.workspace = true
 ethrex-common.workspace = true
 ethrex-blockchain.workspace = true
-ethrex-prover.workspace = true
 ethrex-rlp.workspace = true
 ethrex-rpc.workspace = true
 
@@ -17,7 +16,7 @@ ethrex-rpc.workspace = true
 tokio = "1.43.0"
 
 # CLI
-clap = { version = "4.3", features = ["derive"] }
+clap = { version = "4.3", features = ["derive", "env"] }
 clap_complete = "4.5.17"
 eyre = "0.6"
 dialoguer = "0.11"

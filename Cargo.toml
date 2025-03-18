@@ -35,7 +35,6 @@ rex-sdk = { path = "sdk" }
 ethrex-l2 = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2" }
 ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common" }
 ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain" }
-ethrex-prover = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-prover" }
 ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp" }
 ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc" } 
 
