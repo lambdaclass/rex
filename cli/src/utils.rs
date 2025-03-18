@@ -3,8 +3,6 @@ use hex::FromHexError;
 use secp256k1::SecretKey;
 use std::str::FromStr;
 
-use crate::common::{AddressOpts, HashOpts};
-
 pub fn parse_private_key(s: &str) -> eyre::Result<SecretKey> {
     Ok(SecretKey::from_slice(&parse_hex(s)?)?)
 }
@@ -33,12 +31,4 @@ pub fn parse_hex(s: &str) -> eyre::Result<Bytes, FromHexError> {
         Some(s) => hex::decode(s).map(Into::into),
         None => hex::decode(s).map(Into::into),
     }
-}
-
-pub fn parse_hash_opts(s: &str) -> eyre::Result<HashOpts> {
-    HashOpts::try_from(s)
-}
-
-pub fn parse_address_opts(s: &str) -> eyre::Result<AddressOpts> {
-    AddressOpts::try_from(s)
 }
