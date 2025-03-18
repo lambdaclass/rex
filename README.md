@@ -55,6 +55,18 @@ Options:
   -V, --version  Print version
 ```
 
+#### Helpful operations
+
+![ops](./assets/operations_demo.gif)
+
+#### Interacting with an Ethereum node
+
+![eth](./assets/eth_demo.gif)
+
+#### Interacting with an ethrex L2 node
+
+TODO
+
 You can find the CLI documentation [here](cli/README.md).
 
 ## `rex` SDK
