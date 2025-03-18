@@ -252,7 +252,7 @@ async fn main() {
 
 > [!WARNING]
 > Before running the example, make sure you have an Ethereum node running or override the default RPC URL with the `--rpc-url` flag to point to a public node.
-> The private key must have some funds in the network you are connecting to.
+> The account associated to the private key must have some funds in the network you are connecting to.
 
 ```Shell
 cd sdk
