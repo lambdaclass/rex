@@ -1,11 +1,11 @@
 use crate::commands::l2;
-use crate::common::{AddressOpts, HashOpts};
-use crate::utils::{parse_address_opts, parse_hash_opts, parse_hex, parse_message};
+use crate::utils::{parse_hex, parse_message};
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
+    utils::parse_private_key,
 };
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::{Address, Bytes, H256};
 use keccak_hash::keccak;
 use rex_sdk::{
@@ -13,6 +13,7 @@ use rex_sdk::{
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
+use secp256k1::SecretKey;
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -36,8 +37,12 @@ pub(crate) enum Command {
         visible_aliases = ["addr", "a"]
     )]
     Address {
-        #[arg(value_parser = parse_address_opts, help = "Address options. (random, zero, from-private-key)", long_help = "random - random address, zero - zero address, from-private-key - address from the private key")]
-        opts: AddressOpts,
+        #[arg(long, value_parser = parse_private_key, conflicts_with_all = ["zero", "random"], required_unless_present_any = ["zero", "random"], env = "PRIVATE_KEY", help = "The private key to derive the address from.")]
+        from_private_key: Option<SecretKey>,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "random"], required_unless_present_any = ["from_private_key", "random"], help = "The zero address.")]
+        zero: bool,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "zero"], required_unless_present_any = ["from_private_key", "zero"], help = "A random address.")]
+        random: bool,
     },
     #[clap(subcommand, about = "Generate shell completion scripts.")]
     Autocomplete(autocomplete::Command),
@@ -94,9 +99,19 @@ pub(crate) enum Command {
         about = "Get either the keccak for a given input, the zero hash, the empty string, or a random hash",
         visible_alias = "h"
     )]
+    #[clap(
+        about = "Get either the keccak for a given input, the zero hash, the empty string, or a random hash",
+        visible_alias = "h"
+    )]
     Hash {
-        #[arg(value_parser = parse_hash_opts, help = "Hash options. (zero, random, string, input)", long_help = "zero - zero hash, random - random hash, string - empty string hash, input - hash of the input")]
-        opts: HashOpts,
+        #[arg(long, value_parser = parse_hex, conflicts_with_all = ["zero", "random", "string"], required_unless_present_any = ["zero", "random", "string"], help = "The input to hash.")]
+        input: Option<Bytes>,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "random", "string"], required_unless_present_any = ["input", "random", "string"], help = "The zero hash.")]
+        zero: bool,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "zero", "string"], required_unless_present_any = ["input", "zero", "string"], help = "A random hash.")]
+        random: bool,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["input", "zero", "random"], required_unless_present_any = ["input", "zero", "random"], help = "Hash of empty string")]
+        string: bool,
     },
     #[clap(subcommand, about = "L2 specific commands.")]
     L2(l2::Command),
@@ -195,23 +210,39 @@ impl Command {
 
                 println!("{nonce}");
             }
-            Command::Address { opts } => {
-                let address = match opts {
-                    AddressOpts::FromPrivateKey(secret_key) => {
-                        get_address_from_secret_key(&secret_key)?
-                    }
-                    AddressOpts::Random => Address::random(),
-                    AddressOpts::Zero => Address::zero(),
+            Command::Address {
+                from_private_key,
+                zero,
+                random,
+            } => {
+                let address = if let Some(private_key) = from_private_key {
+                    get_address_from_secret_key(&private_key)?
+                } else if zero {
+                    Address::zero()
+                } else if random {
+                    Address::random()
+                } else {
+                    return Err(eyre::Error::msg("No option provided"));
                 };
 
                 println!("{address:#x}");
             }
-            Command::Hash { opts } => {
-                let hash = match opts {
-                    HashOpts::Input(input) => keccak(&input),
-                    HashOpts::Zero => H256::zero(),
-                    HashOpts::Random => H256::random(),
-                    HashOpts::String => keccak(b""),
+            Command::Hash {
+                input,
+                zero,
+                random,
+                string,
+            } => {
+                let hash = if let Some(input) = input {
+                    keccak(&input)
+                } else if zero {
+                    H256::zero()
+                } else if random {
+                    H256::random()
+                } else if string {
+                    keccak(b"")
+                } else {
+                    return Err(eyre::Error::msg("No option provided"));
                 };
 
                 println!("{hash:#x}");
