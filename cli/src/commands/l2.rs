@@ -68,7 +68,7 @@ pub(crate) enum Command {
             required = false,
             help = "Do not wait for the transaction receipt"
         )]
-        background: bool,
+        cast: bool,
         #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
         #[arg(env = "BRIDGE_ADDRESS")]
@@ -110,7 +110,7 @@ pub(crate) enum Command {
             required = false,
             help = "Do not wait for the transaction receipt"
         )]
-        background: bool,
+        cast: bool,
         #[clap(
             long,
             short = 'e',
@@ -191,7 +191,7 @@ pub(crate) enum Command {
             required = false,
             help = "Do not wait for the transaction receipt"
         )]
-        background: bool,
+        cast: bool,
         #[clap(
             long,
             required = false,
@@ -226,7 +226,7 @@ impl Command {
                 amount,
                 token_address,
                 to,
-                background,
+                cast,
                 explorer_url,
                 private_key,
                 l1_rpc_url,
@@ -264,13 +264,13 @@ impl Command {
 
                 println!("Deposit sent: {tx_hash:#x}");
 
-                if !background {
+                if !cast {
                     wait_for_transaction_receipt(tx_hash, &eth_client, 100).await?;
                 }
             }
             Command::ClaimWithdraw {
                 l2_withdrawal_tx_hash,
-                background,
+                cast,
                 private_key,
                 l1_rpc_url,
                 rpc_url,
@@ -295,7 +295,7 @@ impl Command {
 
                 println!("Withdrawal claim sent: {tx_hash:#x}");
 
-                if !background {
+                if !cast {
                     wait_for_transaction_receipt(tx_hash, &eth_client, 100).await?;
                 }
             }
@@ -303,7 +303,7 @@ impl Command {
                 amount,
                 nonce,
                 token_address,
-                background,
+                cast,
                 explorer_url,
                 private_key,
                 rpc_url,
@@ -324,7 +324,7 @@ impl Command {
 
                 println!("Withdrawal sent: {tx_hash:#x}");
 
-                if !background {
+                if !cast {
                     wait_for_transaction_receipt(tx_hash, &client, 100).await?;
                 }
             }

@@ -35,7 +35,7 @@ pub struct TransferArgs {
         required = false,
         help = "Do not wait for the transaction receipt"
     )]
-    pub background: bool,
+    pub cast: bool,
     #[clap(
         long,
         required = false,
@@ -73,7 +73,7 @@ pub struct SendArgs {
         required = false,
         help = "Do not wait for the transaction receipt"
     )]
-    pub background: bool,
+    pub cast: bool,
     #[clap(
         long,
         required = false,
@@ -136,7 +136,7 @@ pub struct DeployArgs {
         required = false,
         help = "Do not wait for the transaction receipt"
     )]
-    pub background: bool,
+    pub cast: bool,
     #[clap(
         long,
         required = false,

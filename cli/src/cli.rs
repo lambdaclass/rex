@@ -297,7 +297,7 @@ impl Command {
 
                 println!("{tx_hash:#x}");
 
-                if !args.background {
+                if !args.cast {
                     wait_for_transaction_receipt(tx_hash, &client, 100).await?;
                 }
             }
@@ -335,7 +335,7 @@ impl Command {
 
                 println!("{tx_hash:#x}",);
 
-                if !args.background {
+                if !args.cast {
                     wait_for_transaction_receipt(tx_hash, &client, 100).await?;
                 }
             }
@@ -391,7 +391,7 @@ impl Command {
                 println!("Contract deployed in tx: {tx_hash:#x}");
                 println!("Contract address: {deployed_contract_address:#x}");
 
-                if !args.background {
+                if !args.cast {
                     wait_for_transaction_receipt(tx_hash, &client, 100).await?;
                 }
             }
