@@ -64,7 +64,7 @@ Options:
 > [!NOTE]
 > Before running the following commands, make sure you have an Ethereum node running or override the default RPC URL with the `--rpc-url` flag to point to a public node.
 
-![eth](./assets/eth_demo.gif)
+![eth](./assets/chain_demo.gif)
 
 #### Interacting with an ethrex L2 node
 
