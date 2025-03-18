@@ -74,7 +74,7 @@ You can find the CLI documentation [here](cli/README.md).
 
 ## `rex` SDK
 
-The `rex` SDK provides a set of utilities for Ethereum and ethrex L2 development.
+The `rex` SDK provides a set of utilities for Ethereum and ethrex L2 development. With it, you can write Rust scripts to interact with Ethereum and ethrex L2 networks as well as deploy and interact with smart contracts, transferring funds between accounts, and more. 
 
 ### Getting Started with the SDK
 
