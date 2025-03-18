@@ -255,6 +255,7 @@ async fn main() {
 > The private key must have some funds in the network you are connecting to.
 
 ```Shell
+cd sdk
 cargo run --release --example simple_usage -- --private-key <PRIVATE_KEY> --rpc-url <RPC_URL>
 ```
 
