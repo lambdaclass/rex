@@ -2,6 +2,8 @@
 
 `rex` is a set of utilities for Ethereum development.
 
+Rex is powered by [Ethrex](https://github.com/lambdaclass/ethrex)
+
 With **Rex** you can
 - Launch your own devnet using ethrex
 - Interact with a running L1 network
