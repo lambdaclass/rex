@@ -38,5 +38,14 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 serde = "1.0.218"
 serde_json = "1.0.139"
 
+# Examples deps
+clap = { version = "4.3", features = ["derive", "env"] }
+clap_complete = "4.5.17"
+eyre = "0.6"
+
 [lib]
 path = "./src/sdk.rs"
+
+[[example]]
+name = "simple_usage"
+path = "./examples/simple_usage.rs"

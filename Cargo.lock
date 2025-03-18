@@ -5197,6 +5197,8 @@ dependencies = [
 name = "rex-sdk"
 version = "0.1.0"
 dependencies = [
+ "clap",
+ "clap_complete",
  "dirs 6.0.0",
  "envy",
  "ethrex-blockchain",
@@ -5204,6 +5206,7 @@ dependencies = [
  "ethrex-l2",
  "ethrex-rlp",
  "ethrex-rpc",
+ "eyre",
  "hex",
  "itertools 0.14.0",
  "jsonwebtoken",
