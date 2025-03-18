@@ -18,7 +18,11 @@ The `rex` CLI is a command line tool that provides a set of utilities for Ethere
 
 ### Installing the CLI
 
-<TODO: Add how to install>
+Running the following command will install the CLI as the binary `rex`.
+
+```Shell
+make cli
+```
 
 ### Using the CLI
 <TODO: basic usage, kind of help>
