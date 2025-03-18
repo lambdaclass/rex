@@ -17,6 +17,78 @@ use secp256k1::SecretKey;
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    #[clap(about = "Get the account's balance on L2.", visible_aliases = ["bal", "b"])]
+    Balance {
+        #[clap(flatten)]
+        args: BalanceArgs,
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: String,
+    },
+    #[clap(about = "Get the current block_number.", visible_alias = "bl")]
+    BlockNumber {
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: String,
+    },
+    #[clap(about = "Make a call to a contract")]
+    Call {
+        #[clap(flatten)]
+        args: CallArgs,
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: String,
+    },
+    #[clap(about = "Get the network's chain id.")]
+    ChainId {
+        #[arg(
+            short,
+            long,
+            default_value_t = false,
+            help = "Display the chain id as a hex-string."
+        )]
+        hex: bool,
+        #[arg(default_value = "http://localhost:1729", env = "RPC_URL")]
+        rpc_url: String,
+    },
+    #[clap(about = "Finalize a pending withdrawal.")]
+    ClaimWithdraw {
+        l2_withdrawal_tx_hash: H256,
+        #[clap(
+            short = 'b',
+            required = false,
+            help = "Do not wait for the transaction receipt"
+        )]
+        background: bool,
+        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
+        private_key: SecretKey,
+        #[arg(env = "BRIDGE_ADDRESS")]
+        bridge_address: Address,
+        #[arg(env = "L1_RPC_URL", default_value = "http://localhost:8545")]
+        l1_rpc_url: String,
+        #[arg(env = "RPC_URL", default_value = "http://localhost:1729")]
+        rpc_url: String,
+    },
+    #[clap(about = "Deploy a contract")]
+    Deploy {
+        #[clap(flatten)]
+        args: DeployArgs,
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: String,
+    },
     #[clap(about = "Deposit funds into some wallet.")]
     Deposit {
         // TODO: Parse ether instead.
@@ -53,6 +125,54 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "L1_RPC_URL")]
         l1_rpc_url: String,
     },
+    #[clap(about = "Get the account's nonce.", visible_aliases = ["n"])]
+    Nonce {
+        account: Address,
+        #[arg(default_value = "http://localhost:1729", env = "RPC_URL")]
+        rpc_url: String,
+    },
+    #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
+    Receipt {
+        tx_hash: H256,
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: String,
+    },
+    #[clap(about = "Send a transaction")]
+    Send {
+        #[clap(flatten)]
+        args: SendArgs,
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: String,
+    },
+    #[clap(about = "Get the transaction's info.", visible_aliases = ["tx", "t"])]
+    Transaction {
+        tx_hash: H256,
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: String,
+    },
+    #[clap(about = "Transfer funds to another wallet.")]
+    Transfer {
+        #[clap(flatten)]
+        args: TransferArgs,
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: String,
+    },
     #[clap(about = "Withdraw funds from the wallet.")]
     Withdraw {
         // TODO: Parse ether instead.
@@ -87,24 +207,6 @@ pub(crate) enum Command {
         )]
         rpc_url: String,
     },
-    #[clap(about = "Finalize a pending withdrawal.")]
-    ClaimWithdraw {
-        l2_withdrawal_tx_hash: H256,
-        #[clap(
-            short = 'b',
-            required = false,
-            help = "Do not wait for the transaction receipt"
-        )]
-        background: bool,
-        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
-        private_key: SecretKey,
-        #[arg(env = "BRIDGE_ADDRESS")]
-        bridge_address: Address,
-        #[arg(env = "L1_RPC_URL", default_value = "http://localhost:8545")]
-        l1_rpc_url: String,
-        #[arg(env = "RPC_URL", default_value = "http://localhost:1729")]
-        rpc_url: String,
-    },
     #[clap(about = "Get the withdrawal merkle proof of a transaction.")]
     WithdrawalProof {
         l2_withdrawal_tx_hash: H256,
@@ -113,108 +215,6 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
-    },
-    #[clap(about = "Get the current block_number.", visible_alias = "bl")]
-    BlockNumber {
-        #[arg(
-            default_value = "http://localhost:1729",
-            env = "RPC_URL",
-            help = "L2 RPC URL"
-        )]
-        rpc_url: String,
-    },
-    #[clap(about = "Get the transaction's info.", visible_aliases = ["tx", "t"])]
-    Transaction {
-        tx_hash: H256,
-        #[arg(
-            default_value = "http://localhost:1729",
-            env = "RPC_URL",
-            help = "L2 RPC URL"
-        )]
-        rpc_url: String,
-    },
-    #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
-    Receipt {
-        tx_hash: H256,
-        #[arg(
-            default_value = "http://localhost:1729",
-            env = "RPC_URL",
-            help = "L2 RPC URL"
-        )]
-        rpc_url: String,
-    },
-    #[clap(about = "Get the account's balance on L2.", visible_aliases = ["bal", "b"])]
-    Balance {
-        #[clap(flatten)]
-        args: BalanceArgs,
-        #[arg(
-            default_value = "http://localhost:1729",
-            env = "RPC_URL",
-            help = "L2 RPC URL"
-        )]
-        rpc_url: String,
-    },
-    #[clap(about = "Get the account's nonce.", visible_aliases = ["n"])]
-    Nonce {
-        account: Address,
-        #[arg(default_value = "http://localhost:1729", env = "RPC_URL")]
-        rpc_url: String,
-    },
-    #[clap(about = "Transfer funds to another wallet.")]
-    Transfer {
-        #[clap(flatten)]
-        args: TransferArgs,
-        #[arg(
-            default_value = "http://localhost:1729",
-            env = "RPC_URL",
-            help = "L2 RPC URL"
-        )]
-        rpc_url: String,
-    },
-    #[clap(about = "Send a transaction")]
-    Send {
-        #[clap(flatten)]
-        args: SendArgs,
-        #[arg(
-            default_value = "http://localhost:1729",
-            env = "RPC_URL",
-            help = "L2 RPC URL"
-        )]
-        rpc_url: String,
-    },
-    #[clap(about = "Make a call to a contract")]
-    Call {
-        #[clap(flatten)]
-        args: CallArgs,
-        #[arg(
-            default_value = "http://localhost:1729",
-            env = "RPC_URL",
-            help = "L2 RPC URL"
-        )]
-        rpc_url: String,
-    },
-    #[clap(about = "Deploy a contract")]
-    Deploy {
-        #[clap(flatten)]
-        args: DeployArgs,
-        #[arg(
-            default_value = "http://localhost:1729",
-            env = "RPC_URL",
-            help = "L2 RPC URL"
-        )]
-        rpc_url: String,
-    },
-    #[clap(about = "Get the network's chain id.")]
-    ChainId {
-        #[arg(
-            short,
-            long,
-            default_value_t = false,
-            help = "Display the chain id as a hex-string."
-        )]
-        hex: bool,
-        #[arg(default_value = "http://localhost:1729", env = "RPC_URL")]
         rpc_url: String,
     },
 }

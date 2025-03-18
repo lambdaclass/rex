@@ -31,27 +31,16 @@ pub(crate) struct CLI {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
-    #[clap(subcommand, about = "L2 specific commands.")]
-    L2(l2::Command),
+    #[clap(
+        about = "Get either the account's address from private key, the zero address, or a random address",
+        visible_aliases = ["addr", "a"]
+    )]
+    Address {
+        #[arg(value_parser = parse_address_opts, help = "Address options. (random, zero, from-private-key)", long_help = "random - random address, zero - zero address, from-private-key - address from the private key")]
+        opts: AddressOpts,
+    },
     #[clap(subcommand, about = "Generate shell completion scripts.")]
     Autocomplete(autocomplete::Command),
-    #[clap(about = "Get the current block_number.", visible_alias = "bl")]
-    BlockNumber {
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
-    },
-    #[clap(about = "Get the transaction's info.", visible_aliases = ["tx", "t"])]
-    Transaction {
-        tx_hash: H256,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
-    },
-    #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
-    Receipt {
-        tx_hash: H256,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
-    },
     #[clap(about = "Get the account's balance info.", visible_aliases = ["bal", "b"])]
     Balance {
         account: Address,
@@ -70,45 +59,8 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
-    #[clap(about = "Get the account's nonce.", visible_aliases = ["n"])]
-    Nonce {
-        account: Address,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
-    },
-    #[clap(
-        about = "Get either the account's address from private key, the zero address, or a random address",
-        visible_aliases = ["addr", "a"]
-    )]
-    Address {
-        #[arg(value_parser = parse_address_opts, help = "Address options. (random, zero, from-private-key)", long_help = "random - random address, zero - zero address, from-private-key - address from the private key")]
-        opts: AddressOpts,
-    },
-    #[clap(
-        about = "Get either the keccak for a given input, the zero hash, the empty string, or a random hash",
-        visible_alias = "h"
-    )]
-    Hash {
-        #[arg(value_parser = parse_hash_opts, help = "Hash options. (zero, random, string, input)", long_help = "zero - zero hash, random - random hash, string - empty string hash, input - hash of the input")]
-        opts: HashOpts,
-    },
-    Signer {
-        #[arg(value_parser = parse_message)]
-        message: secp256k1::Message,
-        #[arg(value_parser = parse_hex)]
-        signature: Bytes,
-    },
-    #[clap(about = "Transfer funds to another wallet.")]
-    Transfer {
-        #[clap(flatten)]
-        args: TransferArgs,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
-    },
-    #[clap(about = "Send a transaction")]
-    Send {
-        #[clap(flatten)]
-        args: SendArgs,
+    #[clap(about = "Get the current block_number.", visible_alias = "bl")]
+    BlockNumber {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
@@ -116,13 +68,6 @@ pub(crate) enum Command {
     Call {
         #[clap(flatten)]
         args: CallArgs,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
-    },
-    #[clap(about = "Deploy a contract")]
-    Deploy {
-        #[clap(flatten)]
-        args: DeployArgs,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
@@ -135,6 +80,61 @@ pub(crate) enum Command {
             help = "Display the chain id as a hex-string."
         )]
         hex: bool,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
+    #[clap(about = "Deploy a contract")]
+    Deploy {
+        #[clap(flatten)]
+        args: DeployArgs,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
+    #[clap(
+        about = "Get either the keccak for a given input, the zero hash, the empty string, or a random hash",
+        visible_alias = "h"
+    )]
+    Hash {
+        #[arg(value_parser = parse_hash_opts, help = "Hash options. (zero, random, string, input)", long_help = "zero - zero hash, random - random hash, string - empty string hash, input - hash of the input")]
+        opts: HashOpts,
+    },
+    #[clap(subcommand, about = "L2 specific commands.")]
+    L2(l2::Command),
+    #[clap(about = "Get the account's nonce.", visible_aliases = ["n"])]
+    Nonce {
+        account: Address,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
+    #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
+    Receipt {
+        tx_hash: H256,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
+    #[clap(about = "Send a transaction")]
+    Send {
+        #[clap(flatten)]
+        args: SendArgs,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
+    Signer {
+        #[arg(value_parser = parse_message)]
+        message: secp256k1::Message,
+        #[arg(value_parser = parse_hex)]
+        signature: Bytes,
+    },
+    #[clap(about = "Get the transaction's info.", visible_aliases = ["tx", "t"])]
+    Transaction {
+        tx_hash: H256,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
+    #[clap(about = "Transfer funds to another wallet.")]
+    Transfer {
+        #[clap(flatten)]
+        args: TransferArgs,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
