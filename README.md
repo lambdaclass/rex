@@ -1,11 +1,9 @@
 # Rex - Developing on Ethereum powered by Ethrex
 
-`rex` is a set of utilities for Ethereum development.
-
-Rex is powered by [Ethrex](https://github.com/lambdaclass/ethrex)
+Rex is a set of utilities for Ethereum development powered by [Ethrex](https://github.com/lambdaclass/ethrex).
 
 With **Rex** you can
-- Launch your own devnet using ethrex
+- Launch your own devnet using Ethrex
 - Interact with a running L1 network
 - Interact with a running Ethrex L2 network
 - Execute useful functions for Ethereum development.
