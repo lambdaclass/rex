@@ -12,6 +12,8 @@ With **Rex** you can
 
 Our **CLI** is built on top of the **SDK**, ensuring a consistent and powerful developer experience.
 
+Rex is currently a replacement for foundry's `cast` and `alloy`.
+
 ## `rex` CLI
 
 The `rex` CLI is a command line tool that provides a set of utilities for Ethereum development.
