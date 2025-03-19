@@ -61,6 +61,8 @@ pub enum BlockByNumber {
 
 // 0x08c379a0 == Error(String)
 pub const ERROR_FUNCTION_SELECTOR: [u8; 4] = [0x08, 0xc3, 0x79, 0xa0];
+// 0x70a08231 == balanceOf(address)
+pub const BALANCE_OF_SELECTOR: [u8; 4] = [0x70, 0xa0, 0x82, 0x31];
 
 impl EthClient {
     pub fn new(url: &str) -> Self {
@@ -627,6 +629,25 @@ impl EthClient {
             }
             Err(error) => Err(error),
         }
+    }
+
+    pub async fn get_token_balance(
+        &self,
+        address: Address,
+        token_address: Address,
+    ) -> Result<U256, EthClientError> {
+        let mut calldata = Vec::from(BALANCE_OF_SELECTOR);
+        calldata.resize(16, 0);
+        calldata.extend(address.to_fixed_bytes());
+        U256::from_str_radix(
+            &self
+                .call(token_address, calldata.into(), Overrides::default())
+                .await?,
+            16,
+        )
+        .map_err(|_| {
+            EthClientError::Custom(format!("Address {token_address} did not return a uint256"))
+        })
     }
 
     pub async fn get_chain_id(&self) -> Result<U256, EthClientError> {

@@ -166,13 +166,12 @@ impl Command {
                 eth,
                 rpc_url,
             } => {
-                if token_address.is_some() {
-                    todo!("Handle ERC20 balances")
-                }
-
                 let eth_client = EthClient::new(&rpc_url);
-
-                let account_balance = eth_client.get_balance(account).await?;
+                let account_balance = if let Some(token_address) = token_address {
+                    eth_client.get_token_balance(account, token_address).await?
+                } else {
+                    eth_client.get_balance(account).await?
+                };
 
                 println!("{}", balance_in_eth(eth, account_balance));
             }
