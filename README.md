@@ -263,5 +263,13 @@ cargo run --release --example simple_usage -- --private-key <PRIVATE_KEY> --rpc-
 You can find the SDK documentation [here](sdk/README.md).
 
 
+# Security
+
+We take security seriously. If you discover a vulnerability in this project, please report it responsibly. 
+
+- You can report vulnerabilities directly via the **[GitHub "Report a Vulnerability" feature](../../security/advisories/new)**.
+- Alternatively, send an email to **[security@lambdaclass.com](mailto:security@lambdaclass.com)**.
+
+For more details, please refer to our [Security Policy](./.github/SECURITY.md).
 
  
