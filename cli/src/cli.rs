@@ -51,6 +51,7 @@ pub(crate) enum Command {
         account: Address,
         #[clap(
             long = "token",
+            conflicts_with = "eth",
             help = "Specify the token address, the ETH is used as default."
         )]
         token_address: Option<Address>,
@@ -58,6 +59,7 @@ pub(crate) enum Command {
             long = "eth",
             required = false,
             default_value_t = false,
+            conflicts_with = "token_address",
             help = "Display the balance in ETH."
         )]
         eth: bool,
