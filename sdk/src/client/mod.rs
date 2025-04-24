@@ -1,5 +1,4 @@
-pub mod auth;
 pub mod eth;
+pub use eth::{EthClient, errors::EthClientError, eth_sender::Overrides};
 
-pub use auth::{config::EngineApiConfig, errors::EngineClientError, EngineClient};
-pub use eth::{errors::EthClientError, eth_sender::Overrides, EthClient};
+pub use ethrex_rpc::clients::auth;

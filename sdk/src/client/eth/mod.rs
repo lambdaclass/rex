@@ -156,7 +156,7 @@ impl EthClient {
                     .await
             }
             WrappedTransaction::L2(privileged_l2_transaction) => {
-                self.send_privileged_l2_transaction(privileged_l2_transaction, private_key)
+                self.send_privileged_l2_transaction(privileged_l2_transaction)
                     .await
             }
         };
@@ -307,7 +307,7 @@ impl EthClient {
             tx.max_priority_fee_per_gas = l2_tx.max_fee_per_gas;
             tx.gas_limit = l2_tx.gas_limit;
         }
-        self.send_privileged_l2_transaction(tx, private_key).await
+        self.send_privileged_l2_transaction(tx).await
     }
 
     /// Increase max fee per gas by percentage% (set it to (100+percentage)% of the original)
@@ -319,11 +319,8 @@ impl EthClient {
     pub async fn send_privileged_l2_transaction(
         &self,
         tx: &PrivilegedL2Transaction,
-        private_key: &SecretKey,
     ) -> Result<H256, EthClientError> {
-        let signed_tx = tx.sign(private_key);
-
-        let mut encoded_tx = signed_tx.encode_to_vec();
+        let mut encoded_tx = tx.encode_to_vec();
         encoded_tx.insert(0, TxType::Privileged.into());
 
         self.send_raw_transaction(encoded_tx.as_slice()).await
