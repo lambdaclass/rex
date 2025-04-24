@@ -90,6 +90,12 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
+    #[clap(about = "Returns code at a given address")]
+    Code {
+        address: Address,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
     #[clap(about = "Deploy a contract")]
     Deploy {
         #[clap(flatten)]
@@ -406,6 +412,9 @@ impl Command {
                 } else {
                     println!("{chain_id}");
                 }
+            }
+            Command::Code { address, rpc_url } => {
+                let eth_client = EthClient::new(&rpc_url);
             }
         };
         Ok(())
