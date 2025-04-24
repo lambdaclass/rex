@@ -415,6 +415,10 @@ impl Command {
             }
             Command::Code { address, rpc_url } => {
                 let eth_client = EthClient::new(&rpc_url);
+
+                let code = eth_client.get_code(address).await?;
+
+                println!("{}", code);
             }
         };
         Ok(())
