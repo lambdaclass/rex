@@ -1,0 +1,57 @@
+name: rex cli
+on:
+  push:
+    branches: ["main"]
+  merge_group:
+  pull_request:
+    branches: ["**"]
+    paths-ignore:
+      - "cli/**" # We run this in a separate workflow
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Rustup toolchain install
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Add Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run cargo check
+        run: cargo check --manifest-path sdk/Cargo.toml
+
+      - name: Run cargo build
+        run: cargo build --manifest-path sdk/Cargo.toml
+
+      - name: Run cargo clippy
+        run: cargo clippy --manifest-path sdk/Cargo.toml --all-targets --all-features -- -D warnings
+
+      - name: Run cargo fmt
+        run: cargo fmt --manifest-path sdk/Cargo.toml --all -- --check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Rustup toolchain install
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Caching
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run tests
+        run: cargo test --manifest-path sdk/Cargo.toml
