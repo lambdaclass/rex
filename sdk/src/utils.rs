@@ -17,5 +17,3 @@ where
     let hex = H256::from_slice(&secret_key.secret_bytes());
     hex.serialize(serializer)
 }
-
-
