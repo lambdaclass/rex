@@ -91,7 +91,7 @@ fn test_balance_in_ether() {
     assert_eq!(
         "999999999.999003869993631450",
         balance_in_eth(
-            false,
+            true,
             U256::from_dec_str("999999999999003869993631450").unwrap()
         )
     );
@@ -100,7 +100,7 @@ fn test_balance_in_ether() {
     assert_eq!(
         "0.509003869993631450",
         balance_in_eth(
-            false,
+            true,
             U256::from_dec_str("000000000509003869993631450").unwrap()
         )
     );
@@ -109,11 +109,11 @@ fn test_balance_in_ether() {
     assert_eq!(
         "0.005090038699936314",
         balance_in_eth(
-            false,
+            true,
             U256::from_dec_str("000000000005090038699936314").unwrap()
         )
     );
 
     // test 0.0
-    assert_eq!("0.000000000000000000", balance_in_eth(false, U256::zero()));
+    assert_eq!("0.000000000000000000", balance_in_eth(true, U256::zero()));
 }
