@@ -93,6 +93,14 @@ pub(crate) enum Command {
     #[clap(about = "Returns code at a given address")]
     Code {
         address: Address,
+        #[arg(
+            short = 'B',
+            long = "block",
+            required = false,
+            default_value_t = String::from("latest"),
+            help = "defaultBlock parameter: can be integer block number, 'earliest', 'finalized', 'safe', 'latest' or 'pending'"
+        )]
+        block: String,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
@@ -413,10 +421,14 @@ impl Command {
                     println!("{chain_id}");
                 }
             }
-            Command::Code { address, rpc_url } => {
+            Command::Code {
+                address,
+                block,
+                rpc_url,
+            } => {
                 let eth_client = EthClient::new(&rpc_url);
 
-                let code = eth_client.get_code(address).await?;
+                let code = eth_client.get_code(address, block).await?;
 
                 println!("{}", code);
             }

@@ -1077,12 +1077,16 @@ impl EthClient {
         ))
     }
 
-    pub async fn get_code(&self, address: Address) -> Result<String, EthClientError> {
+    pub async fn get_code(
+        &self,
+        address: Address,
+        block: String,
+    ) -> Result<String, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
             jsonrpc: "2.0".to_string(),
             method: "eth_getCode".to_string(),
-            params: Some(vec![json!(address), json!("latest")]),
+            params: Some(vec![json!(address), json!(block)]),
         };
 
         match self.send_request(request).await {
