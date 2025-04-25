@@ -1,4 +1,4 @@
-name: rex cli
+name: rex sdk
 on:
   push:
     branches: ["main"]
