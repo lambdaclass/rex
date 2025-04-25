@@ -43,6 +43,7 @@ Commands:
   call          Make a call to a contract
   chain-id      Get the network's chain id.
   deploy        Deploy a contract
+  code          Returns code at a given address
   hash          Get either the keccak for a given input, the zero hash, the empty string, or a random hash [aliases: h, h]
   l2            L2 specific commands.
   nonce         Get the account's nonce. [aliases: n]
