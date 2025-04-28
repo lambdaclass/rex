@@ -14,7 +14,7 @@ use rex_sdk::{
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
-use secp256k1::{SecretKey, Message};
+use secp256k1::{Message, SecretKey};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -417,7 +417,8 @@ impl Command {
                 }
             }
             Command::Sign { args } => {
-                args.from_private_key.sign_ecdsa(Message::from_digest_slice(&args.msg.into_bytes())?);
+                args.from_private_key
+                    .sign_ecdsa(Message::from_digest_slice(&args.msg.into_bytes())?);
             }
         };
         Ok(())
