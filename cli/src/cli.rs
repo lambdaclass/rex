@@ -1,4 +1,5 @@
 use crate::commands::l2;
+use crate::common::SignArgs;
 use crate::utils::{parse_hex, parse_message};
 use crate::{
     commands::autocomplete,
@@ -13,7 +14,7 @@ use rex_sdk::{
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
-use secp256k1::SecretKey;
+use secp256k1::{SecretKey, Message};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -154,6 +155,14 @@ pub(crate) enum Command {
         args: TransferArgs,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
+    },
+    #[clap(
+        about = "Sign a message with a private key",
+        visible_aliases = ["sign", "s"]
+    )]
+    Sign {
+        #[clap(flatten)]
+        args: SignArgs,
     },
 }
 
@@ -406,6 +415,9 @@ impl Command {
                 } else {
                     println!("{chain_id}");
                 }
+            }
+            Command::Sign { args } => {
+                args.from_private_key.sign_ecdsa(Message::from_digest_slice(&args.msg.into_bytes())?);
             }
         };
         Ok(())

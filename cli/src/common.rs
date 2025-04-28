@@ -146,3 +146,11 @@ pub struct DeployArgs {
     #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
     pub private_key: SecretKey,
 }
+
+#[derive(Parser)]
+pub struct SignArgs {
+    #[clap(long, value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to sign the message.")]
+    pub from_private_key: SecretKey,
+    #[clap(short, long, help = "The zero address.")]
+    pub msg: String,
+}
