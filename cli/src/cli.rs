@@ -417,7 +417,8 @@ impl Command {
                 }
             }
             Command::Sign { args } => {
-                let signed_msg = args.from_private_key
+                let signed_msg = args
+                    .from_private_key
                     .sign_ecdsa(Message::from_digest_slice(&args.msg.into_bytes())?);
                 println!("{signed_msg}");
             }
@@ -426,14 +427,19 @@ impl Command {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn sign_command() {
         // 0x05 2d 7e 21 2b 30 b5 05 f3 37 b0 be 5c f9 53 c3 d3 17 57 24 f3 37 b0 be 5c f9 53 c3 d3 17 57 24 ------ u8 + 32
-        let args = SignArgs{from_private_key:parse_private_key("0x052d7e212b30b505f337b0be5cf953c3d3175724f337b0be5cf953c3d3175724").unwrap(), msg:String::from("Holis")};
-        Command::Sign{args}.run(); 
+        let args = SignArgs {
+            from_private_key: parse_private_key(
+                "0x052d7e212b30b505f337b0be5cf953c3d3175724f337b0be5cf953c3d3175724",
+            )
+            .unwrap(),
+            msg: String::from("Holis"),
+        };
+        Command::Sign { args }.run();
     }
 }
