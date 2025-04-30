@@ -442,7 +442,7 @@ impl Command {
 
                 println!("{}", code);
             }
-            
+
             Command::Sign { args } => {
                 let msg_digest = sha256::Hash::hash(args.msg.as_bytes());
                 let signed_msg = args
