@@ -1076,6 +1076,29 @@ impl EthClient {
             "Transaction receipt is None".to_owned(),
         ))
     }
+
+    pub async fn get_code(
+        &self,
+        address: Address,
+        block: String,
+    ) -> Result<String, EthClientError> {
+        let request = RpcRequest {
+            id: RpcRequestId::Number(1),
+            jsonrpc: "2.0".to_string(),
+            method: "eth_getCode".to_string(),
+            params: Some(vec![json!(address), json!(block)]),
+        };
+
+        match self.send_request(request).await {
+            Ok(RpcResponse::Success(result)) => serde_json::from_value(result.result)
+                .map_err(SendRawTransactionError::SerdeJSONError)
+                .map_err(EthClientError::from),
+            Ok(RpcResponse::Error(error_response)) => {
+                Err(SendRawTransactionError::RPCError(error_response.error.message).into())
+            }
+            Err(error) => Err(error),
+        }
+    }
 }
 
 pub fn from_hex_string_to_u256(hex_str: &str) -> Result<U256, EthClientError> {

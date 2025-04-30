@@ -92,6 +92,20 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
+    #[clap(about = "Returns code at a given address")]
+    Code {
+        address: Address,
+        #[arg(
+            short = 'B',
+            long = "block",
+            required = false,
+            default_value_t = String::from("latest"),
+            help = "defaultBlock parameter: can be integer block number, 'earliest', 'finalized', 'safe', 'latest' or 'pending'"
+        )]
+        block: String,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
     #[clap(about = "Deploy a contract")]
     Deploy {
         #[clap(flatten)]
@@ -423,6 +437,16 @@ impl Command {
                     .private_key
                     .sign_ecdsa(Message::from_digest(msg_digest.to_byte_array()));
                 println!("{signed_msg}");
+            Command::Code {
+                address,
+                block,
+                rpc_url,
+            } => {
+                let eth_client = EthClient::new(&rpc_url);
+
+                let code = eth_client.get_code(address, block).await?;
+
+                println!("{}", code);
             }
         };
         Ok(())
