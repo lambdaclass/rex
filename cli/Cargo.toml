@@ -27,6 +27,7 @@ strum = "0.27.1"
 # Crypto
 keccak-hash.workspace = true
 secp256k1.workspace = true
+secp256k1.features = ["hashes-std"]
 
 # Utils
 hex.workspace = true

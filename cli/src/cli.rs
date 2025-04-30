@@ -14,6 +14,7 @@ use rex_sdk::{
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
+use secp256k1::hashes::{Hash, sha256};
 use secp256k1::{Message, SecretKey};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
@@ -417,9 +418,10 @@ impl Command {
                 }
             }
             Command::Sign { args } => {
+                let msg_digest = sha256::Hash::hash(args.msg.as_bytes());
                 let signed_msg = args
-                    .from_private_key
-                    .sign_ecdsa(Message::from_digest_slice(&args.msg.into_bytes())?);
+                    .private_key
+                    .sign_ecdsa(Message::from_digest(msg_digest.to_byte_array()));
                 println!("{signed_msg}");
             }
         };
@@ -434,7 +436,7 @@ mod tests {
     fn sign_command() {
         // 0x05 2d 7e 21 2b 30 b5 05 f3 37 b0 be 5c f9 53 c3 d3 17 57 24 f3 37 b0 be 5c f9 53 c3 d3 17 57 24 ------ u8 + 32
         let args = SignArgs {
-            from_private_key: parse_private_key(
+            private_key: parse_private_key(
                 "0x052d7e212b30b505f337b0be5cf953c3d3175724f337b0be5cf953c3d3175724",
             )
             .unwrap(),
