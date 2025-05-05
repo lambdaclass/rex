@@ -115,10 +115,6 @@ pub(crate) enum Command {
         about = "Get either the keccak for a given input, the zero hash, the empty string, or a random hash",
         visible_alias = "h"
     )]
-    #[clap(
-        about = "Get either the keccak for a given input, the zero hash, the empty string, or a random hash",
-        visible_alias = "h"
-    )]
     Hash {
         #[arg(long, value_parser = parse_hex, conflicts_with_all = ["zero", "random", "string"], required_unless_present_any = ["zero", "random", "string"], help = "The input to hash.")]
         input: Option<Bytes>,
