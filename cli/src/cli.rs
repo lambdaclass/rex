@@ -6,7 +6,7 @@ use crate::{
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
-use ethrex_common::{Address, Bytes, H256};
+use ethrex_common::{Address, Bytes, H256, H512};
 use keccak_hash::keccak;
 use rex_sdk::{
     balance_in_eth,
@@ -444,8 +444,12 @@ impl Command {
             }
 
             Command::Sign { msg, private_key } => {
-                let signed_msg = private_key.sign_ecdsa(Message::from_digest(keccak(&msg).into()));
-                println!("{signed_msg}");
+                let mut message = Bytes::from_static(b"\x19Ethereum Signed Message:\n").to_vec();
+                message.push(msg.len() as u8);
+                message.append(&mut msg.to_vec());
+                let signed_msg = private_key
+                    .sign_ecdsa(Message::from_digest(keccak(&Bytes::from(message)).into()));
+                println!("0x{:x}", H512::from_slice(&signed_msg.serialize_compact()));
             }
         };
         Ok(())
