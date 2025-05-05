@@ -1,5 +1,4 @@
 use crate::commands::l2;
-use crate::common::SignArgs;
 use crate::utils::{parse_hex, parse_message};
 use crate::{
     commands::autocomplete,
@@ -172,11 +171,13 @@ pub(crate) enum Command {
     },
     #[clap(
         about = "Sign a message with a private key",
-        visible_aliases = ["sign", "s"]
+        visible_aliases = ["s"]
     )]
     Sign {
-        #[clap(flatten)]
-        args: SignArgs,
+        #[arg(value_parser = parse_hex, help = "Message to be signed with the private key.")]
+        msg: Bytes,
+        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to sign the message.")]
+        private_key: SecretKey,
     },
 }
 
@@ -442,10 +443,8 @@ impl Command {
                 println!("{}", code);
             }
 
-            Command::Sign { args } => {
-                let signed_msg = args
-                    .private_key
-                    .sign_ecdsa(Message::from_digest(keccak(&args.msg).into()));
+            Command::Sign { msg, private_key } => {
+                let signed_msg = private_key.sign_ecdsa(Message::from_digest(keccak(&msg).into()));
                 println!("{signed_msg}");
             }
         };
