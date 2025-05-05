@@ -14,9 +14,6 @@ use rex_sdk::{
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
-use std::collections::hash_map::DefaultHasher;
-use std::hash::Hash;
-use std::hash::Hasher;
 use secp256k1::{Message, SecretKey};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
@@ -446,14 +443,10 @@ impl Command {
             }
 
             Command::Sign { args } => {
-                let mut hasher = DefaultHasher::new();
-                args.msg.hash(&mut hasher);
-                let msg_digest = hasher.finish();
                 let signed_msg = args
                     .private_key
-                    .sign_ecdsa(Message::from_digest(&args.msg.to_vec()));
+                    .sign_ecdsa(Message::from_digest(keccak(&args.msg).into()));
                 println!("{signed_msg}");
-
             }
         };
         Ok(())
