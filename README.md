@@ -52,7 +52,7 @@ Commands:
   signer        
   transaction   Get the transaction's info. [aliases: tx, t]
   transfer      Transfer funds to another wallet.
-  sign          Sign a message with a private key [aliases: s]
+  sign          Sign a message with a private key.
   help          Print this message or the help of the given subcommand(s)
 
 Options:

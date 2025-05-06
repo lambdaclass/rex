@@ -165,10 +165,7 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
-    #[clap(
-        about = "Sign a message with a private key",
-        visible_aliases = ["s"]
-    )]
+    #[clap(about = "Sign a message with a private key")]
     Sign {
         #[arg(value_parser = parse_hex, help = "Message to be signed with the private key.")]
         msg: Bytes,
