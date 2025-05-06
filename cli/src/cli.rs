@@ -6,7 +6,7 @@ use crate::{
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
-use ethrex_common::{Address, Bytes, H256, H512};
+use ethrex_common::{Address, Bytes, H256, H512, H520};
 use keccak_hash::keccak;
 use rex_sdk::{
     balance_in_eth,
@@ -440,9 +440,18 @@ impl Command {
                 let mut message = Bytes::from_static(b"\x19Ethereum Signed Message:\n").to_vec();
                 message.push(msg.len() as u8);
                 message.append(&mut msg.to_vec());
-                let signed_msg = private_key
-                    .sign_ecdsa(Message::from_digest(keccak(&Bytes::from(message)).into()));
-                println!("0x{:x}", H512::from_slice(&signed_msg.serialize_compact()));
+
+                let signed_msg = secp256k1::SECP256K1.sign_ecdsa_recoverable(
+                    &Message::from_digest(keccak(Bytes::from(message)).into()),
+                    &private_key,
+                );
+                let recovery_id = signed_msg.serialize_compact().0.to_i32() as u8;
+
+                let mut signature = H512::from_slice(&signed_msg.serialize_compact().1)
+                    .as_bytes_mut()
+                    .to_vec();
+                signature.push(recovery_id);
+                println!("0x{:x}", H520::from_slice(&signature[..]));
             }
         };
         Ok(())
