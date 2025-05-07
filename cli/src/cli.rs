@@ -436,6 +436,9 @@ impl Command {
                 println!("{}", code);
             }
 
+            //Signature computed as a 0x45 signature, as described in EIP-191 (https://eips.ethereum.org/EIPS/eip-191),
+            //then it has an extra byte concatenated at the end, which is a scalar value added to the signatures parity,
+            //as described in the Yellow Paper Section 4.2 in the specification of a transaction's w field. (https://ethereum.github.io/yellowpaper/paper.pdf)
             Command::Sign { msg, private_key } => {
                 let mut message = Bytes::from_static(b"\x19Ethereum Signed Message:\n").to_vec();
                 message.append(&mut msg.len().to_string().as_bytes().to_vec());
@@ -445,7 +448,6 @@ impl Command {
                     &private_key,
                 );
                 let recovery_id = signed_msg.serialize_compact().0.to_i32() as u8 + 27;
-
                 let mut signature = H512::from_slice(&signed_msg.serialize_compact().1)
                     .as_bytes_mut()
                     .to_vec();
