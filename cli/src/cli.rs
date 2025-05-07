@@ -438,9 +438,8 @@ impl Command {
 
             Command::Sign { msg, private_key } => {
                 let mut message = Bytes::from_static(b"\x19Ethereum Signed Message:\n").to_vec();
-                message.push(msg.len() as u8);
+                message.append(&mut msg.len().to_string().as_bytes().to_vec());
                 message.append(&mut msg.to_vec());
-
                 let signed_msg = secp256k1::SECP256K1.sign_ecdsa_recoverable(
                     &Message::from_digest(keccak(Bytes::from(message)).into()),
                     &private_key,
