@@ -444,7 +444,7 @@ impl Command {
                     &Message::from_digest(keccak(Bytes::from(message)).into()),
                     &private_key,
                 );
-                let recovery_id = signed_msg.serialize_compact().0.to_i32() as u8;
+                let recovery_id = signed_msg.serialize_compact().0.to_i32() as u8 + 27;
 
                 let mut signature = H512::from_slice(&signed_msg.serialize_compact().1)
                     .as_bytes_mut()
