@@ -6,7 +6,7 @@ use crate::{
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
-use ethrex_common::{Address, Bytes, H256, H512, H520};
+use ethrex_common::{Address, Bytes, H256, H520};
 use keccak_hash::keccak;
 use rex_sdk::{
     balance_in_eth,
@@ -146,6 +146,13 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
+    #[clap(about = "Sign a message with a private key")]
+    Sign {
+        #[arg(value_parser = parse_hex, help = "Message to be signed with the private key.")]
+        msg: Bytes,
+        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to sign the message.")]
+        private_key: SecretKey,
+    },
     Signer {
         #[arg(value_parser = parse_message)]
         message: secp256k1::Message,
@@ -164,13 +171,6 @@ pub(crate) enum Command {
         args: TransferArgs,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
-    },
-    #[clap(about = "Sign a message with a private key")]
-    Sign {
-        #[arg(value_parser = parse_hex, help = "Message to be signed with the private key.")]
-        msg: Bytes,
-        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to sign the message.")]
-        private_key: SecretKey,
     },
 }
 
