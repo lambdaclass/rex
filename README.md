@@ -40,18 +40,19 @@ Commands:
   autocomplete  Generate shell completion scripts.
   balance       Get the account's balance info. [aliases: bal, b]
   block-number  Get the current block_number. [aliases: bl]
-  call          Make a call to a contract
+  call          Make a call to a contract.
   chain-id      Get the network's chain id.
-  deploy        Deploy a contract
-  code          Returns code at a given address
-  hash          Get either the keccak for a given input, the zero hash, the empty string, or a random hash [aliases: h, h]
+  deploy        Deploy a contract.
+  code          Returns code at a given address.
+  hash          Get either the keccak for a given input, the zero hash, the empty string, or a random hash. [aliases: h, h]
   l2            L2 specific commands.
   nonce         Get the account's nonce. [aliases: n]
   receipt       Get the transaction's receipt. [aliases: r]
-  send          Send a transaction
+  send          Send a transaction.
   signer        
   transaction   Get the transaction's info. [aliases: tx, t]
   transfer      Transfer funds to another wallet.
+  verify        Verify if a messages signature was made by an account.
   help          Print this message or the help of the given subcommand(s)
 
 Options:
