@@ -1,5 +1,5 @@
 use crate::commands::l2;
-use crate::utils::parse_hex;
+use crate::utils::{parse_func_call, parse_hex};
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
@@ -75,13 +75,12 @@ pub(crate) enum Command {
     Call {
         #[clap(flatten)]
         args: CallArgs,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
     #[clap(about = "Get the network's chain id.")]
     ChainId {
         #[arg(
-            short,
             long,
             default_value_t = false,
             help = "Display the chain id as a hex-string."
@@ -143,7 +142,7 @@ pub(crate) enum Command {
     Send {
         #[clap(flatten)]
         args: SendArgs,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
     Signer {
@@ -330,11 +329,17 @@ impl Command {
 
                 let client = EthClient::new(&rpc_url);
 
+                let calldata = if !args.calldata.is_empty() {
+                    args.calldata
+                } else {
+                    parse_func_call(args._args)?
+                };
+
                 let tx = client
                     .build_eip1559_transaction(
                         args.to,
                         from,
-                        args.calldata,
+                        calldata,
                         Overrides {
                             value: Some(args.value),
                             chain_id: args.chain_id,
@@ -366,10 +371,16 @@ impl Command {
 
                 let client = EthClient::new(&rpc_url);
 
+                let calldata = if !args.calldata.is_empty() {
+                    args.calldata
+                } else {
+                    parse_func_call(args._args)?
+                };
+
                 let result = client
                     .call(
                         args.to,
-                        args.calldata,
+                        calldata,
                         Overrides {
                             from: args.from,
                             value: args.value.into(),

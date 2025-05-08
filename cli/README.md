@@ -224,13 +224,12 @@ Options:
 ```Shell
 Send a transaction
 
-Usage: rex send [OPTIONS] <TO> [VALUE] <PRIVATE_KEY> [RPC_URL]
+Usage: rex send [OPTIONS] <TO> [VALUE] <PRIVATE_KEY> -- [SIGNATURE [ARGS]]
 
 Arguments:
   <TO>
   [VALUE]        Value to send in wei [default: 0]
   <PRIVATE_KEY>  [env: PRIVATE_KEY=]
-  [RPC_URL]      [env: RPC_URL=] [default: http://localhost:8545]
 
 Options:
       --calldata <CALLDATA>                            [default: ]
@@ -239,7 +238,8 @@ Options:
       --gas-limit <GAS_LIMIT>
       --gas-price <MAX_FEE_PER_GAS>
       --priority-gas-price <MAX_PRIORITY_FEE_PER_GAS>
-  -b                                                   Do not wait for the transaction receipt
+      --rpc-url <RPC_URL>                              [env: RPC_URL=] [default: http://localhost:8545]
+      -b                                               Do not wait for the transaction receipt
       --explorer-url                                   Display transaction URL in the explorer.
   -h, --help                                           Print help
 ```
@@ -249,19 +249,19 @@ Options:
 ```Shell
 Make a call to a contract
 
-Usage: rex call [OPTIONS] <TO> [CALLDATA] [VALUE] [RPC_URL]
+Usage: rex call [OPTIONS] <TO> [CALLDATA] [VALUE]  -- [SIGNATURE [ARGS]]
 
 Arguments:
   <TO>
   [CALLDATA]  [default: ]
   [VALUE]     Value to send in wei [default: 0]
-  [RPC_URL]   [env: RPC_URL=] [default: http://localhost:8545]
 
 Options:
       --from <FROM>
       --gas-limit <GAS_LIMIT>
       --max-fee-per-gas <MAX_FEE_PER_GAS>
       --explorer-url                       Display transaction URL in the explorer.
+      --rpc-url <RPC_URL>                  [env: RPC_URL=] [default: http://localhost:8545]
   -h, --help                               Print help
 ```
 

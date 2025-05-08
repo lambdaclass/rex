@@ -1,5 +1,6 @@
-use ethrex_common::{Bytes, U256};
+use ethrex_common::{Address, Bytes, U256};
 use hex::FromHexError;
+use rex_sdk::calldata::{Value, encode_calldata, parse_signature};
 use secp256k1::SecretKey;
 use std::str::FromStr;
 
@@ -21,4 +22,43 @@ pub fn parse_hex(s: &str) -> eyre::Result<Bytes, FromHexError> {
         Some(s) => hex::decode(s).map(Into::into),
         None => hex::decode(s).map(Into::into),
     }
+}
+
+pub fn parse_func_call(args: Vec<String>) -> eyre::Result<Bytes> {
+    let mut args_iter = args.iter();
+    let Some(signature) = args_iter.next() else {
+        return Ok(Bytes::new());
+    };
+    let (_, params) = parse_signature(signature)?;
+    let mut values = Vec::new();
+    for param in params {
+        let val = args_iter
+            .next()
+            .ok_or(eyre::Error::msg("missing parameter for given signature"))?;
+        values.push(match param.as_str() {
+            "address" => Value::Address(Address::from_str(val)?),
+            _ if param.starts_with("uint") => Value::Uint(U256::from_dec_str(val)?),
+            _ if param.starts_with("int") => {
+                if let Some(val) = val.strip_prefix("-") {
+                    let x = U256::from_str(val)?;
+                    if x.is_zero() {
+                        Value::Uint(x)
+                    } else {
+                        Value::Uint(U256::max_value() - x + 1)
+                    }
+                } else {
+                    Value::Uint(U256::from_dec_str(val)?)
+                }
+            }
+            "bool" => match val.as_str() {
+                "true" => Value::Uint(U256::from(1)),
+                "false" => Value::Uint(U256::from(0)),
+                _ => Err(eyre::Error::msg("Invalid boolean"))?,
+            },
+            "bytes" => Value::Bytes(hex::decode(val)?.into()),
+            _ if param.starts_with("bytes") => Value::FixedBytes(hex::decode(val)?.into()),
+            _ => todo!("type unsupported"),
+        });
+    }
+    Ok(encode_calldata(signature, &values)?.into())
 }
