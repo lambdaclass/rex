@@ -27,7 +27,7 @@ pub enum Value {
     FixedBytes(Bytes),
 }
 
-fn parse_signature(signature: &str) -> Result<(String, Vec<String>), CalldataEncodeError> {
+pub fn parse_signature(signature: &str) -> Result<(String, Vec<String>), CalldataEncodeError> {
     let sig = signature.trim().trim_start_matches("function ");
     let (name, params) = sig
         .split_once('(')
@@ -37,7 +37,11 @@ fn parse_signature(signature: &str) -> Result<(String, Vec<String>), CalldataEnc
         .split(',')
         .map(|x| x.trim().split_once(' ').unzip().0.unwrap_or(x).to_string())
         .collect();
-    Ok((name.to_string(), params))
+    if params.first().ok_or(CalldataEncodeError::InternalError)?.is_empty() {
+        Ok((name.to_string(), vec![]))
+    } else {
+        Ok((name.to_string(), params))
+    }
 }
 
 fn compute_function_selector(name: &str, params: &[String]) -> Result<H32, CalldataEncodeError> {
@@ -51,17 +55,6 @@ fn compute_function_selector(name: &str, params: &[String]) -> Result<H32, Calld
 
 pub fn encode_calldata(signature: &str, values: &[Value]) -> Result<Vec<u8>, CalldataEncodeError> {
     let (name, params) = parse_signature(signature)?;
-
-    // Checks if params = [""]
-    // that case happen when we have a function selector as follows: function name()
-    let mut params = params;
-    if params
-        .first()
-        .ok_or(CalldataEncodeError::InternalError)?
-        .is_empty()
-    {
-        params = vec![];
-    }
 
     if params.len() != values.len() {
         return Err(CalldataEncodeError::WrongArgumentLength(

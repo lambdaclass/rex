@@ -376,6 +376,7 @@ impl EthClient {
                     if &error_data == "0x" {
                         "unknown error".to_owned()
                     } else {
+println!("{error_data}");
                         let abi_decoded_error_data = hex::decode(
                             error_data.strip_prefix("0x").ok_or(EthClientError::Custom(
                                 "Failed to strip_prefix in estimate_gas".to_owned(),
