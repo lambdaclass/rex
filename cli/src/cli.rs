@@ -10,7 +10,10 @@ use ethrex_common::{Address, Bytes, H256};
 use keccak_hash::keccak;
 use rex_sdk::{
     balance_in_eth,
-    client::{EthClient, Overrides, eth::get_address_from_secret_key},
+    client::{
+        EthClient, Overrides,
+        eth::{get_address_from_message_and_signature, get_address_from_secret_key},
+    },
     transfer, wait_for_transaction_receipt,
 };
 use secp256k1::SecretKey;
@@ -266,32 +269,7 @@ impl Command {
                 println!("{hash:#x}");
             }
             Command::Signer { message, signature } => {
-                let raw_recovery_id = if signature[64] >= 27 {
-                    signature[64] - 27
-                } else {
-                    signature[64]
-                };
-
-                let recovery_id = secp256k1::ecdsa::RecoveryId::from_i32(raw_recovery_id as i32)?;
-
-                let signature = secp256k1::ecdsa::RecoverableSignature::from_compact(
-                    &signature[..64],
-                    recovery_id,
-                )?;
-
-                let payload = [
-                    b"\x19Ethereum Signed Message:\n",
-                    message.len().to_string().as_bytes(),
-                    message.as_ref(),
-                ]
-                .concat();
-
-                let signer_public_key = signature.recover(&secp256k1::Message::from_digest(
-                    *keccak(payload).as_fixed_bytes(),
-                ))?;
-
-                let signer =
-                    hex::encode(&keccak(&signer_public_key.serialize_uncompressed()[1..])[12..]);
+                let signer = get_address_from_message_and_signature(message, signature)?;
 
                 println!("0x{signer}");
             }
@@ -461,35 +439,10 @@ impl Command {
                 signature,
                 address,
             } => {
-                let raw_recovery_id = if signature[64] >= 27 {
-                    signature[64] - 27
-                } else {
-                    signature[64]
-                };
-
-                let recovery_id = secp256k1::ecdsa::RecoveryId::from_i32(raw_recovery_id as i32)?;
-
-                let signature = secp256k1::ecdsa::RecoverableSignature::from_compact(
-                    &signature[..64],
-                    recovery_id,
-                )?;
-
-                let payload = [
-                    b"\x19Ethereum Signed Message:\n",
-                    message.len().to_string().as_bytes(),
-                    message.as_ref(),
-                ]
-                .concat();
-
-                let signer_public_key = signature.recover(&secp256k1::Message::from_digest(
-                    *keccak(payload).as_fixed_bytes(),
-                ))?;
-
-                let signer = Address::from_slice(
-                    &keccak(&signer_public_key.serialize_uncompressed()[1..])[12..],
+                println!(
+                    "{}",
+                    get_address_from_message_and_signature(message, signature)? == address
                 );
-
-                println!("{}", signer == address);
             }
         };
         Ok(())

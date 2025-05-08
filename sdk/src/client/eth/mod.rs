@@ -21,7 +21,7 @@ use ethrex_rpc::{
 };
 use keccak_hash::keccak;
 use reqwest::Client;
-use secp256k1::SecretKey;
+use secp256k1::{Error, SecretKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::ops::Div;
@@ -1140,6 +1140,37 @@ pub fn get_address_from_secret_key(secret_key: &SecretKey) -> Result<Address, Et
         })?;
 
     Ok(Address::from(address_bytes))
+}
+
+pub fn get_address_from_message_and_signature(
+    message: Bytes,
+    signature: Bytes,
+) -> Result<Address, Error> {
+    let raw_recovery_id = if signature[64] >= 27 {
+        signature[64] - 27
+    } else {
+        signature[64]
+    };
+
+    let recovery_id = secp256k1::ecdsa::RecoveryId::from_i32(raw_recovery_id as i32)?;
+
+    let signature =
+        secp256k1::ecdsa::RecoverableSignature::from_compact(&signature[..64], recovery_id)?;
+
+    let payload = [
+        b"\x19Ethereum Signed Message:\n",
+        message.len().to_string().as_bytes(),
+        message.as_ref(),
+    ]
+    .concat();
+
+    let signer_public_key = signature.recover(&secp256k1::Message::from_digest(
+        *keccak(payload).as_fixed_bytes(),
+    ))?;
+
+    Ok(Address::from_slice(
+        &keccak(&signer_public_key.serialize_uncompressed()[1..])[12..],
+    ))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
