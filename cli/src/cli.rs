@@ -440,19 +440,26 @@ impl Command {
             //then it has an extra byte concatenated at the end, which is a scalar value added to the signatures parity,
             //as described in the Yellow Paper Section 4.2 in the specification of a transaction's w field. (https://ethereum.github.io/yellowpaper/paper.pdf)
             Command::Sign { msg, private_key } => {
-                let mut message = Bytes::from_static(b"\x19Ethereum Signed Message:\n").to_vec();
-                message.append(&mut msg.len().to_string().as_bytes().to_vec());
-                message.append(&mut msg.to_vec());
+                let payload = [
+                    b"\x19Ethereum Signed Message:\n",
+                    msg.len().to_string().as_bytes(),
+                    msg.as_ref(),
+                ]
+                .concat();
+
                 let signed_msg = secp256k1::SECP256K1.sign_ecdsa_recoverable(
-                    &Message::from_digest(keccak(Bytes::from(message)).into()),
+                    &Message::from_digest(*keccak(&payload).as_fixed_bytes()),
                     &private_key,
                 );
-                let recovery_id = signed_msg.serialize_compact().0.to_i32() as u8 + 27;
-                let mut signature = H512::from_slice(&signed_msg.serialize_compact().1)
-                    .as_bytes_mut()
-                    .to_vec();
-                signature.push(recovery_id);
-                println!("0x{:x}", H520::from_slice(&signature[..]));
+
+                let (msg_signature_recovery_id, msg_signature) = signed_msg.serialize_compact();
+
+                let msg_signature_recovery_id = msg_signature_recovery_id.to_i32() + 27;
+
+                let encoded_signature =
+                    [&msg_signature[..], &[msg_signature_recovery_id as u8]].concat();
+
+                println!("0x{:x}", H520::from_slice(&encoded_signature));
             }
         };
         Ok(())
