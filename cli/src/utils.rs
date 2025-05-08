@@ -1,20 +1,10 @@
-use ethrex_common::{Bytes, H256, U256};
+use ethrex_common::{Bytes, U256};
 use hex::FromHexError;
 use secp256k1::SecretKey;
 use std::str::FromStr;
 
 pub fn parse_private_key(s: &str) -> eyre::Result<SecretKey> {
     Ok(SecretKey::from_slice(&parse_hex(s)?)?)
-}
-
-pub fn parse_message(s: &str) -> eyre::Result<secp256k1::Message> {
-    let parsed = secp256k1::Message::from_digest(*parse_h256(s)?.as_fixed_bytes());
-    Ok(parsed)
-}
-
-pub fn parse_h256(s: &str) -> eyre::Result<H256> {
-    let parsed = H256::from_slice(&parse_hex(s)?);
-    Ok(parsed)
 }
 
 pub fn parse_u256(s: &str) -> eyre::Result<U256> {
