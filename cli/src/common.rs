@@ -135,6 +135,8 @@ pub struct DeployArgs {
     pub max_fee_per_gas: Option<u64>,
     #[clap(long = "priority-gas-price", required = false)]
     pub max_priority_fee_per_gas: Option<u64>,
+    #[clap(long, required = false)]
+    pub print_address: bool,
     #[clap(
         short = 'b',
         required = false,
@@ -149,4 +151,6 @@ pub struct DeployArgs {
     pub explorer_url: bool,
     #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", required = false)]
     pub private_key: SecretKey,
+    #[arg(last = true, hide = true)]
+    pub _args: Vec<String>,
 }

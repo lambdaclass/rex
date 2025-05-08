@@ -1,19 +1,19 @@
 use crate::commands::l2;
-use crate::utils::{parse_func_call, parse_hex};
+use crate::utils::{parse_contract_creation, parse_func_call, parse_hex};
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
-use ethrex_common::{Address, Bytes, H256};
+use ethrex_common::{Address, Bytes, H256, H520};
 use keccak_hash::keccak;
 use rex_sdk::{
     balance_in_eth,
     client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
-use secp256k1::SecretKey;
+use secp256k1::{Message, SecretKey};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -107,7 +107,7 @@ pub(crate) enum Command {
     Deploy {
         #[clap(flatten)]
         args: DeployArgs,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
     #[clap(
@@ -144,6 +144,13 @@ pub(crate) enum Command {
         args: SendArgs,
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
+    },
+    #[clap(about = "Sign a message with a private key")]
+    Sign {
+        #[arg(value_parser = parse_hex, help = "Message to be signed with the private key.")]
+        msg: Bytes,
+        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to sign the message.")]
+        private_key: SecretKey,
     },
     Signer {
         #[arg(value_parser = parse_hex)]
@@ -402,11 +409,18 @@ impl Command {
 
                 let client = EthClient::new(&rpc_url);
 
+                let init_code = if args._args.len() > 0 {
+                    let init_args = parse_contract_creation(args._args)?;
+                    [args.bytecode, init_args].concat().into()
+                } else {
+                    args.bytecode
+                };
+
                 let (tx_hash, deployed_contract_address) = client
                     .deploy(
                         from,
                         args.private_key,
-                        args.bytecode,
+                        init_code,
                         Overrides {
                             value: args.value.into(),
                             nonce: args.nonce,
@@ -419,8 +433,12 @@ impl Command {
                     )
                     .await?;
 
-                println!("Contract deployed in tx: {tx_hash:#x}");
-                println!("Contract address: {deployed_contract_address:#x}");
+                if args.print_address {
+                    println!("{deployed_contract_address:#x}");
+                } else {
+                    println!("Contract deployed in tx: {tx_hash:#x}");
+                    println!("Contract address: {deployed_contract_address:#x}");
+                }
 
                 if !args.cast {
                     wait_for_transaction_receipt(tx_hash, &client, 100).await?;
@@ -447,6 +465,32 @@ impl Command {
                 let code = eth_client.get_code(address, block).await?;
 
                 println!("{}", code);
+            }
+
+            // Signature computed as a 0x45 signature, as described in EIP-191 (https://eips.ethereum.org/EIPS/eip-191),
+            // then it has an extra byte concatenated at the end, which is a scalar value added to the signatures parity,
+            // as described in the Yellow Paper Section 4.2 in the specification of a transaction's w field. (https://ethereum.github.io/yellowpaper/paper.pdf)
+            Command::Sign { msg, private_key } => {
+                let payload = [
+                    b"\x19Ethereum Signed Message:\n",
+                    msg.len().to_string().as_bytes(),
+                    msg.as_ref(),
+                ]
+                .concat();
+
+                let signed_msg = secp256k1::SECP256K1.sign_ecdsa_recoverable(
+                    &Message::from_digest(*keccak(&payload).as_fixed_bytes()),
+                    &private_key,
+                );
+
+                let (msg_signature_recovery_id, msg_signature) = signed_msg.serialize_compact();
+
+                let msg_signature_recovery_id = msg_signature_recovery_id.to_i32() + 27;
+
+                let encoded_signature =
+                    [&msg_signature[..], &[msg_signature_recovery_id as u8]].concat();
+
+                println!("0x{:x}", H520::from_slice(&encoded_signature));
             }
         };
         Ok(())
