@@ -1,9 +1,9 @@
 use ethrex_common::{Address, Bytes, H256, U256};
 use hex::FromHexError;
+use rex_sdk::calldata::{Value, encode_calldata, encode_tuple, parse_signature};
 use rex_sdk::calldata::{Value, encode_calldata, parse_signature};
 use secp256k1::SecretKey;
 use std::str::FromStr;
-use rex_sdk::calldata::{encode_calldata, encode_tuple, parse_signature, Value};
 
 pub fn parse_private_key(s: &str) -> eyre::Result<SecretKey> {
     Ok(SecretKey::from_slice(&parse_hex(s)?)?)
@@ -38,7 +38,7 @@ pub fn parse_hex(s: &str) -> eyre::Result<Bytes, FromHexError> {
 fn parse_call_args(args: Vec<String>) -> eyre::Result<Option<(String, Vec<Value>)>> {
     let mut args_iter = args.iter();
     let Some(signature) = args_iter.next() else {
-        return Ok(None)
+        return Ok(None);
     };
     let (_, params) = parse_signature(&signature)?;
     let mut values = Vec::new();

@@ -393,7 +393,7 @@ impl Command {
 
                 let client = EthClient::new(&rpc_url);
 
-                let init_code =if args._args.len() > 0 {
+                let init_code = if args._args.len() > 0 {
                     let init_args = parse_contract_creation(args._args)?;
                     [args.bytecode, init_args].concat().into()
                 } else {
