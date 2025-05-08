@@ -135,6 +135,8 @@ pub struct DeployArgs {
     pub max_fee_per_gas: Option<u64>,
     #[clap(long = "priority-gas-price", required = false)]
     pub max_priority_fee_per_gas: Option<u64>,
+    #[clap(long = "print-address", required = false)]
+    pub print_address: bool,
     #[clap(
         short = 'b',
         required = false,

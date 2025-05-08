@@ -410,8 +410,12 @@ impl Command {
                     )
                     .await?;
 
-                println!("Contract deployed in tx: {tx_hash:#x}");
-                println!("Contract address: {deployed_contract_address:#x}");
+                if args.print_address {
+                    println!("{deployed_contract_address:#x}");
+                } else {
+                    println!("Contract deployed in tx: {tx_hash:#x}");
+                    println!("Contract address: {deployed_contract_address:#x}");
+                }
 
                 if !args.cast {
                     wait_for_transaction_receipt(tx_hash, &client, 100).await?;

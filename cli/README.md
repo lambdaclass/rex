@@ -284,6 +284,7 @@ Options:
       --gas-limit <GAS_LIMIT>
       --gas-price <MAX_FEE_PER_GAS>
       --priority-gas-price <MAX_PRIORITY_FEE_PER_GAS>
+      --print-address                                  Only print the contract address
   -b                                                   Do not wait for the transaction receipt
       --explorer-url                                   Display transaction URL in the explorer.
   -h, --help                                           Print help
