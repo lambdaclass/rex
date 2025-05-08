@@ -164,6 +164,14 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
+    #[clap(about = "Verify if the signature of a message was made by an account")]
+    Verify {
+        #[arg(value_parser = parse_hex)]
+        message: Bytes,
+        #[arg(value_parser = parse_hex)]
+        signature: Bytes,
+        address: Address,
+    },
 }
 
 impl Command {
@@ -447,6 +455,41 @@ impl Command {
                 let code = eth_client.get_code(address, block).await?;
 
                 println!("{}", code);
+            }
+            Command::Verify {
+                message,
+                signature,
+                address,
+            } => {
+                let raw_recovery_id = if signature[64] >= 27 {
+                    signature[64] - 27
+                } else {
+                    signature[64]
+                };
+
+                let recovery_id = secp256k1::ecdsa::RecoveryId::from_i32(raw_recovery_id as i32)?;
+
+                let signature = secp256k1::ecdsa::RecoverableSignature::from_compact(
+                    &signature[..64],
+                    recovery_id,
+                )?;
+
+                let payload = [
+                    b"\x19Ethereum Signed Message:\n",
+                    message.len().to_string().as_bytes(),
+                    message.as_ref(),
+                ]
+                .concat();
+
+                let signer_public_key = signature.recover(&secp256k1::Message::from_digest(
+                    *keccak(payload).as_fixed_bytes(),
+                ))?;
+
+                let signer = Address::from_slice(
+                    &keccak(&signer_public_key.serialize_uncompressed()[1..])[12..],
+                );
+
+                println!("{}", signer == address);
             }
         };
         Ok(())
