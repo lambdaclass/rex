@@ -37,7 +37,11 @@ pub fn parse_signature(signature: &str) -> Result<(String, Vec<String>), Calldat
         .split(',')
         .map(|x| x.trim().split_once(' ').unzip().0.unwrap_or(x).to_string())
         .collect();
-    if params.first().ok_or(CalldataEncodeError::InternalError)?.is_empty() {
+    if params
+        .first()
+        .ok_or(CalldataEncodeError::InternalError)?
+        .is_empty()
+    {
         Ok((name.to_string(), vec![]))
     } else {
         Ok((name.to_string(), params))
