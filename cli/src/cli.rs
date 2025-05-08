@@ -1,5 +1,5 @@
 use crate::commands::l2;
-use crate::utils::{parse_func_call, parse_hex, parse_message};
+use crate::utils::{parse_contract_creation, parse_func_call, parse_hex, parse_message};
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
@@ -107,7 +107,7 @@ pub(crate) enum Command {
     Deploy {
         #[clap(flatten)]
         args: DeployArgs,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
     #[clap(
@@ -393,11 +393,18 @@ impl Command {
 
                 let client = EthClient::new(&rpc_url);
 
+                let init_code =if args._args.len() > 0 {
+                    let init_args = parse_contract_creation(args._args)?;
+                    [args.bytecode, init_args].concat().into()
+                } else {
+                    args.bytecode
+                };
+
                 let (tx_hash, deployed_contract_address) = client
                     .deploy(
                         from,
                         args.private_key,
-                        args.bytecode,
+                        init_code,
                         Overrides {
                             value: args.value.into(),
                             nonce: args.nonce,
