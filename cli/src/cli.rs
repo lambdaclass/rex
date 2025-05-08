@@ -81,7 +81,6 @@ pub(crate) enum Command {
     #[clap(about = "Get the network's chain id.")]
     ChainId {
         #[arg(
-            short,
             long,
             default_value_t = false,
             help = "Display the chain id as a hex-string."
