@@ -34,11 +34,14 @@ pub async fn wait_for_transaction_receipt(
     tx_hash: H256,
     client: &EthClient,
     max_retries: u64,
+    silent: bool
 ) -> Result<RpcReceipt, EthClientError> {
     let mut receipt = client.get_transaction_receipt(tx_hash).await?;
     let mut r#try = 1;
     while receipt.is_none() {
-        println!("[{try}/{max_retries}] Retrying to get transaction receipt for {tx_hash:#x}");
+        if !silent {
+            println!("[{try}/{max_retries}] Retrying to get transaction receipt for {tx_hash:#x}");
+        }
 
         if max_retries == r#try {
             return Err(EthClientError::Custom(format!(

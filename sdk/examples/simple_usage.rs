@@ -66,7 +66,7 @@ async fn main() {
     .unwrap();
 
     // Wait for the transaction to be finalized
-    wait_for_transaction_receipt(tx_hash, &eth_client, 100)
+    wait_for_transaction_receipt(tx_hash, &eth_client, 100, false)
         .await
         .unwrap();
 

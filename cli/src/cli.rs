@@ -315,7 +315,7 @@ impl Command {
                 println!("{tx_hash:#x}");
 
                 if !args.cast {
-                    wait_for_transaction_receipt(tx_hash, &client, 100).await?;
+                    wait_for_transaction_receipt(tx_hash, &client, 100, false).await?;
                 }
             }
             Command::Send { args, rpc_url } => {
@@ -359,7 +359,7 @@ impl Command {
                 println!("{tx_hash:#x}",);
 
                 if !args.cast {
-                    wait_for_transaction_receipt(tx_hash, &client, 100).await?;
+                    wait_for_transaction_receipt(tx_hash, &client, 100, false).await?;
                 }
             }
             Command::Call { args, rpc_url } => {
@@ -430,9 +430,10 @@ impl Command {
                     println!("Contract deployed in tx: {tx_hash:#x}");
                     println!("Contract address: {deployed_contract_address:#x}");
                 }
-
+                let silent = args.print_address;
+                
                 if !args.cast {
-                    wait_for_transaction_receipt(tx_hash, &client, 100).await?;
+                    wait_for_transaction_receipt(tx_hash, &client, 100, silent).await?;
                 }
             }
             Command::ChainId { hex, rpc_url } => {
