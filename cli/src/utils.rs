@@ -1,7 +1,6 @@
 use ethrex_common::{Address, Bytes, H256, U256};
 use hex::FromHexError;
 use rex_sdk::calldata::{Value, encode_calldata, encode_tuple, parse_signature};
-use rex_sdk::calldata::{Value, encode_calldata, parse_signature};
 use secp256k1::SecretKey;
 use std::str::FromStr;
 
