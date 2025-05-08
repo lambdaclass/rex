@@ -149,4 +149,6 @@ pub struct DeployArgs {
     pub explorer_url: bool,
     #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", required = false)]
     pub private_key: SecretKey,
+    #[arg(last=true, hide=true)]
+    pub _args: Vec<String>,
 }

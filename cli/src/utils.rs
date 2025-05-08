@@ -2,7 +2,7 @@ use ethrex_common::{Address, Bytes, H256, U256};
 use hex::FromHexError;
 use secp256k1::SecretKey;
 use std::str::FromStr;
-use rex_sdk::calldata::{encode_calldata, parse_signature, Value};
+use rex_sdk::calldata::{encode_calldata, encode_tuple, parse_signature, Value};
 
 pub fn parse_private_key(s: &str) -> eyre::Result<SecretKey> {
     Ok(SecretKey::from_slice(&parse_hex(s)?)?)
@@ -34,10 +34,10 @@ pub fn parse_hex(s: &str) -> eyre::Result<Bytes, FromHexError> {
     }
 }
 
-pub fn parse_func_call(args: Vec<String>) -> eyre::Result<Bytes> {
+fn parse_call_args(args: Vec<String>) -> eyre::Result<Option<(String, Vec<Value>)>> {
     let mut args_iter = args.iter();
     let Some(signature) = args_iter.next() else {
-        return Ok(Bytes::new());
+        return Ok(None)
     };
     let (_, params) = parse_signature(&signature)?;
     let mut values = Vec::new();
@@ -67,5 +67,19 @@ pub fn parse_func_call(args: Vec<String>) -> eyre::Result<Bytes> {
             _ => todo!("type unsupported")
         });
     }
+    Ok(Some((signature.to_string(), values)))
+}
+
+pub fn parse_func_call(args: Vec<String>) -> eyre::Result<Bytes> {
+    let Some((signature, values)) = parse_call_args(args)? else {
+        return Ok(Bytes::new());
+    };
     Ok(encode_calldata(&signature, &values)?.into())
+}
+
+pub fn parse_contract_creation(args: Vec<String>) -> eyre::Result<Bytes> {
+    let Some((_signature, values)) = parse_call_args(args)? else {
+        return Ok(Bytes::new());
+    };
+    Ok(encode_tuple(&values)?.into())
 }
