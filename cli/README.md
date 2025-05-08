@@ -270,13 +270,13 @@ Options:
 ```Shell
 Deploy a contract
 
-Usage: rex deploy [OPTIONS] <BYTECODE> [VALUE] <PRIVATE_KEY> [RPC_URL]
+Usage: rex deploy [OPTIONS] <BYTECODE> [VALUE] <PRIVATE_KEY> -- [SIGNATURE [ARGS]]
 
 Arguments:
   <BYTECODE>
   [VALUE]        Value to send in wei [default: 0]
   <PRIVATE_KEY>  [env: PRIVATE_KEY=]
-  [RPC_URL]      [env: RPC_URL=] [default: http://localhost:8545]
+  
 
 Options:
       --chain-id <CHAIN_ID>
@@ -284,6 +284,7 @@ Options:
       --gas-limit <GAS_LIMIT>
       --gas-price <MAX_FEE_PER_GAS>
       --priority-gas-price <MAX_PRIORITY_FEE_PER_GAS>
+      --rpc-url                                        [env: RPC_URL=] [default: http://localhost:8545]
   -b                                                   Do not wait for the transaction receipt
       --explorer-url                                   Display transaction URL in the explorer.
   -h, --help                                           Print help
