@@ -436,9 +436,9 @@ impl Command {
                 println!("{}", code);
             }
 
-            //Signature computed as a 0x45 signature, as described in EIP-191 (https://eips.ethereum.org/EIPS/eip-191),
-            //then it has an extra byte concatenated at the end, which is a scalar value added to the signatures parity,
-            //as described in the Yellow Paper Section 4.2 in the specification of a transaction's w field. (https://ethereum.github.io/yellowpaper/paper.pdf)
+            // Signature computed as a 0x45 signature, as described in EIP-191 (https://eips.ethereum.org/EIPS/eip-191),
+            // then it has an extra byte concatenated at the end, which is a scalar value added to the signatures parity,
+            // as described in the Yellow Paper Section 4.2 in the specification of a transaction's w field. (https://ethereum.github.io/yellowpaper/paper.pdf)
             Command::Sign { msg, private_key } => {
                 let payload = [
                     b"\x19Ethereum Signed Message:\n",
