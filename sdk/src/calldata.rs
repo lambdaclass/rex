@@ -1,7 +1,8 @@
-use crate::client::eth::errors::CalldataEncodeError;
 use ethrex_common::Bytes;
 use ethrex_common::{Address, H32, U256};
+use ethrex_rpc::clients::eth::errors::CalldataEncodeError;
 use keccak_hash::keccak;
+use serde::{Deserialize, Serialize};
 
 /// Struct representing the possible solidity types for function arguments
 /// - `Uint` -> `uint256`
@@ -13,7 +14,7 @@ use keccak_hash::keccak;
 /// - `Tuple` -> `(X_1, ..., X_k)`
 /// - `FixedArray` -> `T[k]`
 /// - `FixedBytes` -> `bytesN`
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum Value {
     Address(Address),
     Uint(U256),
@@ -32,20 +33,41 @@ pub fn parse_signature(signature: &str) -> Result<(String, Vec<String>), Calldat
     let (name, params) = sig
         .split_once('(')
         .ok_or(CalldataEncodeError::ParseError(signature.to_owned()))?;
-    let params: Vec<String> = params
-        .trim_end_matches(')')
-        .split(',')
-        .map(|x| x.trim().split_once(' ').unzip().0.unwrap_or(x).to_string())
-        .collect();
-    if params
-        .first()
-        .ok_or(CalldataEncodeError::InternalError)?
-        .is_empty()
-    {
-        Ok((name.to_string(), vec![]))
-    } else {
-        Ok((name.to_string(), params))
+    let params = params.rsplit_once(')').map_or(params, |(left, _)| left);
+
+    // We use this to only keep track of top level tuples
+    // "address,(uint256,uint256)" -> "address" and "(uint256,uint256)"
+    // "address,(unit256,(uint256,uint256))" -> "address" and "(unit256,(uint256,uint256))"
+    let mut splitted_params = Vec::new();
+    let mut current_param = String::new();
+    let mut parenthesis_depth = 0;
+
+    for ch in params.chars() {
+        match ch {
+            '(' => {
+                parenthesis_depth += 1;
+                current_param.push(ch);
+            }
+            ')' => {
+                parenthesis_depth -= 1;
+                current_param.push(ch);
+            }
+            ',' if parenthesis_depth == 0 => {
+                if !current_param.is_empty() {
+                    splitted_params.push(current_param.trim().to_string());
+                    current_param = String::new();
+                }
+            }
+            _ => current_param.push(ch),
+        }
     }
+
+    // push the last param if it exists
+    if !current_param.is_empty() {
+        splitted_params.push(current_param.trim().to_string());
+    }
+
+    Ok((name.to_string(), splitted_params))
 }
 
 fn compute_function_selector(name: &str, params: &[String]) -> Result<H32, CalldataEncodeError> {
@@ -59,6 +81,13 @@ fn compute_function_selector(name: &str, params: &[String]) -> Result<H32, Calld
 
 pub fn encode_calldata(signature: &str, values: &[Value]) -> Result<Vec<u8>, CalldataEncodeError> {
     let (name, params) = parse_signature(signature)?;
+
+    // Checks if params = [""]
+    // that case happen when we have a function selector as follows: function name()
+    let mut params = params;
+    if params.is_empty() {
+        params = vec![];
+    }
 
     if params.len() != values.len() {
         return Err(CalldataEncodeError::WrongArgumentLength(
@@ -82,7 +111,7 @@ pub fn encode_calldata(signature: &str, values: &[Value]) -> Result<Vec<u8>, Cal
 // The dynamic part always follows at the end of the static one.
 // Arguments are encoded in order. If the argument is static, it is encoded in place, i.e, there's no dynamic part.
 // If the argument is dynamic, only its offset to the dynamic part is recorded on the static sector.
-fn encode_tuple(values: &[Value]) -> Result<Vec<u8>, CalldataEncodeError> {
+pub fn encode_tuple(values: &[Value]) -> Result<Vec<u8>, CalldataEncodeError> {
     let mut current_offset = 0;
     let mut current_dynamic_offset = 0;
     for value in values {
@@ -242,10 +271,18 @@ fn encode_array(values: &[Value]) -> Result<Vec<u8>, CalldataEncodeError> {
 
 fn encode_bytes(values: &Bytes) -> Vec<u8> {
     let mut ret = vec![];
-    let to_copy = U256::from(values.len()).to_big_endian();
+
+    // the bytes has to be padded to 32 bytes
+    let padding = 32 - (values.len() % 32);
+    let mut padded_bytes = values.to_vec();
+    if padding != 32 {
+        padded_bytes.extend_from_slice(&vec![0; padding]);
+    }
+
+    let to_copy = U256::from(values.len()).to_big_endian(); // we write the length without padding
 
     ret.extend_from_slice(&to_copy);
-    ret.extend_from_slice(values);
+    ret.extend_from_slice(&padded_bytes);
 
     ret
 }
@@ -302,4 +339,78 @@ fn calldata_test() {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
         ]
     );
+}
+
+#[test]
+fn raw_function_selector() {
+    let raw_function_signature = "deposit((address,address,uint256,bytes))";
+
+    let (name, params) = parse_signature(raw_function_signature).unwrap();
+    let selector = compute_function_selector(&name, &params).unwrap();
+
+    assert_eq!(selector, H32::from(&[0x02, 0xe8, 0x6b, 0xbe]));
+}
+
+#[test]
+fn encode_tuple_dynamic_offset() {
+    let raw_function_signature = "deposit((address,address,uint256,bytes))";
+    let address = Address::from_low_u64_be(424242_u64);
+
+    let tuple = Value::Tuple(vec![
+        Value::Address(address),
+        Value::Address(address),
+        Value::Uint(U256::from(21000 * 5)),
+        Value::Bytes(Bytes::from_static(b"")),
+    ]);
+    let values = vec![tuple];
+
+    let calldata = encode_calldata(raw_function_signature, &values).unwrap();
+
+    assert_eq!(calldata, hex::decode("02e86bbe0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000006793200000000000000000000000000000000000000000000000000000000000679320000000000000000000000000000000000000000000000000000000000019a2800000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000").unwrap());
+
+    let mut encoding = vec![0x02, 0xe8, 0x6b, 0xbe]; // function selector
+    encoding.extend_from_slice(&encode_tuple(&values).unwrap());
+
+    assert_eq!(calldata, encoding);
+}
+
+#[test]
+fn correct_tuple_parsing() {
+    // the arguments are:
+    // - uint256
+    // - (uint256, address)
+    // - ((address, address), (uint256, bytes))
+    // - ((address, address), uint256)
+    // - (uint256, (address, address))
+    // - address
+    let raw_function_signature = "my_function(uint256,(uin256,address),((address,address),(uint256,bytes)),((address,address),uint256),(uint256,(address,address)),address)";
+
+    let exepected_arguments: Vec<String> = vec![
+        "uint256".to_string(),
+        "(uin256,address)".to_string(),
+        "((address,address),(uint256,bytes))".to_string(),
+        "((address,address),uint256)".to_string(),
+        "(uint256,(address,address))".to_string(),
+        "address".to_string(),
+    ];
+    let (name, params) = parse_signature(raw_function_signature).unwrap();
+    assert_eq!(name, "my_function");
+    assert_eq!(params, exepected_arguments);
+}
+
+#[test]
+fn empty_calldata() {
+    let calldata = encode_calldata("number()", &[]).unwrap();
+    assert_eq!(calldata, hex::decode("8381f58a").unwrap());
+}
+
+#[test]
+fn bytes_has_padding() {
+    let raw_function_signature = "my_function(bytes)";
+    let bytes = Bytes::from_static(b"hello world");
+    let values = vec![Value::Bytes(bytes)];
+
+    let calldata = encode_calldata(raw_function_signature, &values).unwrap();
+
+    assert_eq!(calldata, hex::decode("f570899b0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000b68656c6c6f20776f726c64000000000000000000000000000000000000000000").unwrap());
 }
