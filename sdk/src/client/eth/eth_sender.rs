@@ -100,9 +100,6 @@ impl EthClient {
                 EthClientError::Custom("Failed to get deployed_address".to_owned()),
             )?);
 
-        self.wait_for_transaction_receipt(deploy_tx_hash, 1000)
-            .await?;
-
         Ok((deploy_tx_hash, deployed_address))
     }
 }

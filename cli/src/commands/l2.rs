@@ -265,7 +265,7 @@ impl Command {
                 println!("Deposit sent: {tx_hash:#x}");
 
                 if !cast {
-                    wait_for_transaction_receipt(tx_hash, &eth_client, 100).await?;
+                    wait_for_transaction_receipt(tx_hash, &eth_client, 100, false).await?;
                 }
             }
             Command::ClaimWithdraw {
@@ -296,7 +296,7 @@ impl Command {
                 println!("Withdrawal claim sent: {tx_hash:#x}");
 
                 if !cast {
-                    wait_for_transaction_receipt(tx_hash, &eth_client, 100).await?;
+                    wait_for_transaction_receipt(tx_hash, &eth_client, 100, false).await?;
                 }
             }
             Command::Withdraw {
@@ -325,7 +325,7 @@ impl Command {
                 println!("Withdrawal sent: {tx_hash:#x}");
 
                 if !cast {
-                    wait_for_transaction_receipt(tx_hash, &client, 100).await?;
+                    wait_for_transaction_receipt(tx_hash, &client, 100, false).await?;
                 }
             }
             Command::WithdrawalProof {
