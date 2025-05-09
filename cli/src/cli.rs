@@ -478,7 +478,7 @@ impl Command {
 
                 println!("0x{:x}", H520::from_slice(&encoded_signature));
             }
-            Command::Verify {
+            Command::VerifySignature {
                 message,
                 signature,
                 address,
