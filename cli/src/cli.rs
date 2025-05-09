@@ -175,7 +175,7 @@ pub(crate) enum Command {
         rpc_url: String,
     },
     #[clap(about = "Verify if the signature of a message was made by an account")]
-    Verify {
+    VerifySignature {
         #[arg(value_parser = parse_hex)]
         message: Bytes,
         #[arg(value_parser = parse_hex)]
