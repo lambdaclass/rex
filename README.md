@@ -52,6 +52,7 @@ Commands:
   signer        
   transaction   Get the transaction's info. [aliases: tx, t]
   transfer      Transfer funds to another wallet.
+  sign          Sign a message with a private key.
   verify        Verify if a messages signature was made by an account.
   help          Print this message or the help of the given subcommand(s)
 
