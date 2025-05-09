@@ -278,7 +278,7 @@ impl Command {
             Command::Signer { message, signature } => {
                 let signer = get_address_from_message_and_signature(message, signature)?;
 
-                println!("{signer:x}");
+                println!("{signer:x?}");
             }
             Command::Transfer { args, rpc_url } => {
                 if args.token_address.is_some() {
