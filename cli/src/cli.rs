@@ -431,7 +431,7 @@ impl Command {
                     println!("Contract address: {deployed_contract_address:#x}");
                 }
                 let silent = args.print_address;
-                
+
                 if !args.cast {
                     wait_for_transaction_receipt(tx_hash, &client, 100, silent).await?;
                 }

@@ -34,7 +34,7 @@ pub async fn wait_for_transaction_receipt(
     tx_hash: H256,
     client: &EthClient,
     max_retries: u64,
-    silent: bool
+    silent: bool,
 ) -> Result<RpcReceipt, EthClientError> {
     let mut receipt = client.get_transaction_receipt(tx_hash).await?;
     let mut r#try = 1;
