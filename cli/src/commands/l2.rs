@@ -73,7 +73,7 @@ pub(crate) enum Command {
             long,
             short = 's',
             required = false,
-            help = "Display only the receipt."
+            help = "Display only the tx hash."
         )]
         silent: bool,
         #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
@@ -122,7 +122,7 @@ pub(crate) enum Command {
             long,
             short = 's',
             required = false,
-            help = "Display only the receipt."
+            help = "Display only the tx hash."
         )]
         silent: bool,
         #[clap(
@@ -210,7 +210,7 @@ pub(crate) enum Command {
             long,
             short = 's',
             required = false,
-            help = "Display only the receipt."
+            help = "Display only the tx hash."
         )]
         silent: bool,
         #[clap(

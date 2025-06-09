@@ -40,7 +40,7 @@ pub struct TransferArgs {
         long,
         short = 's',
         required = false,
-        help = "Display only the receipt."
+        help = "Display only the tx hash."
     )]
     pub silent: bool,
     #[clap(
@@ -85,7 +85,7 @@ pub struct SendArgs {
         long,
         short = 's',
         required = false,
-        help = "Display only the receipt."
+        help = "Display only the tx hash."
     )]
     pub silent: bool,
     #[clap(
@@ -161,7 +161,7 @@ pub struct DeployArgs {
         long,
         short = 's',
         required = false,
-        help = "Display only the receipt."
+        help = "Display only the tx hash."
     )]
     pub silent: bool,
     #[clap(
