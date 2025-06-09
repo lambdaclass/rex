@@ -64,7 +64,8 @@ pub(crate) enum Command {
     ClaimWithdraw {
         l2_withdrawal_tx_hash: H256,
         #[clap(
-            short = 'b',
+            long,
+            short = 'c',
             required = false,
             help = "Send the request asynchronously."
         )]
@@ -106,7 +107,8 @@ pub(crate) enum Command {
         )]
         to: Option<Address>,
         #[clap(
-            short = 'b',
+            long,
+            short = 'c',
             required = false,
             help = "Send the request asynchronously."
         )]
@@ -187,7 +189,8 @@ pub(crate) enum Command {
         )]
         token_address: Option<Address>,
         #[clap(
-            short = 'b',
+            long,
+            short = 'c',
             required = false,
             help = "Send the request asynchronously."
         )]

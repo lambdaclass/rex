@@ -31,7 +31,8 @@ pub struct TransferArgs {
     #[clap(long = "nonce")]
     pub nonce: Option<u64>,
     #[clap(
-        short = 'b',
+        long,
+        short = 'c',
         required = false,
         help = "Send the request asynchronously."
     )]
@@ -69,7 +70,8 @@ pub struct SendArgs {
     #[clap(long = "priority-gas-price", required = false)]
     pub max_priority_fee_per_gas: Option<u64>,
     #[clap(
-        short = 'b',
+        long,
+        short = 'c',
         required = false,
         help = "Send the request asynchronously."
     )]
@@ -138,7 +140,8 @@ pub struct DeployArgs {
     #[clap(long, required = false)]
     pub print_address: bool,
     #[clap(
-        short = 'b',
+        long,
+        short = 'c',
         required = false,
         help = "Send the request asynchronously."
     )]
