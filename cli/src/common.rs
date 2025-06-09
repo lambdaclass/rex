@@ -38,6 +38,13 @@ pub struct TransferArgs {
     pub cast: bool,
     #[clap(
         long,
+        short = 's',
+        required = false,
+        help = "Display only the receipt."
+    )]
+    pub silent: bool,
+    #[clap(
+        long,
         required = false,
         help = "Display transaction URL in the explorer."
     )]
@@ -74,6 +81,13 @@ pub struct SendArgs {
         help = "Send the request asynchronously."
     )]
     pub cast: bool,
+    #[clap(
+        long,
+        short = 's',
+        required = false,
+        help = "Display only the receipt."
+    )]
+    pub silent: bool,
     #[clap(
         long,
         required = false,
@@ -143,6 +157,13 @@ pub struct DeployArgs {
         help = "Send the request asynchronously."
     )]
     pub cast: bool,
+    #[clap(
+        long,
+        short = 's',
+        required = false,
+        help = "Display only the receipt."
+    )]
+    pub silent: bool,
     #[clap(
         long,
         required = false,

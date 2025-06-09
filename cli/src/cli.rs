@@ -310,7 +310,7 @@ impl Command {
                 println!("{tx_hash:#x}");
 
                 if !args.cast {
-                    wait_for_transaction_receipt(tx_hash, &client, 100, false).await?;
+                    wait_for_transaction_receipt(tx_hash, &client, 100, args.silent).await?;
                 }
             }
             Command::Send { args, rpc_url } => {
@@ -354,7 +354,7 @@ impl Command {
                 println!("{tx_hash:#x}",);
 
                 if !args.cast {
-                    wait_for_transaction_receipt(tx_hash, &client, 100, false).await?;
+                    wait_for_transaction_receipt(tx_hash, &client, 100, args.silent).await?;
                 }
             }
             Command::Call { args, rpc_url } => {
