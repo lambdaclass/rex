@@ -36,25 +36,26 @@ After installing the CLI with `make cli`, run `rex` to display the help message 
 Usage: rex <COMMAND>
 
 Commands:
-  address       Get either the account's address from private key, the zero address, or a random address [aliases: addr, a]
-  autocomplete  Generate shell completion scripts.
-  balance       Get the account's balance info. [aliases: bal, b]
-  block-number  Get the current block_number. [aliases: bl]
-  call          Make a call to a contract.
-  chain-id      Get the network's chain id.
-  deploy        Deploy a contract.
-  code          Returns code at a given address.
-  hash          Get either the keccak for a given input, the zero hash, the empty string, or a random hash. [aliases: h, h]
-  l2            L2 specific commands.
-  nonce         Get the account's nonce. [aliases: n]
-  receipt       Get the transaction's receipt. [aliases: r]
-  send          Send a transaction.
-  signer        
-  transaction   Get the transaction's info. [aliases: tx, t]
-  transfer      Transfer funds to another wallet.
-  sign          Sign a message with a private key.
-  verify        Verify if a messages signature was made by an account.
-  help          Print this message or the help of the given subcommand(s)
+  address           Get either the account's address from private key, the zero address, or a random address [aliases: addr, a]
+  autocomplete      Generate shell completion scripts.
+  balance           Get the account's balance info. [aliases: bal, b]
+  block-number      Get the current block_number. [aliases: bl]
+  call              Make a call to a contract
+  chain-id          Get the network's chain id.
+  code              Returns code at a given address
+  deploy            Deploy a contract
+  hash              Get either the keccak for a given input, the zero hash, the empty string, or a random hash [aliases: h]
+  l2                L2 specific commands.
+  nonce             Get the account's nonce. [aliases: n]
+  receipt           Get the transaction's receipt. [aliases: r]
+  send              Send a transaction
+  sign              Sign a message with a private key
+  signer
+  transaction       Get the transaction's info. [aliases: tx, t]
+  transfer          Transfer funds to another wallet.
+  verify-signature  Verify if the signature of a message was made by an account
+  create-address    Compute contract address given the deployer address and nonce.
+  help              Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help     Print help
