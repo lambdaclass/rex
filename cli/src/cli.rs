@@ -8,6 +8,7 @@ use crate::{
 use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::{Address, Bytes, H256, H520};
 use keccak_hash::keccak;
+use rex_sdk::create::compute_create_address;
 use rex_sdk::{
     balance_in_eth,
     client::{
@@ -181,6 +182,15 @@ pub(crate) enum Command {
         #[arg(value_parser = parse_hex)]
         signature: Bytes,
         address: Address,
+    },
+    #[clap(about = "Compute contract address given the deployer address and nonce.")]
+    CreateAddress {
+        #[arg(help = "Deployer address.")]
+        address: Address,
+        #[arg(help = "Deployer Nonce. If not provided, will fetch latest from the network.")]
+        nonce: Option<u64>,
+        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
     },
 }
 
@@ -488,6 +498,18 @@ impl Command {
                     "{}",
                     get_address_from_message_and_signature(message, signature)? == address
                 );
+            }
+            Command::CreateAddress {
+                address,
+                nonce,
+                rpc_url,
+            } => {
+                let nonce = match nonce {
+                    Some(nonce) => nonce,
+                    None => EthClient::new(&rpc_url).get_nonce(address).await?,
+                };
+
+                println!("0x{:x}", compute_create_address(address, nonce))
             }
         };
         Ok(())
