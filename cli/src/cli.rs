@@ -187,9 +187,9 @@ pub(crate) enum Command {
     CreateAddress {
         #[arg(help = "Deployer address.")]
         address: Address,
-        #[arg(help = "Deployer Nonce. If not provided, will fetch latest from the network.")]
+        #[arg(short = 'n', long, help = "Deployer Nonce. Latest by default.")]
         nonce: Option<u64>,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
 }
