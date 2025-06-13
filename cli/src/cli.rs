@@ -8,6 +8,7 @@ use crate::{
 use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::{Address, Bytes, H256, H520};
 use keccak_hash::keccak;
+use rex_sdk::calldata::{Value, decode_calldata};
 use rex_sdk::{
     balance_in_eth,
     client::{
@@ -181,6 +182,18 @@ pub(crate) enum Command {
         #[arg(value_parser = parse_hex)]
         signature: Bytes,
         address: Address,
+    },
+    #[clap(about = "Encodes calldata")]
+    EncodeCalldata {
+        signature: String,
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
+    #[clap(about = "Decodes calldata")]
+    DecodeCalldata {
+        signature: String,
+        #[arg(value_parser = parse_hex)]
+        data: Bytes,
     },
 }
 
@@ -395,7 +408,7 @@ impl Command {
 
                 let client = EthClient::new(&rpc_url);
 
-                let init_code = if args._args.len() > 0 {
+                let init_code = if !args._args.is_empty() {
                     let init_args = parse_contract_creation(args._args)?;
                     [args.bytecode, init_args].concat().into()
                 } else {
@@ -489,7 +502,53 @@ impl Command {
                     get_address_from_message_and_signature(message, signature)? == address
                 );
             }
+            Command::EncodeCalldata {
+                signature,
+                mut args,
+            } => {
+                args.insert(0, signature);
+                println!("0x{:x}", parse_func_call(args)?);
+            }
+            Command::DecodeCalldata { signature, data } => {
+                for elem in decode_calldata(&signature, data)? {
+                    print_calldata(0, elem);
+                }
+            }
         };
         Ok(())
+    }
+}
+
+fn print_calldata(depth: usize, data: Value) {
+    print!("{}", " ".repeat(depth));
+    match data {
+        Value::Address(addr) => println!("{addr:#x}"),
+        Value::Array(inner) => {
+            println!("[");
+            for elem in inner {
+                print_calldata(depth + 2, elem);
+            }
+            println!("]");
+        }
+        Value::Bool(b) => println!("{b}"),
+        Value::Bytes(bytes) => println!("0x{bytes:#x}"),
+        Value::FixedArray(inner) => {
+            println!("[");
+            for elem in inner {
+                print_calldata(depth + 2, elem);
+            }
+            println!("]");
+        }
+        Value::FixedBytes(bytes) => println!("{bytes:#x}"),
+        Value::Int(val) => println!("{val}"),
+        Value::Uint(val) => println!("{val}"),
+        Value::String(str) => println!("{str}"),
+        Value::Tuple(inner) => {
+            println!("(");
+            for elem in inner {
+                print_calldata(depth + 2, elem);
+            }
+            println!(")");
+        }
     }
 }
