@@ -504,10 +504,7 @@ impl Command {
                 nonce,
                 rpc_url,
             } => {
-                let nonce = match nonce {
-                    Some(nonce) => nonce,
-                    None => EthClient::new(&rpc_url).get_nonce(address).await?,
-                };
+                let nonce = nonce.unwrap_or(EthClient::new(&rpc_url).get_nonce(address).await?);
 
                 println!("0x{:x}", compute_create_address(address, nonce))
             }
