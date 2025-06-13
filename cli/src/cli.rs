@@ -9,6 +9,7 @@ use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::{Address, Bytes, H256, H520};
 use keccak_hash::keccak;
 use rex_sdk::calldata::{Value, decode_calldata};
+use rex_sdk::create::compute_create_address;
 use rex_sdk::{
     balance_in_eth,
     client::{
@@ -105,6 +106,15 @@ pub(crate) enum Command {
         )]
         block: String,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: String,
+    },
+    #[clap(about = "Compute contract address given the deployer address and nonce.")]
+    CreateAddress {
+        #[arg(help = "Deployer address.")]
+        address: Address,
+        #[arg(short = 'n', long, help = "Deployer Nonce. Latest by default.")]
+        nonce: Option<u64>,
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
     #[clap(about = "Deploy a contract")]
@@ -223,6 +233,15 @@ impl Command {
                 let block_number = eth_client.get_block_number().await?;
 
                 println!("{block_number}");
+            }
+            Command::CreateAddress {
+                address,
+                nonce,
+                rpc_url,
+            } => {
+                let nonce = nonce.unwrap_or(EthClient::new(&rpc_url).get_nonce(address).await?);
+
+                println!("0x{:x}", compute_create_address(address, nonce))
             }
             Command::Transaction { tx_hash, rpc_url } => {
                 let eth_client = EthClient::new(&rpc_url);
