@@ -53,7 +53,7 @@ where
 /// Loads the SecretKey from a given Keystore.
 /// If path is not provided, uses KEYSTORE_DEFAULT_PATH.
 /// Returns the SecretKey loaded.
-pub fn load_keystore<S>(
+pub fn load_keystore_from_path<S>(
     path: Option<&str>,
     name: &str,
     password: S,
@@ -83,7 +83,7 @@ mod tests {
             create_new_keystore(None, Some("RexTest"), "LambdaClass")
                 .unwrap()
                 .0,
-            load_keystore(None, "RexTest", "LambdaClass").unwrap()
+            load_keystore_from_path(None, "RexTest", "LambdaClass").unwrap()
         );
     }
 }
