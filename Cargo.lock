@@ -3818,7 +3818,6 @@ dependencies = [
  "itertools 0.14.0",
  "jsonwebtoken",
  "keccak-hash",
- "lazy_static",
  "log",
  "rand",
  "reqwest",

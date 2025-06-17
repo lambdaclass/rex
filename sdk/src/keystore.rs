@@ -1,25 +1,22 @@
 use crate::errors::KeystoreError;
 use dirs::data_dir;
 use eth_keystore::{decrypt_key, new as eth_keystore_new};
-use lazy_static::lazy_static;
 use rand::rngs::OsRng;
 use secp256k1::SecretKey;
 use std::fs;
 use std::path::Path;
 
-lazy_static! {
-    pub static ref KEYSTORE_DEFAULT_PATH: String = {
-        let data_dir = data_dir().expect("Failed to get base directories");
-        data_dir
-            .join("rex/keystores/")
-            .to_str()
-            .expect("Failed to convert path to string")
-            .to_owned()
-    };
+fn get_keystore_default_path() -> String {
+    data_dir()
+        .expect("Failed to get base directories")
+        .join("rex/keystores/")
+        .to_str()
+        .expect("Failed to convert path to string")
+        .to_owned()
 }
 
 /// Creates a new keystore in the given path and name using the password.
-/// If no path is provided, uses KEYSTORE_DEFAULT_PATH.
+/// If no path is provided, uses keystore_default_path.
 /// If no name is provided, generates a random one.
 /// Returns the SecretKey and the UUID of the keystore file.
 pub fn create_new_keystore<S>(
@@ -30,13 +27,14 @@ pub fn create_new_keystore<S>(
 where
     S: AsRef<[u8]>,
 {
+    let keystore_default_path = get_keystore_default_path();
     let path = match path {
         Some(p) => Path::new(p),
         None => {
             // check if default path exists or create it
-            let p = Path::new(KEYSTORE_DEFAULT_PATH.as_str());
+            let p = Path::new(keystore_default_path.as_str());
             if !p.exists() {
-                fs::create_dir_all(KEYSTORE_DEFAULT_PATH.as_str())
+                fs::create_dir_all(keystore_default_path.as_str())
                     .map_err(|e| KeystoreError::ErrorCreatingDefaultDir(e.to_string()))?;
             }
             p
@@ -61,10 +59,11 @@ pub fn load_keystore_from_path<S>(
 where
     S: AsRef<[u8]>,
 {
+    let keystore_default_path = get_keystore_default_path();
     let path = match path {
         Some(p) => Path::new(p).join(name),
 
-        None => Path::new(KEYSTORE_DEFAULT_PATH.as_str()).join(name),
+        None => Path::new(keystore_default_path.as_str()).join(name),
     };
     let key_vec = decrypt_key(path, password)
         .map_err(|e| KeystoreError::ErrorOpeningKeystore(e.to_string()))?;
