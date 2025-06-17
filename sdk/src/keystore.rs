@@ -60,11 +60,10 @@ where
     S: AsRef<[u8]>,
 {
     let keystore_default_path = get_keystore_default_path();
-    let path = match path {
-        Some(p) => Path::new(p).join(name),
+    let path = path
+        .map_or(Path::new(keystore_default_path.as_str()), Path::new)
+        .join(name);
 
-        None => Path::new(keystore_default_path.as_str()).join(name),
-    };
     let key_vec = decrypt_key(path, password)
         .map_err(|e| KeystoreError::ErrorOpeningKeystore(e.to_string()))?;
     let secret_key = SecretKey::from_slice(&key_vec)
