@@ -21,7 +21,7 @@ lazy_static! {
 /// Creates a new keystore in the given path and name using the password.
 /// If no path is provided, uses KEYSTORE_DEFAULT_PATH.
 /// If no name is provided, generates a random one.
-/// Returns the SecretKey generated a the UUID of the filesystem.
+/// Returns the SecretKey and the UUID of the keystore file.
 pub fn create_new_keystore<S>(
     path: Option<&str>,
     name: Option<&str>,
