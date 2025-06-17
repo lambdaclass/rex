@@ -8,6 +8,12 @@ pub enum Error {
 
 #[derive(Debug, thiserror::Error)]
 pub enum KeystoreError {
-    #[error("Error sending request")]
-    Err,
+    #[error("Error creating default dir: {0}")]
+    ErrorCreatingDefaultDir(String),
+    #[error("Error creating Keystore: {0}")]
+    ErrorCreatingKeystore(String),
+    #[error("Error creating SecretKey: {0}")]
+    ErrorCreatingSecretKey(String),
+    #[error("Error opnening keystore: {0}")]
+    ErrorOpeningKeystore(String),
 }
