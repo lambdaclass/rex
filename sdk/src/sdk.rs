@@ -7,6 +7,7 @@ pub mod calldata;
 pub mod client;
 pub mod create;
 pub mod errors;
+pub mod keystore;
 pub mod utils;
 
 pub mod l2;

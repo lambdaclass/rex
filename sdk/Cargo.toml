@@ -20,6 +20,8 @@ jsonwebtoken = "9.3.0"
 # Crypto
 keccak-hash.workspace = true
 secp256k1.workspace = true
+eth-keystore = "0.5"
+rand = "0.8.5"
 
 # Utils
 hex.workspace = true
@@ -27,6 +29,7 @@ itertools = "0.14.0"
 toml = "0.8.19"
 dirs = "6.0.0"
 envy = "0.4.2"
+lazy_static = "1.5"
 thiserror.workspace = true
 
 # Logging
