@@ -10,13 +10,10 @@ use ethrex_common::{Address, Bytes, H256, H520};
 use keccak_hash::keccak;
 use rex_sdk::calldata::{Value, decode_calldata};
 use rex_sdk::create::compute_create_address;
-use rex_sdk::sign::sign_hash;
+use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
 use rex_sdk::{
     balance_in_eth,
-    client::{
-        EthClient, Overrides,
-        eth::{get_address_from_message_and_signature, get_address_from_secret_key},
-    },
+    client::{EthClient, Overrides, eth::get_address_from_secret_key},
     transfer, wait_for_transaction_receipt,
 };
 
