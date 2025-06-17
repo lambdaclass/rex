@@ -10,6 +10,7 @@ use ethrex_common::{Address, Bytes, H256, H520};
 use keccak_hash::keccak;
 use rex_sdk::calldata::{Value, decode_calldata};
 use rex_sdk::create::compute_create_address;
+use rex_sdk::sign::sign_hash;
 use rex_sdk::{
     balance_in_eth,
     client::{
@@ -18,7 +19,8 @@ use rex_sdk::{
     },
     transfer, wait_for_transaction_receipt,
 };
-use secp256k1::{Message, SecretKey};
+
+use secp256k1::SecretKey;
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -496,19 +498,7 @@ impl Command {
                     msg.as_ref(),
                 ]
                 .concat();
-
-                let signed_msg = secp256k1::SECP256K1.sign_ecdsa_recoverable(
-                    &Message::from_digest(*keccak(&payload).as_fixed_bytes()),
-                    &private_key,
-                );
-
-                let (msg_signature_recovery_id, msg_signature) = signed_msg.serialize_compact();
-
-                let msg_signature_recovery_id = msg_signature_recovery_id.to_i32() + 27;
-
-                let encoded_signature =
-                    [&msg_signature[..], &[msg_signature_recovery_id as u8]].concat();
-
+                let encoded_signature = sign_hash(keccak(payload), private_key);
                 println!("0x{:x}", H520::from_slice(&encoded_signature));
             }
             Command::VerifySignature {

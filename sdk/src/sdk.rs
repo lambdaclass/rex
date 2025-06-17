@@ -7,6 +7,7 @@ pub mod calldata;
 pub mod client;
 pub mod create;
 pub mod errors;
+pub mod sign;
 pub mod utils;
 
 pub mod l2;
