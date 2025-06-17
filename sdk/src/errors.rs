@@ -14,6 +14,6 @@ pub enum KeystoreError {
     ErrorCreatingKeystore(String),
     #[error("Error creating secret key: {0}")]
     ErrorCreatingSecretKey(String),
-    #[error("Error opnening keystore: {0}")]
+    #[error("Error opening keystore: {0}")]
     ErrorOpeningKeystore(String),
 }
