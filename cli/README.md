@@ -295,6 +295,32 @@ Options:
   -h, --help                                           Print help
 ```
 
+### `rex encode-calldata`
+
+```Shell
+Usage: rex encode-calldata <SIGNATURE> [ARGUMENTS]
+
+Arguments:
+  <SIGNATURE>
+  [SIGNATURE]
+
+Options:
+  -h, --help  Print help
+```
+
+### `rex decode-calldata`
+
+```Shell
+Usage: rex decode-calldata <SIGNATURE> <CALLDATA>
+
+Arguments:
+  <SIGNATURE>
+  <CALLDATA>
+
+Options:
+  -h, --help  Print help
+```
+
 ## Examples
 
 A curated list of examples as GIFs.
