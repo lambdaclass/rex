@@ -28,21 +28,17 @@ where
     S: AsRef<[u8]>,
 {
     let keystore_default_path = get_keystore_default_path();
-    let path = match path {
-        Some(p) => Path::new(p),
-        None => {
-            // check if default path exists or create it
-            let p = Path::new(keystore_default_path.as_str());
-            if !p.exists() {
-                fs::create_dir_all(keystore_default_path.as_str())
-                    .map_err(|e| KeystoreError::ErrorCreatingDefaultDir(e.to_string()))?;
-            }
-            p
-        }
-    };
+    let path = path.map_or(Path::new(keystore_default_path.as_str()), Path::new);
+
+    if !path.exists() {
+        fs::create_dir_all(path.as_os_str())
+            .map_err(|e| KeystoreError::ErrorCreatingDefaultDir(e.to_string()))?;
+    }
+
     let mut rng = OsRng;
     let (key_vec, uuid) = eth_keystore_new(path, &mut rng, password, name)
         .map_err(|e| KeystoreError::ErrorCreatingKeystore(e.to_string()))?;
+
     let secret_key = SecretKey::from_slice(&key_vec)
         .map_err(|e| KeystoreError::ErrorCreatingSecretKey(e.to_string()))?;
     Ok((secret_key, uuid))
