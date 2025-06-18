@@ -569,31 +569,25 @@ impl EthClient {
         if let Some(fb) = from_block {
             params_obj.insert(
                 "fromBlock".to_string(),
-                serde_json::json!(format!("{:#x}", fb)),
+                serde_json::json!(format!("{fb:#x}")),
             );
         }
         if let Some(tb) = to_block {
-            params_obj.insert(
-                "toBlock".to_string(),
-                serde_json::json!(format!("{:#x}", tb)),
-            );
+            params_obj.insert("toBlock".to_string(), serde_json::json!(format!("{tb:#x}")));
         }
         if let Some(addr) = address {
             params_obj.insert(
                 "address".to_string(),
-                serde_json::json!(format!("{:#x}", addr)),
+                serde_json::json!(format!("{addr:#x}")),
             );
         }
         if let Some(t) = topic {
-            params_obj.insert(
-                "topics".to_string(),
-                serde_json::json!([format!("{:#x}", t)]),
-            );
+            params_obj.insert("topics".to_string(), serde_json::json!([format!("{t:#x}")]));
         }
         if let Some(bh) = block_hash {
             params_obj.insert(
                 "blockHash".to_string(),
-                serde_json::json!([format!("{:#x}", bh)]),
+                serde_json::json!([format!("{bh:#x}")]),
             );
         }
 
