@@ -1127,6 +1127,24 @@ impl EthClient {
             Err(error) => Err(error),
         }
     }
+
+    pub async fn get_logs_from_signature(
+        &self,
+        from_block: U256,
+        to_block: U256,
+        address: Address,
+        signature: &str,
+    ) -> Result<Vec<RpcLog>, EthClientError> {
+        let topic = keccak(signature);
+        self.get_logs(
+            Some(from_block),
+            Some(to_block),
+            Some(address),
+            Some(topic),
+            None,
+        )
+        .await
+    }
 }
 
 pub fn from_hex_string_to_u256(hex_str: &str) -> Result<U256, EthClientError> {
