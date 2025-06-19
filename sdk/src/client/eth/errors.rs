@@ -38,6 +38,8 @@ pub enum EthClientError {
     Custom(String),
     #[error("Failed to encode calldata: {0}")]
     CalldataEncodeError(#[from] CalldataEncodeError),
+    #[error("secp256k1 error: {0}")]
+    Secp256k1Error(#[from] secp256k1::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
