@@ -1,4 +1,4 @@
 .PHONY: cli
 
 cli:
-	cargo install --locked --path cli
+	cargo install --path cli
