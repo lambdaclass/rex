@@ -32,11 +32,11 @@ manual_saturating_arithmetic = "warn"
 rex-cli = { path = "cli" }
 rex-sdk = { path = "sdk" }
 
-ethrex-l2 = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2" }
-ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common" }
-ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain" }
-ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp" }
-ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc" } 
+ethrex-l2 = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2", rev = "b8c6d1fb5880ae7a3f02d65b9efe50035f3b60ce" }
+ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common", rev = "b8c6d1fb5880ae7a3f02d65b9efe50035f3b60ce" }
+ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain", rev = "b8c6d1fb5880ae7a3f02d65b9efe50035f3b60ce" }
+ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", rev = "b8c6d1fb5880ae7a3f02d65b9efe50035f3b60ce" }
+ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", rev = "b8c6d1fb5880ae7a3f02d65b9efe50035f3b60ce" } 
 
 keccak-hash = "0.11.0"
 thiserror = "2.0.11"
