@@ -14,16 +14,19 @@ pub mod utils;
 pub mod l2;
 
 pub async fn transfer(
-    _amount: U256,
+    amount: U256,
     from: Address,
     to: Address,
     private_key: SecretKey,
     client: &EthClient,
-    overrides: Overrides,
+    mut overrides: Overrides,
 ) -> Result<H256, EthClientError> {
+    overrides.value = Some(amount);
+
     let tx = client
         .build_eip1559_transaction(to, from, Default::default(), overrides, 10)
         .await?;
+
     client.send_eip1559_transaction(&tx, &private_key).await
 }
 

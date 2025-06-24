@@ -12,7 +12,7 @@ use std::str::FromStr;
 struct SimpleUsageArgs {
     #[arg(long, value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to derive the address from.")]
     private_key: SecretKey,
-    #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+    #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
     rpc_url: String,
 }
 
@@ -33,9 +33,7 @@ async fn main() {
 
     let account = get_address_from_secret_key(&args.private_key).unwrap();
 
-    let rpc_url = "http://localhost:8545";
-
-    let eth_client = EthClient::new(rpc_url);
+    let eth_client = EthClient::new(&args.rpc_url);
 
     let account_balance = eth_client.get_balance(account).await.unwrap();
 

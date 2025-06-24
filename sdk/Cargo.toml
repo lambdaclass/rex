@@ -51,3 +51,8 @@ path = "./src/sdk.rs"
 [[example]]
 name = "simple_usage"
 path = "./examples/simple_usage.rs"
+
+
+[[example]]
+name = "keystore"
+path = "./examples/keystore/main.rs"
