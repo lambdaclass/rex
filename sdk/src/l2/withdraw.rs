@@ -1,7 +1,7 @@
 use crate::bridge_address;
 use crate::{
     calldata::{Value, encode_calldata},
-    client::{EthClient, EthClientError, Overrides},
+    client::{EthClient, EthClientError, Overrides, eth::WithdrawalProof},
     l2::{
         constants::{COMMON_BRIDGE_L2_ADDRESS, L2_WITHDRAW_SIGNATURE},
         merkle_tree::merkle_proof,
@@ -11,7 +11,6 @@ use ethrex_common::{
     Address, Bytes, H256, U256,
     types::{Transaction, TxKind},
 };
-use ethrex_rpc::clients::eth::WithdrawalProof;
 use ethrex_rpc::types::block::BlockBodyWrapper;
 use itertools::Itertools;
 use secp256k1::SecretKey;

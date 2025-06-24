@@ -275,7 +275,7 @@ impl Command {
 
                 let from = get_address_from_secret_key(&private_key)?;
 
-                let eth_client = EthClient::new(&l1_rpc_url);
+                let eth_client = EthClient::new(&l1_rpc_url)?;
 
                 let tx_hash = deposit(
                     amount,
@@ -304,18 +304,23 @@ impl Command {
             } => {
                 let from = get_address_from_secret_key(&private_key)?;
 
-                let eth_client = EthClient::new(&l1_rpc_url);
+                let eth_client = EthClient::new(&l1_rpc_url)?;
 
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
+
+                let Some(withdraw_proof) =
+                    client.get_withdrawal_proof(l2_withdrawal_tx_hash).await?
+                else {
+                    return Ok(());
+                };
 
                 let tx_hash = claim_withdraw(
-                    l2_withdrawal_tx_hash,
                     U256::default(), // TODO: Fix this
+                    l2_withdrawal_tx_hash,
                     from,
                     private_key,
                     &client,
-                    &eth_client,
-                    bridge_address,
+                    &withdraw_proof,
                 )
                 .await?;
 
@@ -345,9 +350,9 @@ impl Command {
 
                 let from = get_address_from_secret_key(&private_key)?;
 
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
 
-                let tx_hash = withdraw(amount, from, private_key, &client, nonce).await?;
+                let tx_hash = withdraw(amount, from, private_key, &client).await?;
 
                 println!("Withdrawal sent: {tx_hash:#x}");
 
@@ -359,7 +364,7 @@ impl Command {
                 l2_withdrawal_tx_hash,
                 rpc_url,
             } => {
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
 
                 let (_index, path) =
                     get_withdraw_merkle_proof(&client, l2_withdrawal_tx_hash).await?;
