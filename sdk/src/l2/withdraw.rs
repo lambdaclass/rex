@@ -1,6 +1,7 @@
+use crate::bridge_address;
 use crate::{
     calldata::{Value, encode_calldata},
-    client::{EthClient, EthClientError, Overrides, eth::errors::GetTransactionReceiptError},
+    client::{EthClient, EthClientError, Overrides},
     l2::{
         constants::{COMMON_BRIDGE_L2_ADDRESS, L2_WITHDRAW_SIGNATURE},
         merkle_tree::merkle_proof,
@@ -10,6 +11,7 @@ use ethrex_common::{
     Address, Bytes, H256, U256,
     types::{Transaction, TxKind},
 };
+use ethrex_rpc::clients::eth::WithdrawalProof;
 use ethrex_rpc::types::block::BlockBodyWrapper;
 use itertools::Itertools;
 use secp256k1::SecretKey;
@@ -19,25 +21,19 @@ pub async fn withdraw(
     from: Address,
     from_pk: SecretKey,
     proposer_client: &EthClient,
-    nonce: Option<u64>,
 ) -> Result<H256, EthClientError> {
     let withdraw_transaction = proposer_client
         .build_eip1559_transaction(
             COMMON_BRIDGE_L2_ADDRESS,
             from,
-            Bytes::from(encode_calldata(L2_WITHDRAW_SIGNATURE, &[Value::Address(from)]).unwrap()),
+            Bytes::from(encode_calldata(
+                L2_WITHDRAW_SIGNATURE,
+                &[Value::Address(from)],
+            )?),
             Overrides {
                 value: Some(amount),
-                nonce,
-                // CHECK: If we don't set max_fee_per_gas and max_priority_fee_per_gas
-                // The transaction is not included on the L2.
-                // Also we have some mismatches at the end of the L2 integration test.
-                max_fee_per_gas: Some(800000000),
-                max_priority_fee_per_gas: Some(800000000),
-                gas_limit: Some(21000 * 2),
                 ..Default::default()
             },
-            10,
         )
         .await?;
 
@@ -47,53 +43,35 @@ pub async fn withdraw(
 }
 
 pub async fn claim_withdraw(
-    l2_withdrawal_tx_hash: H256,
     amount: U256,
+    l2_withdrawal_tx_hash: H256,
     from: Address,
     from_pk: SecretKey,
-    proposer_client: &EthClient,
     eth_client: &EthClient,
-    bridge_address: Address,
+    withdrawal_proof: &WithdrawalProof,
 ) -> Result<H256, EthClientError> {
     println!("Claiming {amount} from bridge to {from:#x}");
 
     const CLAIM_WITHDRAWAL_SIGNATURE: &str =
         "claimWithdrawal(bytes32,uint256,uint256,uint256,bytes32[])";
 
-    let (withdrawal_l2_block_number, claimed_amount) = match proposer_client
-        .get_transaction_by_hash(l2_withdrawal_tx_hash)
-        .await?
-    {
-        Some(l2_withdrawal_tx) => (l2_withdrawal_tx.block_number, l2_withdrawal_tx.value),
-        None => {
-            println!("Withdrawal transaction not found in L2");
-            return Err(EthClientError::GetTransactionReceiptError(
-                GetTransactionReceiptError::RPCError(
-                    "Withdrawal transaction not found in L2".to_owned(),
-                ),
-            ));
-        }
-    };
-
-    let (index, proof) = get_withdraw_merkle_proof(proposer_client, l2_withdrawal_tx_hash).await?;
-
     let calldata_values = vec![
         Value::Uint(U256::from_big_endian(
             l2_withdrawal_tx_hash.as_fixed_bytes(),
         )),
-        Value::Uint(claimed_amount),
-        Value::Uint(withdrawal_l2_block_number),
-        Value::Uint(U256::from(index)),
+        Value::Uint(amount),
+        Value::Uint(withdrawal_proof.batch_number.into()),
+        Value::Uint(U256::from(withdrawal_proof.index)),
         Value::Array(
-            proof
+            withdrawal_proof
+                .merkle_proof
                 .iter()
                 .map(|hash| Value::FixedBytes(hash.as_fixed_bytes().to_vec().into()))
                 .collect(),
         ),
     ];
 
-    let claim_withdrawal_data =
-        encode_calldata(CLAIM_WITHDRAWAL_SIGNATURE, &calldata_values).unwrap();
+    let claim_withdrawal_data = encode_calldata(CLAIM_WITHDRAWAL_SIGNATURE, &calldata_values)?;
 
     println!(
         "Claiming withdrawal with calldata: {}",
@@ -102,14 +80,13 @@ pub async fn claim_withdraw(
 
     let claim_tx = eth_client
         .build_eip1559_transaction(
-            bridge_address,
+            bridge_address().map_err(|err| EthClientError::Custom(err.to_string()))?,
             from,
             claim_withdrawal_data.into(),
             Overrides {
                 from: Some(from),
                 ..Default::default()
             },
-            10,
         )
         .await?;
 

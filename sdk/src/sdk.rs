@@ -1,6 +1,9 @@
 use crate::client::{EthClient, EthClientError, Overrides};
+use crate::l2::constants::DEFAULT_BRIDGE_ADDRESS;
+use ethrex_common::types::GenericTransaction;
 use ethrex_common::{Address, H256, U256};
 use ethrex_rpc::types::receipt::RpcReceipt;
+use keccak_hash::keccak;
 use secp256k1::SecretKey;
 
 pub mod calldata;
@@ -13,18 +16,60 @@ pub mod utils;
 
 pub mod l2;
 
+#[derive(Debug, thiserror::Error)]
+pub enum SdkError {
+    #[error("Failed to parse address from hex")]
+    FailedToParseAddressFromHex,
+}
+
+/// BRIDGE_ADDRESS or 0x554a14cd047c485b3ac3edbd9fbb373d6f84ad3f
+pub fn bridge_address() -> Result<Address, SdkError> {
+    std::env::var("ETHREX_WATCHER_BRIDGE_ADDRESS")
+        .unwrap_or(format!("{DEFAULT_BRIDGE_ADDRESS:#x}"))
+        .parse()
+        .map_err(|_| SdkError::FailedToParseAddressFromHex)
+}
+
 pub async fn transfer(
-    _amount: U256,
+    amount: U256,
     from: Address,
     to: Address,
-    private_key: SecretKey,
+    private_key: &SecretKey,
     client: &EthClient,
-    overrides: Overrides,
 ) -> Result<H256, EthClientError> {
-    let tx = client
-        .build_eip1559_transaction(to, from, Default::default(), overrides, 10)
+    println!(
+        "Transferring {amount} from {from:#x} to {to:#x}",
+        amount = amount,
+        from = from,
+        to = to
+    );
+    let gas_price = client
+        .get_gas_price_with_extra(20)
+        .await?
+        .try_into()
+        .map_err(|_| {
+            EthClientError::InternalError("Failed to convert gas_price to a u64".to_owned())
+        })?;
+
+    let mut tx = client
+        .build_eip1559_transaction(
+            to,
+            from,
+            Default::default(),
+            Overrides {
+                value: Some(amount),
+                max_fee_per_gas: Some(gas_price),
+                max_priority_fee_per_gas: Some(gas_price),
+                ..Default::default()
+            },
+        )
         .await?;
-    client.send_eip1559_transaction(&tx, &private_key).await
+
+    let mut tx_generic: GenericTransaction = tx.clone().into();
+    tx_generic.from = from;
+    let gas_limit = client.estimate_gas(tx_generic).await?;
+    tx.gas_limit = gas_limit;
+    client.send_eip1559_transaction(&tx, private_key).await
 }
 
 pub async fn wait_for_transaction_receipt(
@@ -116,4 +161,25 @@ fn test_balance_in_ether() {
 
     // test 0.0
     assert_eq!("0.000000000000000000", balance_in_eth(true, U256::zero()));
+}
+
+pub fn get_address_from_secret_key(secret_key: &SecretKey) -> Result<Address, EthClientError> {
+    let public_key = secret_key
+        .public_key(secp256k1::SECP256K1)
+        .serialize_uncompressed();
+    let hash = keccak(&public_key[1..]);
+
+    // Get the last 20 bytes of the hash
+    let address_bytes: [u8; 20] = hash
+        .as_ref()
+        .get(12..32)
+        .ok_or(EthClientError::Custom(
+            "Failed to get_address_from_secret_key: error slicing address_bytes".to_owned(),
+        ))?
+        .try_into()
+        .map_err(|err| {
+            EthClientError::Custom(format!("Failed to get_address_from_secret_key: {err}"))
+        })?;
+
+    Ok(Address::from(address_bytes))
 }
