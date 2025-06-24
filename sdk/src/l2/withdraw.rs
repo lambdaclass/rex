@@ -1,4 +1,3 @@
-use crate::bridge_address;
 use crate::{
     calldata::{Value, encode_calldata},
     client::{EthClient, EthClientError, Overrides, eth::L1MessageProof},
@@ -14,12 +13,12 @@ use ethrex_common::{
 use ethrex_rpc::types::block::BlockBodyWrapper;
 use itertools::Itertools;
 use secp256k1::SecretKey;
-
 pub async fn withdraw(
     amount: U256,
     from: Address,
     from_pk: SecretKey,
     proposer_client: &EthClient,
+    nonce: Option<u64>,
 ) -> Result<H256, EthClientError> {
     let withdraw_transaction = proposer_client
         .build_eip1559_transaction(
@@ -82,7 +81,7 @@ pub async fn claim_withdraw(
 
     let claim_tx = eth_client
         .build_eip1559_transaction(
-            bridge_address().map_err(|err| EthClientError::Custom(err.to_string()))?,
+            bridge_address,
             from,
             claim_withdrawal_data.into(),
             Overrides {

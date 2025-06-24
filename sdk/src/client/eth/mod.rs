@@ -26,7 +26,7 @@ use reqwest::{Client, Url};
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::fmt;
+
 use std::{ops::Div, str::FromStr};
 use tracing::warn;
 
@@ -832,40 +832,6 @@ impl EthClient {
         }
     }
 
-    pub async fn get_code(
-        &self,
-        address: Address,
-        block: BlockByNumber,
-    ) -> Result<Bytes, EthClientError> {
-        let request = RpcRequest {
-            id: RpcRequestId::Number(1),
-            jsonrpc: "2.0".to_string(),
-            method: "eth_getCode".to_string(),
-            params: Some(vec![json!(format!("{:#x}", address)), block.into()]),
-        };
-
-        match self.send_request(request).await {
-            Ok(RpcResponse::Success(result)) => hex::decode(
-                &serde_json::from_value::<String>(result.result)
-                    .map(|hex_str| {
-                        hex_str
-                            .strip_prefix("0x")
-                            .map(ToString::to_string)
-                            .unwrap_or(hex_str)
-                    })
-                    .map_err(GetCodeError::SerdeJSONError)
-                    .map_err(EthClientError::from)?,
-            )
-            .map(Into::into)
-            .map_err(GetCodeError::NotHexError)
-            .map_err(EthClientError::from),
-            Ok(RpcResponse::Error(error_response)) => {
-                Err(GetCodeError::RPCError(error_response.error.message).into())
-            }
-            Err(error) => Err(error),
-        }
-    }
-
     pub async fn get_transaction_by_hash(
         &self,
         tx_hash: H256,
@@ -1237,106 +1203,6 @@ impl EthClient {
         Ok(value)
     }
 
-    pub async fn get_pending_deposit_logs(
-        &self,
-        common_bridge_address: Address,
-    ) -> Result<Vec<H256>, EthClientError> {
-        let response = self
-            ._generic_call(b"getPendingDepositLogs()", common_bridge_address)
-            .await?;
-        Self::from_hex_string_to_h256_array(&response)
-    }
-
-    pub fn from_hex_string_to_h256_array(hex_string: &str) -> Result<Vec<H256>, EthClientError> {
-        let bytes = hex::decode(hex_string.strip_prefix("0x").unwrap_or(hex_string))
-            .map_err(|_| EthClientError::Custom("Invalid hex string".to_owned()))?;
-
-        // The ABI encoding for dynamic arrays is:
-        // 1. Offset to data (32 bytes)
-        // 2. Length of array (32 bytes)
-        // 3. Array elements (each 32 bytes)
-        if bytes.len() < 64 {
-            return Err(EthClientError::Custom("Response too short".to_owned()));
-        }
-
-        // Get the offset (should be 0x20 for simple arrays)
-        let offset = U256::from_big_endian(&bytes[0..32]).as_usize();
-
-        // Get the length of the array
-        let length = U256::from_big_endian(&bytes[offset..offset + 32]).as_usize();
-
-        // Calculate the start of the array data
-        let data_start = offset + 32;
-        let data_end = data_start + (length * 32);
-
-        if data_end > bytes.len() {
-            return Err(EthClientError::Custom("Invalid array length".to_owned()));
-        }
-
-        // Convert the slice directly to H256 array
-        bytes[data_start..data_end]
-            .chunks_exact(32)
-            .map(|chunk| Ok(H256::from_slice(chunk)))
-            .collect()
-    }
-
-    async fn _generic_call(
-        &self,
-        selector: &[u8],
-        contract_address: Address,
-    ) -> Result<String, EthClientError> {
-        let selector = keccak(selector)
-            .as_bytes()
-            .get(..4)
-            .ok_or(EthClientError::Custom("Failed to get selector.".to_owned()))?
-            .to_vec();
-        let mut calldata = Vec::new();
-        calldata.extend_from_slice(&selector);
-        let leading_zeros = 32 - ((calldata.len() - 4) % 32);
-        calldata.extend(vec![0; leading_zeros]);
-
-        let hex_string = self
-            .call(contract_address, calldata.into(), Overrides::default())
-            .await?;
-
-        Ok(hex_string)
-    }
-
-    async fn _call_variable(
-        &self,
-        selector: &[u8],
-        on_chain_proposer_address: Address,
-    ) -> Result<u64, EthClientError> {
-        let hex_string = self
-            ._generic_call(selector, on_chain_proposer_address)
-            .await?;
-
-        let value = from_hex_string_to_u256(&hex_string)?
-            .try_into()
-            .map_err(|_| {
-                EthClientError::Custom("Failed to convert from_hex_string_to_u256()".to_owned())
-            })?;
-
-        Ok(value)
-    }
-
-    async fn _call_address_variable(
-        eth_client: &EthClient,
-        selector: &[u8],
-        on_chain_proposer_address: Address,
-    ) -> Result<Address, EthClientError> {
-        let hex_string =
-            Self::_generic_call(eth_client, selector, on_chain_proposer_address).await?;
-
-        let hex_str = &hex_string.strip_prefix("0x").ok_or(EthClientError::Custom(
-            "Couldn't strip prefix from request.".to_owned(),
-        ))?[24..]; // Get the needed bytes
-
-        let value = Address::from_str(hex_str)
-            .map_err(|_| EthClientError::Custom("Failed to convert from_str()".to_owned()))?;
-        Ok(value)
-    }
-
     pub async fn wait_for_transaction_receipt(
         &self,
         tx_hash: H256,
@@ -1439,62 +1305,6 @@ impl EthClient {
 
         self.get_fee_from_override_or_get_gas_price(None).await
     }
-
-    pub async fn wait_for_withdrawal_proof(
-        &self,
-        transaction_hash: H256,
-        max_retries: u64,
-    ) -> Result<WithdrawalProof, EthClientError> {
-        let mut withdrawal_proof = self.get_withdrawal_proof(transaction_hash).await?;
-        let mut r#try = 1;
-        while withdrawal_proof.is_none() {
-            println!(
-                "[{try}/{max_retries}] Retrying to get withdrawal proof for tx {transaction_hash:#x}"
-            );
-
-            if max_retries == r#try {
-                return Err(EthClientError::Custom(format!(
-                    "Withdrawal proof for tx {transaction_hash:#x} not found after {max_retries} retries"
-                )));
-            }
-            r#try += 1;
-
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-            withdrawal_proof = self.get_withdrawal_proof(transaction_hash).await?;
-        }
-        withdrawal_proof.ok_or(EthClientError::Custom(
-            "Withdrawal proof is None".to_owned(),
-        ))
-    }
-
-    async fn get_fee_from_override_or_get_gas_price(
-        &self,
-        maybe_gas_fee: Option<u64>,
-    ) -> Result<u64, EthClientError> {
-        if let Some(gas_fee) = maybe_gas_fee {
-            return Ok(gas_fee);
-        }
-        self.get_gas_price()
-            .await?
-            .try_into()
-            .map_err(|_| EthClientError::Custom("Failed to get gas for fee".to_owned()))
-    }
-
-    async fn priority_fee_from_override_or_rpc(
-        &self,
-        maybe_priority_fee: Option<u64>,
-    ) -> Result<u64, EthClientError> {
-        if let Some(priority_fee) = maybe_priority_fee {
-            return Ok(priority_fee);
-        }
-
-        if let Ok(priority_fee) = self.get_max_priority_fee().await {
-            return Ok(priority_fee);
-        }
-
-        self.get_fee_from_override_or_get_gas_price(None).await
-    }
 }
 
 pub fn from_hex_string_to_u256(hex_string: &str) -> Result<U256, EthClientError> {
@@ -1535,100 +1345,6 @@ pub fn get_address_from_secret_key(secret_key: &SecretKey) -> Result<Address, Et
         })?;
 
     Ok(Address::from(address_bytes))
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct GetTransactionByHashTransaction {
-    #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
-    pub chain_id: u64,
-    #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
-    pub nonce: u64,
-    #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
-    pub max_priority_fee_per_gas: u64,
-    #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
-    pub max_fee_per_gas: u64,
-    #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
-    pub gas_limit: u64,
-    #[serde(default)]
-    pub to: Address,
-    #[serde(default)]
-    pub value: U256,
-    #[serde(default, with = "ethrex_common::serde_utils::vec_u8", alias = "input")]
-    pub data: Vec<u8>,
-    #[serde(default)]
-    pub access_list: Vec<(Address, Vec<H256>)>,
-    #[serde(default)]
-    pub r#type: TxType,
-    #[serde(default)]
-    pub signature_y_parity: bool,
-    #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
-    pub signature_r: u64,
-    #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
-    pub signature_s: u64,
-    #[serde(default)]
-    pub block_number: U256,
-    #[serde(default)]
-    pub block_hash: H256,
-    #[serde(default)]
-    pub from: Address,
-    #[serde(default)]
-    pub hash: H256,
-    #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
-    pub transaction_index: u64,
-    #[serde(default)]
-    pub blob_versioned_hashes: Option<Vec<H256>>,
-}
-
-impl fmt::Display for GetTransactionByHashTransaction {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            r#"
-chain_id: {},
-nonce: {},
-max_priority_fee_per_gas: {},
-max_fee_per_gas: {},
-gas_limit: {},
-to: {:#x},
-value: {},
-data: {:#?},
-access_list: {:#?},
-type: {:?},
-signature_y_parity: {},
-signature_r: {:x},
-signature_s: {:x},
-block_number: {},
-block_hash: {:#x},
-from: {:#x},
-hash: {:#x},
-transaction_index: {}"#,
-            self.chain_id,
-            self.nonce,
-            self.max_priority_fee_per_gas,
-            self.max_fee_per_gas,
-            self.gas_limit,
-            self.to,
-            self.value,
-            self.data,
-            self.access_list,
-            self.r#type,
-            self.signature_y_parity,
-            self.signature_r,
-            self.signature_s,
-            self.block_number,
-            self.block_hash,
-            self.from,
-            self.hash,
-            self.transaction_index,
-        )?;
-
-        if let Some(blob_versioned_hashes) = &self.blob_versioned_hashes {
-            write!(f, "\nblob_versioned_hashes: {blob_versioned_hashes:#?}")?;
-        }
-
-        fmt::Result::Ok(())
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
