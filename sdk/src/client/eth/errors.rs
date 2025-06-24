@@ -9,7 +9,7 @@ pub enum EthClientError {
     #[error("eth_gasPrice request error: {0}")]
     GetGasPriceError(#[from] GetGasPriceError),
     #[error("eth_estimateGas request error: {0}")]
-    EstimateGasPriceError(#[from] EstimateGasPriceError),
+    EstimateGasError(#[from] EstimateGasError),
     #[error("eth_sendRawTransaction request error: {0}")]
     SendRawTransactionError(#[from] SendRawTransactionError),
     #[error("eth_call request error: {0}")]
@@ -30,16 +30,28 @@ pub enum EthClientError {
     FailedToSerializeRequestBody(String),
     #[error("Failed to deserialize response body: {0}")]
     GetBalanceError(#[from] GetBalanceError),
+    #[error("Failed to deserialize response body: {0}")]
+    GetCodeError(#[from] GetCodeError),
     #[error("eth_getTransactionByHash request error: {0}")]
     GetTransactionByHashError(#[from] GetTransactionByHashError),
+    #[error("ethrex_getMessageProof request error: {0}")]
+    GetMessageProofError(#[from] GetMessageProofError),
+    #[error("eth_maxPriorityFeePerGas request error: {0}")]
+    GetMaxPriorityFeeError(#[from] GetMaxPriorityFeeError),
     #[error("Unreachable nonce")]
     UnrecheableNonce,
     #[error("Error: {0}")]
     Custom(String),
     #[error("Failed to encode calldata: {0}")]
     CalldataEncodeError(#[from] CalldataEncodeError),
-    #[error("secp256k1 error: {0}")]
-    Secp256k1Error(#[from] secp256k1::Error),
+    #[error("Max number of retries reached when trying to send transaction")]
+    TimeoutError,
+    #[error("Internal Error. This is most likely a bug: {0}")]
+    InternalError(String),
+    #[error("Parse Url Error. {0}")]
+    ParseUrlError(String),
+    #[error("Failed to sign payload: {0}")]
+    FailedToSignPayload(String),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -55,7 +67,7 @@ pub enum GetGasPriceError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum EstimateGasPriceError {
+pub enum EstimateGasError {
     #[error("{0}")]
     ReqwestError(#[from] reqwest::Error),
     #[error("{0}")]
@@ -173,6 +185,18 @@ pub enum GetBalanceError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum GetCodeError {
+    #[error("{0}")]
+    ReqwestError(#[from] reqwest::Error),
+    #[error("{0}")]
+    SerdeJSONError(#[from] serde_json::Error),
+    #[error("{0}")]
+    RPCError(String),
+    #[error("{0}")]
+    NotHexError(#[from] hex::FromHexError),
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum GetTransactionByHashError {
     #[error("{0}")]
     ReqwestError(#[from] reqwest::Error),
@@ -192,4 +216,28 @@ pub enum CalldataEncodeError {
     WrongArgumentLength(String),
     #[error("Internal Calldata encoding error. This is most likely a bug")]
     InternalError,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetMessageProofError {
+    #[error("{0}")]
+    ReqwestError(#[from] reqwest::Error),
+    #[error("{0}")]
+    SerdeJSONError(#[from] serde_json::Error),
+    #[error("{0}")]
+    RPCError(String),
+    #[error("{0}")]
+    ParseIntError(#[from] std::num::ParseIntError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum GetMaxPriorityFeeError {
+    #[error("{0}")]
+    ReqwestError(#[from] reqwest::Error),
+    #[error("{0}")]
+    SerdeJSONError(#[from] serde_json::Error),
+    #[error("{0}")]
+    RPCError(String),
+    #[error("{0}")]
+    ParseIntError(#[from] std::num::ParseIntError),
 }
