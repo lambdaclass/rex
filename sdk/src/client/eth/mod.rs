@@ -668,23 +668,44 @@ impl EthClient {
 
     pub async fn get_logs(
         &self,
-        from_block: U256,
-        to_block: U256,
-        address: Address,
-        topic: H256,
+        from_block: Option<U256>,
+        to_block: Option<U256>,
+        address: Option<Address>,
+        topic: Option<H256>,
+        block_hash: Option<H256>,
     ) -> Result<Vec<RpcLog>, EthClientError> {
+        let mut params_obj = serde_json::Map::new();
+
+        if let Some(fb) = from_block {
+            params_obj.insert(
+                "fromBlock".to_string(),
+                serde_json::json!(format!("{fb:#x}")),
+            );
+        }
+        if let Some(tb) = to_block {
+            params_obj.insert("toBlock".to_string(), serde_json::json!(format!("{tb:#x}")));
+        }
+        if let Some(addr) = address {
+            params_obj.insert(
+                "address".to_string(),
+                serde_json::json!(format!("{addr:#x}")),
+            );
+        }
+        if let Some(t) = topic {
+            params_obj.insert("topics".to_string(), serde_json::json!([format!("{t:#x}")]));
+        }
+        if let Some(bh) = block_hash {
+            params_obj.insert(
+                "blockHash".to_string(),
+                serde_json::json!([format!("{bh:#x}")]),
+            );
+        }
+
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
             jsonrpc: "2.0".to_string(),
             method: "eth_getLogs".to_string(),
-            params: Some(vec![serde_json::json!(
-                {
-                    "fromBlock": format!("{:#x}", from_block),
-                    "toBlock": format!("{:#x}", to_block),
-                    "address": format!("{:#x}", address),
-                    "topics": [format!("{:#x}", topic)]
-                }
-            )]),
+            params: Some(vec![serde_json::Value::Object(params_obj)]),
         };
 
         match self.send_request(request).await {
@@ -1263,6 +1284,24 @@ impl EthClient {
             }
             Err(error) => Err(error),
         }
+    }
+
+    pub async fn get_logs_from_signature(
+        &self,
+        from_block: U256,
+        to_block: U256,
+        address: Address,
+        signature: &str,
+    ) -> Result<Vec<RpcLog>, EthClientError> {
+        let topic = keccak(signature);
+        self.get_logs(
+            Some(from_block),
+            Some(to_block),
+            Some(address),
+            Some(topic),
+            None,
+        )
+        .await
     }
 
     pub async fn wait_for_withdrawal_proof(
