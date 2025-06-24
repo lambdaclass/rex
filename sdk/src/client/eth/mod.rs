@@ -629,6 +629,18 @@ impl EthClient {
         }
     }
 
+    pub async fn get_next_block_to_commit(
+        eth_client: &EthClient,
+        on_chain_proposer_address: Address,
+    ) -> Result<u64, EthClientError> {
+        Self::_call_block_variable(
+            eth_client,
+            b"nextBlockToCommit()",
+            on_chain_proposer_address,
+        )
+        .await
+    }
+
     /// Fetches a block from the Ethereum blockchain by its number or the latest/earliest/pending block.
     /// If no `block_number` is provided, get the latest.
     pub async fn get_block_by_number(
@@ -729,6 +741,25 @@ impl EthClient {
             }
             Err(error) => Err(error),
         }
+    }
+
+    pub async fn get_token_balance(
+        &self,
+        address: Address,
+        token_address: Address,
+    ) -> Result<U256, EthClientError> {
+        let mut calldata = Vec::from(BALANCE_OF_SELECTOR);
+        calldata.resize(16, 0);
+        calldata.extend(address.to_fixed_bytes());
+        U256::from_str_radix(
+            &self
+                .call(token_address, calldata.into(), Overrides::default())
+                .await?,
+            16,
+        )
+        .map_err(|_| {
+            EthClientError::Custom(format!("Address {token_address} did not return a uint256"))
+        })
     }
 
     pub async fn get_chain_id(&self) -> Result<U256, EthClientError> {
@@ -1152,6 +1183,36 @@ impl EthClient {
 
         let value = Address::from_str(hex_str)
             .map_err(|_| EthClientError::Custom("Failed to convert from_str()".to_owned()))?;
+        Ok(value)
+    }
+
+    async fn _call_block_variable(
+        eth_client: &EthClient,
+        selector: &[u8],
+        on_chain_proposer_address: Address,
+    ) -> Result<u64, EthClientError> {
+        let selector = keccak(selector)
+            .as_bytes()
+            .get(..4)
+            .ok_or(EthClientError::Custom("Failed to get selector.".to_owned()))?
+            .to_vec();
+        let mut calldata = Vec::new();
+        calldata.extend_from_slice(&selector);
+        let leading_zeros = 32 - ((calldata.len() - 4) % 32);
+        calldata.extend(vec![0; leading_zeros]);
+
+        let hex_str = eth_client
+            .call(
+                on_chain_proposer_address,
+                calldata.into(),
+                Overrides::default(),
+            )
+            .await?;
+
+        let value = from_hex_string_to_u256(&hex_str)?.try_into().map_err(|_| {
+            EthClientError::Custom("Failed to convert from_hex_string_to_u256()".to_owned())
+        })?;
+
         Ok(value)
     }
 
