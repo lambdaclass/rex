@@ -22,7 +22,7 @@ pub async fn transfer(
     overrides: Overrides,
 ) -> Result<H256, EthClientError> {
     let tx = client
-        .build_eip1559_transaction(to, from, Default::default(), overrides, 10)
+        .build_eip1559_transaction(to, from, Default::default(), overrides)
         .await?;
     client.send_eip1559_transaction(&tx, &private_key).await
 }

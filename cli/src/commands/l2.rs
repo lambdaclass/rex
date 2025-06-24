@@ -345,7 +345,7 @@ impl Command {
 
                 let from = get_address_from_secret_key(&private_key)?;
 
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
 
                 let tx_hash = withdraw(amount, from, private_key, &client, nonce).await?;
 
@@ -359,7 +359,7 @@ impl Command {
                 l2_withdrawal_tx_hash,
                 rpc_url,
             } => {
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
 
                 let (_index, path) =
                     get_withdraw_merkle_proof(&client, l2_withdrawal_tx_hash).await?;

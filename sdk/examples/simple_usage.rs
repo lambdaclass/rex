@@ -2,7 +2,10 @@ use clap::Parser;
 use ethrex_common::{Address, Bytes, U256};
 use hex::FromHexError;
 use rex_sdk::{
-    client::{EthClient, Overrides, eth::get_address_from_secret_key},
+    client::{
+        EthClient, Overrides,
+        eth::{BlockByNumber, get_address_from_secret_key},
+    },
     transfer, wait_for_transaction_receipt,
 };
 use secp256k1::SecretKey;
@@ -35,11 +38,17 @@ async fn main() {
 
     let rpc_url = "http://localhost:8545";
 
-    let eth_client = EthClient::new(rpc_url);
+    let eth_client = EthClient::new(rpc_url).unwrap();
 
-    let account_balance = eth_client.get_balance(account).await.unwrap();
+    let account_balance = eth_client
+        .get_balance(account, BlockByNumber::Latest)
+        .await
+        .unwrap();
 
-    let account_nonce = eth_client.get_nonce(account).await.unwrap();
+    let account_nonce = eth_client
+        .get_nonce(account, BlockByNumber::Latest)
+        .await
+        .unwrap();
 
     let chain_id = eth_client.get_chain_id().await.unwrap();
 
