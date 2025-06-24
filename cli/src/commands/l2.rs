@@ -14,7 +14,6 @@ use rex_sdk::{
     wait_for_transaction_receipt,
 };
 use secp256k1::SecretKey;
-
 #[derive(Subcommand)]
 pub(crate) enum Command {
     #[clap(about = "Get the account's balance on L2.", visible_aliases = ["bal", "b"])]
@@ -81,6 +80,8 @@ pub(crate) enum Command {
         silent: bool,
         #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
+        #[arg(env = "BRIDGE_ADDRESS")]
+        bridge_address: Address,
         #[arg(env = "L1_RPC_URL", default_value = "http://localhost:8545")]
         l1_rpc_url: String,
         #[arg(env = "RPC_URL", default_value = "http://localhost:1729")]
@@ -136,6 +137,8 @@ pub(crate) enum Command {
         explorer_url: bool,
         #[clap(value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
+        #[arg(env = "BRIDGE_ADDRESS")]
+        bridge_address: Address,
         #[arg(default_value = "http://localhost:8545", env = "L1_RPC_URL")]
         l1_rpc_url: String,
     },
@@ -192,6 +195,8 @@ pub(crate) enum Command {
         // TODO: Parse ether instead.
         #[clap(value_parser = parse_u256)]
         amount: U256,
+        #[clap(long = "nonce")]
+        nonce: Option<u64>,
         #[clap(
             long = "token",
             help = "ERC20 token address",
@@ -251,6 +256,7 @@ impl Command {
                 explorer_url,
                 private_key,
                 l1_rpc_url,
+                bridge_address,
             } => {
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
@@ -289,6 +295,7 @@ impl Command {
                 private_key,
                 l1_rpc_url,
                 rpc_url,
+                bridge_address,
             } => {
                 let from = get_address_from_secret_key(&private_key)?;
 
@@ -326,6 +333,7 @@ impl Command {
                 token_address,
                 cast,
                 silent,
+                nonce,
                 explorer_url,
                 private_key,
                 rpc_url,
@@ -342,7 +350,7 @@ impl Command {
 
                 let client = EthClient::new(&rpc_url)?;
 
-                let tx_hash = withdraw(amount, from, private_key, &client).await?;
+                let tx_hash = withdraw(amount, from, private_key, &client, nonce).await?;
 
                 println!("Withdrawal sent: {tx_hash:#x}");
 
