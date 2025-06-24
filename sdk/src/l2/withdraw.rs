@@ -1,7 +1,7 @@
 use crate::bridge_address;
 use crate::{
     calldata::{Value, encode_calldata},
-    client::{EthClient, EthClientError, Overrides, eth::WithdrawalProof},
+    client::{EthClient, EthClientError, Overrides, eth::L1MessageProof},
     l2::{
         constants::{COMMON_BRIDGE_L2_ADDRESS, L2_WITHDRAW_SIGNATURE},
         merkle_tree::merkle_proof,
@@ -25,12 +25,13 @@ pub async fn withdraw(
         .build_eip1559_transaction(
             COMMON_BRIDGE_L2_ADDRESS,
             from,
-            Bytes::from(encode_calldata(
-                L2_WITHDRAW_SIGNATURE,
-                &[Value::Address(from)],
-            )?),
+            Bytes::from(
+                encode_calldata(L2_WITHDRAW_SIGNATURE, &[Value::Address(from)])
+                    .expect("Failed to encode calldata"),
+            ),
             Overrides {
                 value: Some(amount),
+                nonce,
                 ..Default::default()
             },
         )
@@ -47,7 +48,8 @@ pub async fn claim_withdraw(
     from: Address,
     from_pk: SecretKey,
     eth_client: &EthClient,
-    withdrawal_proof: &WithdrawalProof,
+    withdrawal_proof: &L1MessageProof,
+    bridge_address: Address,
 ) -> Result<H256, EthClientError> {
     println!("Claiming {amount} from bridge to {from:#x}");
 
@@ -70,7 +72,8 @@ pub async fn claim_withdraw(
         ),
     ];
 
-    let claim_withdrawal_data = encode_calldata(CLAIM_WITHDRAWAL_SIGNATURE, &calldata_values)?;
+    let claim_withdrawal_data = encode_calldata(CLAIM_WITHDRAWAL_SIGNATURE, &calldata_values)
+        .expect("Failed to encode calldata for claim withdrawal");
 
     println!(
         "Claiming withdrawal with calldata: {}",

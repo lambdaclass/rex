@@ -62,6 +62,8 @@ pub(crate) enum Command {
     },
     #[clap(about = "Finalize a pending withdrawal.")]
     ClaimWithdraw {
+        #[clap(value_parser = parse_u256)]
+        claimed_amount: U256,
         l2_withdrawal_tx_hash: H256,
         #[clap(
             long,
@@ -280,6 +282,7 @@ impl Command {
                 }
             }
             Command::ClaimWithdraw {
+                claimed_amount,
                 l2_withdrawal_tx_hash,
                 cast,
                 silent,
@@ -291,21 +294,24 @@ impl Command {
 
                 let eth_client = EthClient::new(&l1_rpc_url)?;
 
-                let client = EthClient::new(&rpc_url)?;
+                let rollup_client = EthClient::new(&rpc_url)?;
 
-                let Some(withdraw_proof) =
-                    client.get_withdrawal_proof(l2_withdrawal_tx_hash).await?
-                else {
-                    return Ok(());
-                };
+                let message_proof = rollup_client
+                    .wait_for_message_proof(l2_withdrawal_tx_hash, 100)
+                    .await?;
+
+                let withdrawal_proof = message_proof.into_iter().next().ok_or(eyre::eyre!(
+                    "No withdrawal proof found for transaction {l2_withdrawal_tx_hash:#x}"
+                ))?;
 
                 let tx_hash = claim_withdraw(
-                    U256::default(), // TODO: Fix this
+                    claimed_amount,
                     l2_withdrawal_tx_hash,
                     from,
                     private_key,
-                    &client,
-                    &withdraw_proof,
+                    &eth_client,
+                    &withdrawal_proof,
+                    bridge_address,
                 )
                 .await?;
 

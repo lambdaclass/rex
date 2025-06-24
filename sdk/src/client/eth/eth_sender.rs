@@ -1,16 +1,15 @@
-use crate::client::eth::{
-    EthClient, RpcResponse,
-    errors::{CallError, EthClientError},
-};
-use ethrex_common::{
-    Address, Bytes, H256, U256,
-    types::{GenericTransaction, TxKind},
-};
+use ethrex_common::types::{GenericTransaction, TxKind};
+use ethrex_common::{Address, U256};
+use ethrex_common::{Bytes, H256};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::utils::{RpcRequest, RpcRequestId};
 use keccak_hash::keccak;
 use secp256k1::SecretKey;
 use serde_json::json;
+
+use crate::client::eth::RpcResponse;
+use crate::client::eth::errors::CallError;
+use crate::client::{EthClient, EthClientError};
 
 use super::BlockByNumber;
 
@@ -42,9 +41,11 @@ impl EthClient {
             value: overrides.value.unwrap_or_default(),
             from: overrides.from.unwrap_or_default(),
             gas: overrides.gas_limit,
-            gas_price: overrides
-                .max_fee_per_gas
-                .unwrap_or(self.get_gas_price().await?.as_u64()),
+            gas_price: if let Some(gas_price) = overrides.max_fee_per_gas {
+                gas_price
+            } else {
+                self.get_gas_price().await?.as_u64()
+            },
             ..Default::default()
         };
 

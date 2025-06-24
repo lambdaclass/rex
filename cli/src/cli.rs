@@ -473,14 +473,13 @@ impl Command {
                 block,
                 rpc_url,
             } => {
-                let block: u64 = block.parse()?;
                 let eth_client = EthClient::new(&rpc_url)?;
 
                 let code = eth_client
-                    .get_code(address, BlockByNumber::Number(block))
+                    .get_code(address, block.as_str().try_into()?)
                     .await?;
 
-                println!("{:?}", code);
+                println!("0x{}", hex::encode(code));
             }
 
             // Signature computed as a 0x45 signature, as described in EIP-191 (https://eips.ethereum.org/EIPS/eip-191),

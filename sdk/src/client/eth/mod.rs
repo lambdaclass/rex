@@ -1,3 +1,5 @@
+use std::fmt::{self, Display};
+
 use errors::{
     EstimateGasError, EthClientError, GetBalanceError, GetBlockByHashError, GetBlockByNumberError,
     GetBlockNumberError, GetCodeError, GetGasPriceError, GetLogsError, GetMaxPriorityFeeError,
@@ -82,6 +84,33 @@ impl From<u64> for BlockByNumber {
     }
 }
 
+impl Display for BlockByNumber {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BlockByNumber::Number(n) => write!(f, "{:#x}", n),
+            BlockByNumber::Latest => write!(f, "latest"),
+            BlockByNumber::Earliest => write!(f, "earliest"),
+            BlockByNumber::Pending => write!(f, "pending"),
+        }
+    }
+}
+
+impl TryFrom<&str> for BlockByNumber {
+    type Error = EthClientError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "latest" => Ok(BlockByNumber::Latest),
+            "earliest" => Ok(BlockByNumber::Earliest),
+            "pending" => Ok(BlockByNumber::Pending),
+            _ => value
+                .parse::<u64>()
+                .map(BlockByNumber::from)
+                .map_err(|_| EthClientError::Custom("Invalid block number".to_string())),
+        }
+    }
+}
+
 pub const MAX_NUMBER_OF_RETRIES: u64 = 10;
 pub const BACKOFF_FACTOR: u64 = 2;
 // Give at least 8 blocks before trying to bump gas.
@@ -95,11 +124,11 @@ pub const ERROR_FUNCTION_SELECTOR: [u8; 4] = [0x08, 0xc3, 0x79, 0xa0];
 // 0x70a08231 == balanceOf(address)
 pub const BALANCE_OF_SELECTOR: [u8; 4] = [0x70, 0xa0, 0x82, 0x31];
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct WithdrawalProof {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct L1MessageProof {
     pub batch_number: u64,
     pub index: usize,
-    pub withdrawal_hash: H256,
+    pub message_hash: H256,
     pub merkle_proof: Vec<H256>,
 }
 
@@ -629,18 +658,6 @@ impl EthClient {
         }
     }
 
-    pub async fn get_next_block_to_commit(
-        eth_client: &EthClient,
-        on_chain_proposer_address: Address,
-    ) -> Result<u64, EthClientError> {
-        Self::_call_block_variable(
-            eth_client,
-            b"nextBlockToCommit()",
-            on_chain_proposer_address,
-        )
-        .await
-    }
-
     /// Fetches a block from the Ethereum blockchain by its number or the latest/earliest/pending block.
     /// If no `block_number` is provided, get the latest.
     pub async fn get_block_by_number(
@@ -668,44 +685,23 @@ impl EthClient {
 
     pub async fn get_logs(
         &self,
-        from_block: Option<U256>,
-        to_block: Option<U256>,
-        address: Option<Address>,
-        topic: Option<H256>,
-        block_hash: Option<H256>,
+        from_block: U256,
+        to_block: U256,
+        address: Address,
+        topic: H256,
     ) -> Result<Vec<RpcLog>, EthClientError> {
-        let mut params_obj = serde_json::Map::new();
-
-        if let Some(fb) = from_block {
-            params_obj.insert(
-                "fromBlock".to_string(),
-                serde_json::json!(format!("{fb:#x}")),
-            );
-        }
-        if let Some(tb) = to_block {
-            params_obj.insert("toBlock".to_string(), serde_json::json!(format!("{tb:#x}")));
-        }
-        if let Some(addr) = address {
-            params_obj.insert(
-                "address".to_string(),
-                serde_json::json!(format!("{addr:#x}")),
-            );
-        }
-        if let Some(t) = topic {
-            params_obj.insert("topics".to_string(), serde_json::json!([format!("{t:#x}")]));
-        }
-        if let Some(bh) = block_hash {
-            params_obj.insert(
-                "blockHash".to_string(),
-                serde_json::json!([format!("{bh:#x}")]),
-            );
-        }
-
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
             jsonrpc: "2.0".to_string(),
             method: "eth_getLogs".to_string(),
-            params: Some(vec![serde_json::Value::Object(params_obj)]),
+            params: Some(vec![serde_json::json!(
+                {
+                    "fromBlock": format!("{:#x}", from_block),
+                    "toBlock": format!("{:#x}", to_block),
+                    "address": format!("{:#x}", address),
+                    "topics": [format!("{:#x}", topic)]
+                }
+            )]),
         };
 
         match self.send_request(request).await {
@@ -764,6 +760,25 @@ impl EthClient {
         }
     }
 
+    pub async fn get_chain_id(&self) -> Result<U256, EthClientError> {
+        let request = RpcRequest {
+            id: RpcRequestId::Number(1),
+            jsonrpc: "2.0".to_string(),
+            method: "eth_chainId".to_string(),
+            params: None,
+        };
+
+        match self.send_request(request).await {
+            Ok(RpcResponse::Success(result)) => serde_json::from_value(result.result)
+                .map_err(GetBalanceError::SerdeJSONError)
+                .map_err(EthClientError::from),
+            Ok(RpcResponse::Error(error_response)) => {
+                Err(GetBalanceError::RPCError(error_response.error.message).into())
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     pub async fn get_token_balance(
         &self,
         address: Address,
@@ -783,20 +798,35 @@ impl EthClient {
         })
     }
 
-    pub async fn get_chain_id(&self) -> Result<U256, EthClientError> {
+    pub async fn get_code(
+        &self,
+        address: Address,
+        block: BlockByNumber,
+    ) -> Result<Bytes, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
             jsonrpc: "2.0".to_string(),
-            method: "eth_chainId".to_string(),
-            params: None,
+            method: "eth_getCode".to_string(),
+            params: Some(vec![json!(format!("{:#x}", address)), block.into()]),
         };
 
         match self.send_request(request).await {
-            Ok(RpcResponse::Success(result)) => serde_json::from_value(result.result)
-                .map_err(GetBalanceError::SerdeJSONError)
-                .map_err(EthClientError::from),
+            Ok(RpcResponse::Success(result)) => hex::decode(
+                &serde_json::from_value::<String>(result.result)
+                    .map(|hex_str| {
+                        hex_str
+                            .strip_prefix("0x")
+                            .map(ToString::to_string)
+                            .unwrap_or(hex_str)
+                    })
+                    .map_err(GetCodeError::SerdeJSONError)
+                    .map_err(EthClientError::from)?,
+            )
+            .map(Into::into)
+            .map_err(GetCodeError::NotHexError)
+            .map_err(EthClientError::from),
             Ok(RpcResponse::Error(error_response)) => {
-                Err(GetBalanceError::RPCError(error_response.error.message).into())
+                Err(GetCodeError::RPCError(error_response.error.message).into())
             }
             Err(error) => Err(error),
         }
@@ -1207,11 +1237,54 @@ impl EthClient {
         Ok(value)
     }
 
-    async fn _call_block_variable(
-        eth_client: &EthClient,
+    pub async fn get_pending_deposit_logs(
+        &self,
+        common_bridge_address: Address,
+    ) -> Result<Vec<H256>, EthClientError> {
+        let response = self
+            ._generic_call(b"getPendingDepositLogs()", common_bridge_address)
+            .await?;
+        Self::from_hex_string_to_h256_array(&response)
+    }
+
+    pub fn from_hex_string_to_h256_array(hex_string: &str) -> Result<Vec<H256>, EthClientError> {
+        let bytes = hex::decode(hex_string.strip_prefix("0x").unwrap_or(hex_string))
+            .map_err(|_| EthClientError::Custom("Invalid hex string".to_owned()))?;
+
+        // The ABI encoding for dynamic arrays is:
+        // 1. Offset to data (32 bytes)
+        // 2. Length of array (32 bytes)
+        // 3. Array elements (each 32 bytes)
+        if bytes.len() < 64 {
+            return Err(EthClientError::Custom("Response too short".to_owned()));
+        }
+
+        // Get the offset (should be 0x20 for simple arrays)
+        let offset = U256::from_big_endian(&bytes[0..32]).as_usize();
+
+        // Get the length of the array
+        let length = U256::from_big_endian(&bytes[offset..offset + 32]).as_usize();
+
+        // Calculate the start of the array data
+        let data_start = offset + 32;
+        let data_end = data_start + (length * 32);
+
+        if data_end > bytes.len() {
+            return Err(EthClientError::Custom("Invalid array length".to_owned()));
+        }
+
+        // Convert the slice directly to H256 array
+        bytes[data_start..data_end]
+            .chunks_exact(32)
+            .map(|chunk| Ok(H256::from_slice(chunk)))
+            .collect()
+    }
+
+    async fn _generic_call(
+        &self,
         selector: &[u8],
-        on_chain_proposer_address: Address,
-    ) -> Result<u64, EthClientError> {
+        contract_address: Address,
+    ) -> Result<String, EthClientError> {
         let selector = keccak(selector)
             .as_bytes()
             .get(..4)
@@ -1222,18 +1295,45 @@ impl EthClient {
         let leading_zeros = 32 - ((calldata.len() - 4) % 32);
         calldata.extend(vec![0; leading_zeros]);
 
-        let hex_str = eth_client
-            .call(
-                on_chain_proposer_address,
-                calldata.into(),
-                Overrides::default(),
-            )
+        let hex_string = self
+            .call(contract_address, calldata.into(), Overrides::default())
             .await?;
 
-        let value = from_hex_string_to_u256(&hex_str)?.try_into().map_err(|_| {
-            EthClientError::Custom("Failed to convert from_hex_string_to_u256()".to_owned())
-        })?;
+        Ok(hex_string)
+    }
 
+    async fn _call_variable(
+        &self,
+        selector: &[u8],
+        on_chain_proposer_address: Address,
+    ) -> Result<u64, EthClientError> {
+        let hex_string = self
+            ._generic_call(selector, on_chain_proposer_address)
+            .await?;
+
+        let value = from_hex_string_to_u256(&hex_string)?
+            .try_into()
+            .map_err(|_| {
+                EthClientError::Custom("Failed to convert from_hex_string_to_u256()".to_owned())
+            })?;
+
+        Ok(value)
+    }
+
+    async fn _call_address_variable(
+        eth_client: &EthClient,
+        selector: &[u8],
+        on_chain_proposer_address: Address,
+    ) -> Result<Address, EthClientError> {
+        let hex_string =
+            Self::_generic_call(eth_client, selector, on_chain_proposer_address).await?;
+
+        let hex_str = &hex_string.strip_prefix("0x").ok_or(EthClientError::Custom(
+            "Couldn't strip prefix from request.".to_owned(),
+        ))?[24..]; // Get the needed bytes
+
+        let value = Address::from_str(hex_str)
+            .map_err(|_| EthClientError::Custom("Failed to convert from_str()".to_owned()))?;
         Ok(value)
     }
 
@@ -1263,45 +1363,81 @@ impl EthClient {
         ))
     }
 
-    pub async fn get_withdrawal_proof(
+    pub async fn get_message_proof(
         &self,
         transaction_hash: H256,
-    ) -> Result<Option<WithdrawalProof>, EthClientError> {
-        use errors::GetWithdrawalProofError;
+    ) -> Result<Option<Vec<L1MessageProof>>, EthClientError> {
+        use errors::GetMessageProofError;
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
             jsonrpc: "2.0".to_string(),
-            method: "ethrex_getWithdrawalProof".to_string(),
-            params: Some(vec![json!(format!("{:#x}", transaction_hash))]),
+            method: "ethrex_getMessageProof".to_string(),
+            params: Some(vec![json!(format!("{transaction_hash:#x}"))]),
         };
 
         match self.send_request(request).await {
             Ok(RpcResponse::Success(result)) => serde_json::from_value(result.result)
-                .map_err(GetWithdrawalProofError::SerdeJSONError)
+                .map_err(GetMessageProofError::SerdeJSONError)
                 .map_err(EthClientError::from),
             Ok(RpcResponse::Error(error_response)) => {
-                Err(GetWithdrawalProofError::RPCError(error_response.error.message).into())
+                Err(GetMessageProofError::RPCError(error_response.error.message).into())
             }
             Err(error) => Err(error),
         }
     }
 
-    pub async fn get_logs_from_signature(
+    pub async fn wait_for_message_proof(
         &self,
-        from_block: U256,
-        to_block: U256,
-        address: Address,
-        signature: &str,
-    ) -> Result<Vec<RpcLog>, EthClientError> {
-        let topic = keccak(signature);
-        self.get_logs(
-            Some(from_block),
-            Some(to_block),
-            Some(address),
-            Some(topic),
-            None,
-        )
-        .await
+        transaction_hash: H256,
+        max_retries: u64,
+    ) -> Result<Vec<L1MessageProof>, EthClientError> {
+        let mut message_proof = self.get_message_proof(transaction_hash).await?;
+        let mut r#try = 1;
+        while message_proof.is_none() {
+            println!(
+                "[{try}/{max_retries}] Retrying to get message proof for tx {transaction_hash:#x}"
+            );
+
+            if max_retries == r#try {
+                return Err(EthClientError::Custom(format!(
+                    "L1Message proof for tx {transaction_hash:#x} not found after {max_retries} retries"
+                )));
+            }
+            r#try += 1;
+
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+            message_proof = self.get_message_proof(transaction_hash).await?;
+        }
+        message_proof.ok_or(EthClientError::Custom("L1Message proof is None".to_owned()))
+    }
+
+    async fn get_fee_from_override_or_get_gas_price(
+        &self,
+        maybe_gas_fee: Option<u64>,
+    ) -> Result<u64, EthClientError> {
+        if let Some(gas_fee) = maybe_gas_fee {
+            return Ok(gas_fee);
+        }
+        self.get_gas_price()
+            .await?
+            .try_into()
+            .map_err(|_| EthClientError::Custom("Failed to get gas for fee".to_owned()))
+    }
+
+    async fn priority_fee_from_override_or_rpc(
+        &self,
+        maybe_priority_fee: Option<u64>,
+    ) -> Result<u64, EthClientError> {
+        if let Some(priority_fee) = maybe_priority_fee {
+            return Ok(priority_fee);
+        }
+
+        if let Ok(priority_fee) = self.get_max_priority_fee().await {
+            return Ok(priority_fee);
+        }
+
+        self.get_fee_from_override_or_get_gas_price(None).await
     }
 
     pub async fn wait_for_withdrawal_proof(
@@ -1361,9 +1497,9 @@ impl EthClient {
     }
 }
 
-pub fn from_hex_string_to_u256(hex_str: &str) -> Result<U256, EthClientError> {
-    let hex_string = hex_str.strip_prefix("0x").ok_or(EthClientError::Custom(
-        "Couldn't strip prefix from last_committed_block.".to_owned(),
+pub fn from_hex_string_to_u256(hex_string: &str) -> Result<U256, EthClientError> {
+    let hex_string = hex_string.strip_prefix("0x").ok_or(EthClientError::Custom(
+        "Couldn't strip prefix from request.".to_owned(),
     ))?;
 
     if hex_string.is_empty() {
@@ -1403,7 +1539,7 @@ pub fn get_address_from_secret_key(secret_key: &SecretKey) -> Result<Address, Et
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct GetTransactionByHashTransactionResponse {
+pub struct GetTransactionByHashTransaction {
     #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
     pub chain_id: u64,
     #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
@@ -1418,7 +1554,7 @@ pub struct GetTransactionByHashTransactionResponse {
     pub to: Address,
     #[serde(default)]
     pub value: U256,
-    #[serde(default)]
+    #[serde(default, with = "ethrex_common::serde_utils::vec_u8", alias = "input")]
     pub data: Vec<u8>,
     #[serde(default)]
     pub access_list: Vec<(Address, Vec<H256>)>,
@@ -1440,32 +1576,33 @@ pub struct GetTransactionByHashTransactionResponse {
     pub hash: H256,
     #[serde(default, with = "ethrex_common::serde_utils::u64::hex_str")]
     pub transaction_index: u64,
+    #[serde(default)]
+    pub blob_versioned_hashes: Option<Vec<H256>>,
 }
 
-impl fmt::Display for GetTransactionByHashTransactionResponse {
+impl fmt::Display for GetTransactionByHashTransaction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             r#"
-            chain_id: {},
-            nonce: {},
-            max_priority_fee_per_gas: {},
-            max_fee_per_gas: {},
-            gas_limit: {},
-            to: {:#x},
-            value: {},
-            data: {:#?},
-            access_list: {:#?},
-            type: {:?},
-            signature_y_parity: {},
-            signature_r: {:x},
-            signature_s: {:x},
-            block_number: {},
-            block_hash: {:#x},
-            from: {:#x},
-            hash: {:#x},
-            transaction_index: {}
-            "#,
+chain_id: {},
+nonce: {},
+max_priority_fee_per_gas: {},
+max_fee_per_gas: {},
+gas_limit: {},
+to: {:#x},
+value: {},
+data: {:#?},
+access_list: {:#?},
+type: {:?},
+signature_y_parity: {},
+signature_r: {:x},
+signature_s: {:x},
+block_number: {},
+block_hash: {:#x},
+from: {:#x},
+hash: {:#x},
+transaction_index: {}"#,
             self.chain_id,
             self.nonce,
             self.max_priority_fee_per_gas,
@@ -1483,8 +1620,14 @@ impl fmt::Display for GetTransactionByHashTransactionResponse {
             self.block_hash,
             self.from,
             self.hash,
-            self.transaction_index
-        )
+            self.transaction_index,
+        )?;
+
+        if let Some(blob_versioned_hashes) = &self.blob_versioned_hashes {
+            write!(f, "\nblob_versioned_hashes: {blob_versioned_hashes:#?}")?;
+        }
+
+        fmt::Result::Ok(())
     }
 }
 
