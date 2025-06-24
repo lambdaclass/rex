@@ -6,9 +6,9 @@ use crate::{
 use clap::Subcommand;
 use ethrex_common::{Address, H256, U256};
 use rex_sdk::{
-    client::{EthClient, Overrides, eth::get_address_from_secret_key},
+    client::{EthClient, eth::get_address_from_secret_key},
     l2::{
-        deposit::deposit,
+        deposit::deposit_through_transfer,
         withdraw::{claim_withdraw, get_withdraw_merkle_proof, withdraw},
     },
     wait_for_transaction_receipt,
@@ -79,8 +79,6 @@ pub(crate) enum Command {
         silent: bool,
         #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
-        #[arg(env = "BRIDGE_ADDRESS")]
-        bridge_address: Address,
         #[arg(env = "L1_RPC_URL", default_value = "http://localhost:8545")]
         l1_rpc_url: String,
         #[arg(env = "RPC_URL", default_value = "http://localhost:1729")]
@@ -136,8 +134,6 @@ pub(crate) enum Command {
         explorer_url: bool,
         #[clap(value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
-        #[arg(env = "BRIDGE_ADDRESS")]
-        bridge_address: Address,
         #[arg(default_value = "http://localhost:8545", env = "L1_RPC_URL")]
         l1_rpc_url: String,
     },
@@ -194,8 +190,6 @@ pub(crate) enum Command {
         // TODO: Parse ether instead.
         #[clap(value_parser = parse_u256)]
         amount: U256,
-        #[clap(long = "nonce")]
-        nonce: Option<u64>,
         #[clap(
             long = "token",
             help = "ERC20 token address",
@@ -255,7 +249,6 @@ impl Command {
                 explorer_url,
                 private_key,
                 l1_rpc_url,
-                bridge_address,
             } => {
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
@@ -277,15 +270,8 @@ impl Command {
 
                 let eth_client = EthClient::new(&l1_rpc_url)?;
 
-                let tx_hash = deposit(
-                    amount,
-                    from,
-                    private_key,
-                    &eth_client,
-                    bridge_address,
-                    Overrides::default(),
-                )
-                .await?;
+                let tx_hash =
+                    deposit_through_transfer(amount, from, &private_key, &eth_client).await?;
 
                 println!("Deposit sent: {tx_hash:#x}");
 
@@ -300,7 +286,6 @@ impl Command {
                 private_key,
                 l1_rpc_url,
                 rpc_url,
-                bridge_address,
             } => {
                 let from = get_address_from_secret_key(&private_key)?;
 
@@ -332,7 +317,6 @@ impl Command {
             }
             Command::Withdraw {
                 amount,
-                nonce,
                 token_address,
                 cast,
                 silent,
