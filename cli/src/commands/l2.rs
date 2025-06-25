@@ -137,7 +137,10 @@ pub(crate) enum Command {
         explorer_url: bool,
         #[clap(value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
-        #[arg(env = "BRIDGE_ADDRESS")]
+        #[arg(
+            env = "BRIDGE_ADDRESS",
+            help = "Verify the bridge address carefully before submitting your deposit."
+        )]
         bridge_address: Address,
         #[arg(default_value = "http://localhost:8545", env = "L1_RPC_URL")]
         l1_rpc_url: String,
