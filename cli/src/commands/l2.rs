@@ -261,6 +261,9 @@ impl Command {
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
+                if token_address.is_some() {
+                    todo!("Handle ERC20 deposits")
+                }
 
                 let eth_client = EthClient::new(&l1_rpc_url)?;
 
@@ -276,10 +279,6 @@ impl Command {
                     &eth_client,
                 )
                 .await?;
-
-                if token_address.is_some() {
-                    todo!("Handle ERC20 deposits")
-                }
 
                 println!("Deposit sent: {tx_hash:#x}");
 
