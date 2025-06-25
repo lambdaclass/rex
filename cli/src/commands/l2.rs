@@ -8,7 +8,7 @@ use ethrex_common::{Address, H256, U256};
 use rex_sdk::{
     client::{EthClient, eth::get_address_from_secret_key},
     l2::{
-        deposit::deposit_through_transfer,
+        deposit::deposit_through_contract_call,
         withdraw::{claim_withdraw, get_withdraw_merkle_proof, withdraw},
     },
     wait_for_transaction_receipt,
@@ -274,12 +274,20 @@ impl Command {
                     todo!("Handle ERC20 deposits")
                 }
 
-                let from = get_address_from_secret_key(&private_key)?;
+                let to = get_address_from_secret_key(&private_key)?;
 
                 let eth_client = EthClient::new(&l1_rpc_url)?;
 
-                let tx_hash =
-                    deposit_through_transfer(amount, from, &private_key, &eth_client).await?;
+                let tx_hash = deposit_through_contract_call(
+                    amount,
+                    to,
+                    0,
+                    0,
+                    &private_key,
+                    bridge_address,
+                    &eth_client,
+                )
+                .await?;
 
                 println!("Deposit sent: {tx_hash:#x}");
 
@@ -330,10 +338,10 @@ impl Command {
             }
             Command::Withdraw {
                 amount,
+                nonce,
                 token_address,
                 cast,
                 silent,
-                nonce,
                 explorer_url,
                 private_key,
                 rpc_url,

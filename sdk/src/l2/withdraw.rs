@@ -13,6 +13,7 @@ use ethrex_common::{
 use ethrex_rpc::types::block::BlockBodyWrapper;
 use itertools::Itertools;
 use secp256k1::SecretKey;
+
 pub async fn withdraw(
     amount: U256,
     from: Address,
