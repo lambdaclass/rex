@@ -262,32 +262,24 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                if to.is_some() {
-                    // There are two ways of depositing funds into the L2:
-                    // 1. Directly transferring funds to the bridge.
-                    // 2. Depositing through a contract call to the deposit method of the bridge.
-                    // The second method is not handled in the CLI yet.
-                    todo!("Handle deposits through contract")
-                }
-
-                if token_address.is_some() {
-                    todo!("Handle ERC20 deposits")
-                }
-
-                let to = get_address_from_secret_key(&private_key)?;
-
                 let eth_client = EthClient::new(&l1_rpc_url)?;
+
+                let to = to.unwrap_or(get_address_from_secret_key(&private_key)?);
 
                 let tx_hash = deposit_through_contract_call(
                     amount,
                     to,
-                    0,
-                    0,
+                    21000 * 10,
+                    21000 * 10,
                     &private_key,
                     bridge_address,
                     &eth_client,
                 )
                 .await?;
+
+                if token_address.is_some() {
+                    todo!("Handle ERC20 deposits")
+                }
 
                 println!("Deposit sent: {tx_hash:#x}");
 
