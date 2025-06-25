@@ -26,7 +26,6 @@ use reqwest::{Client, Url};
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-
 use std::{ops::Div, str::FromStr};
 use tracing::warn;
 
