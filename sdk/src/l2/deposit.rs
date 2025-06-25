@@ -1,7 +1,6 @@
-use crate::get_address_from_secret_key;
 use crate::l2::l1_to_l2_tx_data::{L1ToL2TransactionData, send_l1_to_l2_tx};
 use crate::{
-    client::{EthClient, EthClientError},
+    client::{EthClient, EthClientError, eth::get_address_from_secret_key},
     transfer,
 };
 use ethrex_common::{Address, H256, U256};
