@@ -1,5 +1,4 @@
 use crate::client::{EthClient, EthClientError, Overrides};
-use crate::l2::constants::DEFAULT_BRIDGE_ADDRESS;
 use ethrex_common::types::GenericTransaction;
 use ethrex_common::{Address, H256, U256};
 use ethrex_rpc::types::receipt::RpcReceipt;
@@ -20,14 +19,6 @@ pub mod l2;
 pub enum SdkError {
     #[error("Failed to parse address from hex")]
     FailedToParseAddressFromHex,
-}
-
-/// BRIDGE_ADDRESS or 0x554a14cd047c485b3ac3edbd9fbb373d6f84ad3f
-pub fn bridge_address() -> Result<Address, SdkError> {
-    std::env::var("ETHREX_WATCHER_BRIDGE_ADDRESS")
-        .unwrap_or(format!("{DEFAULT_BRIDGE_ADDRESS:#x}"))
-        .parse()
-        .map_err(|_| SdkError::FailedToParseAddressFromHex)
 }
 
 pub async fn transfer(
