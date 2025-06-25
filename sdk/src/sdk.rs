@@ -2,7 +2,6 @@ use crate::client::{EthClient, EthClientError, Overrides};
 use ethrex_common::types::GenericTransaction;
 use ethrex_common::{Address, H256, U256};
 use ethrex_rpc::types::receipt::RpcReceipt;
-use keccak_hash::keccak;
 use secp256k1::SecretKey;
 
 pub mod calldata;
