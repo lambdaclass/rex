@@ -166,7 +166,7 @@ pub async fn get_withdraw_merkle_proof(
     Ok((
         index
             .try_into()
-            .map_err(|err| EthClientError::Custom(format!("index does not fit in u64: {}", err)))?,
+            .map_err(|err| EthClientError::Custom(format!("index does not fit in u64: {err}")))?,
         path,
     ))
 }

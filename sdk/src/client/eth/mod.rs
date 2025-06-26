@@ -86,7 +86,7 @@ impl From<u64> for BlockByNumber {
 impl Display for BlockByNumber {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BlockByNumber::Number(n) => write!(f, "{:#x}", n),
+            BlockByNumber::Number(n) => write!(f, "{n:#x}"),
             BlockByNumber::Latest => write!(f, "latest"),
             BlockByNumber::Earliest => write!(f, "earliest"),
             BlockByNumber::Pending => write!(f, "pending"),
