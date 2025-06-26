@@ -30,7 +30,6 @@ toml = "0.8.19"
 dirs = "6.0.0"
 envy = "0.4.2"
 thiserror.workspace = true
-bytes = "1.10"
 
 # Logging
 log = "0.4"

@@ -1,8 +1,7 @@
 use crate::calldata::{self, Value};
 use crate::client::eth::errors::CalldataEncodeError;
 use crate::client::{EthClient, EthClientError, Overrides};
-use bytes::Bytes;
-use ethrex_common::{Address, U256};
+use ethrex_common::{Address, Bytes, U256};
 use keccak_hash::H256;
 use secp256k1::SecretKey;
 

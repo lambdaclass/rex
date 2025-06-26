@@ -4971,7 +4971,6 @@ dependencies = [
 name = "rex-sdk"
 version = "0.1.0"
 dependencies = [
- "bytes",
  "clap",
  "clap_complete",
  "dirs 6.0.0",
