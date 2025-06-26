@@ -13,7 +13,6 @@ pub async fn deposit_through_transfer(
     bridge_address: Address,
     eth_client: &EthClient,
 ) -> Result<H256, EthClientError> {
-    println!("Depositing {amount} from {from:#x} to bridge");
     transfer(amount, from, bridge_address, from_pk, eth_client).await
 }
 
