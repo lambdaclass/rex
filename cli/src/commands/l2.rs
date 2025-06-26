@@ -272,6 +272,8 @@ impl Command {
 
                 let to = to.unwrap_or(get_address_from_secret_key(&private_key)?);
 
+                println!("Depositing {amount} from {to:#x} to bridge");
+
                 // TODO: estimate l1&l2 gas price
                 let tx_hash = deposit_through_contract_call(
                     amount,
