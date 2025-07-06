@@ -27,6 +27,40 @@ To install it, you need to clone the repository and run the following command to
 make cli
 ```
 
+#### Using Docker
+
+Alternatively, you can use Docker to run Rex without installing Rust:
+
+```Shell
+# Build the Docker image
+docker build -t rex .
+
+# Run rex commands
+docker run --rm rex --help
+docker run --rm rex balance 0x... --rpc-url https://ethereum.node.url
+
+# For interactive usage, you can create an alias
+alias rex="docker run --rm rex"
+```
+
+##### Docker Networking
+
+To access services running on your host machine (like local blockchain nodes):
+
+```Shell
+# For local RPC nodes (e.g., local Ethereum node on port 8545)
+docker run --rm --add-host=host.docker.internal:host-gateway rex balance 0x... --rpc-url http://host.docker.internal:8545
+
+# Create an alias for easier usage with host access
+alias rex="docker run --rm --add-host=host.docker.internal:host-gateway rex"
+
+# Now you can use rex normally with local services
+rex balance 0x... --rpc-url http://host.docker.internal:8545
+rex l2 deposit --amount 1000000000000000000 --rpc-url http://host.docker.internal:8545
+```
+
+**Note**: By default, Docker containers cannot access `localhost` services on your host machine. The `--add-host=host.docker.internal:host-gateway` flag creates a bridge that allows the container to reach your host's services via `host.docker.internal`.
+
 ### Using the CLI
 
 After installing the CLI with `make cli`, run `rex` to display the help message and see the available commands.
