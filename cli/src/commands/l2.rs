@@ -8,7 +8,7 @@ use ethrex_common::{Address, H256, U256};
 use rex_sdk::{
     client::{EthClient, eth::get_address_from_secret_key},
     l2::{
-        deposit::deposit_through_contract_call,
+        deposit::deposit_through_transfer,
         withdraw::{claim_withdraw, get_withdraw_merkle_proof, withdraw},
     },
     wait_for_transaction_receipt,
@@ -275,16 +275,10 @@ impl Command {
                 println!("Depositing {amount} from {to:#x} to bridge");
 
                 // TODO: estimate l1&l2 gas price
-                let tx_hash = deposit_through_contract_call(
-                    amount,
-                    to,
-                    21000 * 10,
-                    21000 * 10,
-                    &private_key,
-                    bridge_address,
-                    &eth_client,
-                )
-                .await?;
+
+                let tx_hash =
+                    deposit_through_transfer(amount, to, &private_key, bridge_address, &eth_client)
+                        .await?;
 
                 println!("Deposit sent: {tx_hash:#x}");
 
