@@ -277,13 +277,16 @@ impl Command {
                 }
 
                 // Deposit through ERC20 token transfer
-                let tx_hash = if let Some(token_address) = token_l1 {
+                let tx_hash = if let Some(token_l1) = token_l1 {
                     let token_l2 = token_l2.expect(
                         "Token address on L2 is required if token address on L1 is specified",
                     );
                     let from = get_address_from_secret_key(&private_key)?;
+                    println!(
+                        "Depositing {amount} from {from:#x} to L2 token {token_l2:#x} using L1 token {token_l1:#x}"
+                    );
                     deposit_erc20(
-                        token_address,
+                        token_l1,
                         token_l2,
                         amount,
                         from,
