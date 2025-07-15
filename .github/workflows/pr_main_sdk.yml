@@ -93,8 +93,8 @@ jobs:
       - name: Build L1 docker image
         uses: docker/build-push-action@v6
         with:
-          context: ../ethrex
-          file: crates/blockchain/dev/Dockerfile
+          context: ../ethrex/
+          file: ../ethrex/crates/blockchain/dev/Dockerfile
           tags: ethrex_dev:latest
           push: false
 
