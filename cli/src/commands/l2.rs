@@ -271,7 +271,6 @@ impl Command {
             } => {
                 let eth_client = EthClient::new(&l1_rpc_url)?;
                 let to = to.unwrap_or(get_address_from_secret_key(&private_key)?);
-
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
