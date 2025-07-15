@@ -301,7 +301,6 @@ impl Command {
                         .await?
                 };
 
-
                 println!("Deposit sent: {tx_hash:#x}");
 
                 if !cast {
