@@ -90,10 +90,13 @@ jobs:
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
 
-      # - name: Build L1 docker image
-      #   run: |
-      #     cd ../ethrex/crates/l2
-      #     make init-local-l1
+      - name: Build L1 docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ../ethrex
+          file: crates/blockchain/dev/Dockerfile
+          tags: ethrex_dev:latest
+          push: false
 
       - name: Start L1 & Deploy contracts
         run: |
