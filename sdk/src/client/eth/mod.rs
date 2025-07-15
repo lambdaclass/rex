@@ -126,7 +126,7 @@ pub const BALANCE_OF_SELECTOR: [u8; 4] = [0x70, 0xa0, 0x82, 0x31];
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct L1MessageProof {
     pub batch_number: u64,
-    pub index: usize,
+    pub message_id: U256,
     pub message_hash: H256,
     pub merkle_proof: Vec<H256>,
 }
@@ -1021,14 +1021,12 @@ impl EthClient {
     pub async fn build_privileged_transaction(
         &self,
         to: Address,
-        recipient: Address,
         from: Address,
         calldata: Bytes,
         overrides: Overrides,
     ) -> Result<PrivilegedL2Transaction, EthClientError> {
         let mut tx = PrivilegedL2Transaction {
             to: TxKind::Call(to),
-            recipient,
             chain_id: if let Some(chain_id) = overrides.chain_id {
                 chain_id
             } else {
