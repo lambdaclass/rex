@@ -1,6 +1,5 @@
 use crate::calldata::{Value, encode_calldata};
 use crate::client::Overrides;
-use crate::l2::l1_to_l2_tx_data::{L1ToL2TransactionData, send_l1_to_l2_tx};
 
 use crate::{
     client::{EthClient, EthClientError},
