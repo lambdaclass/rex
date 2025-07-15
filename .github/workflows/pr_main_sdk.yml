@@ -80,9 +80,7 @@ jobs:
         run: |
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
-          cd ethrex
-          make cli
-          echo "rex install successfully at $(which rex)"
+          echo "ethrex installed successfully"
 
       # also creates empty verification keys (as workflow runs with exec backend)
       - name: Build prover
