@@ -5,7 +5,7 @@ use crate::{
     client::{EthClient, EthClientError, eth::get_address_from_secret_key},
     transfer,
 };
-use ethrex_common::{Address, H256, U256};
+use ethrex_common::{Address, Bytes, H256, U256};
 use secp256k1::SecretKey;
 
 const DEPOSIT_ERC20_SIGNATURE: &str = "depositERC20(address,address,address,uint256)";
@@ -34,7 +34,7 @@ pub async fn deposit_through_contract_call(
         l1_from,
         Some(amount),
         Some(l1_gas_limit),
-        L1ToL2TransactionData::new_deposit_data(to, l2_gas_limit),
+        L1ToL2TransactionData::new(to, l2_gas_limit, U256::zero(), Bytes::new()),
         depositor_private_key,
         bridge_address,
         eth_client,

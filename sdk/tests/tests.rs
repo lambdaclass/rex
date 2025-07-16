@@ -2,16 +2,20 @@ use ethrex_common::{Address, Bytes, H160, H256, U256, types::BlockNumber};
 use ethrex_l2::sequencer::l1_watcher::PrivilegedTransactionData;
 use ethrex_rpc::types::receipt::RpcReceipt;
 use keccak_hash::keccak;
+use rex_sdk::calldata::{self, Value};
 use rex_sdk::client::EthClient;
 use rex_sdk::client::Overrides;
 use rex_sdk::client::eth::BlockByNumber;
 use rex_sdk::client::eth::get_address_from_secret_key;
 use rex_sdk::l2::deposit::deposit_through_transfer;
+use rex_sdk::l2::l1_to_l2_tx_data::{L1ToL2TransactionData, send_l1_to_l2_tx};
+use rex_sdk::transfer;
 use rex_sdk::wait_for_transaction_receipt;
 use secp256k1::SecretKey;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
+    ops::Mul,
     path::PathBuf,
 };
 
@@ -39,6 +43,8 @@ const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
     0xad, 0x62, 0x0c, 0x8d,
 ]);
 
+const L2_GAS_COST_MAX_DELTA: U256 = U256([100_000_000_000_000, 0, 0, 0]);
+
 #[tokio::test]
 async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     read_env_file_by_config();
@@ -46,7 +52,7 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     let eth_client = eth_client();
     let proposer_client = proposer_client();
     let rich_wallet_private_key = l1_rich_wallet_private_key();
-    let _transfer_return_private_key = l2_return_transfer_private_key();
+    let transfer_return_private_key = l2_return_transfer_private_key();
     let bridge_address = common_bridge_address();
     let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
         .expect("Failed to get address from l1 rich wallet pk");
@@ -59,6 +65,27 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
         &proposer_client,
     )
     .await?;
+
+    test_transfer(
+        &rich_wallet_private_key,
+        &transfer_return_private_key,
+        &proposer_client,
+    )
+    .await?;
+
+    test_transfer_with_privileged_tx(
+        &rich_wallet_private_key,
+        &transfer_return_private_key,
+        &eth_client,
+        &proposer_client,
+    )
+    .await?;
+
+    test_gas_burning(&eth_client).await?;
+
+    test_privileged_tx_with_contract_call(&proposer_client, &eth_client).await?;
+
+    test_privileged_tx_with_contract_call_revert(&proposer_client, &eth_client).await?;
 
     Ok(())
 }
@@ -76,7 +103,6 @@ pub fn read_env_file_by_config() {
         };
         match line.split_once('=') {
             Some((key, value)) => {
-                eprintln!("key {} value {}", key, value);
                 if std::env::vars().any(|(k, _)| k == key) {
                     continue;
                 }
@@ -238,6 +264,232 @@ async fn test_deposit(
     Ok(())
 }
 
+async fn test_transfer(
+    transferer_private_key: &SecretKey,
+    returnerer_private_key: &SecretKey,
+    proposer_client: &EthClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Transferring funds on L2");
+    let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
+        .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
+        .unwrap_or(U256::from(10000000000u128));
+    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let returner_address = get_address_from_secret_key(returnerer_private_key)?;
+
+    perform_transfer(
+        proposer_client,
+        transferer_private_key,
+        returner_address,
+        transfer_value,
+    )
+    .await?;
+    // Only return 99% of the transfer, other amount is for fees
+    let return_amount = (transfer_value * 99) / 100;
+
+    perform_transfer(
+        proposer_client,
+        returnerer_private_key,
+        transferer_address,
+        return_amount,
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn test_transfer_with_privileged_tx(
+    transferer_private_key: &SecretKey,
+    receiver_private_key: &SecretKey,
+    eth_client: &EthClient,
+    proposer_client: &EthClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Transferring funds on L2 through a deposit");
+    let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
+        .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
+        .unwrap_or(U256::from(10000000000u128));
+    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let receiver_address = get_address_from_secret_key(receiver_private_key)?;
+
+    let receiver_balance_before = proposer_client
+        .get_balance(receiver_address, BlockByNumber::Latest)
+        .await?;
+
+    let l1_to_l2_tx_hash = send_l1_to_l2_tx(
+        transferer_address,
+        Some(0),
+        Some(21000 * 10),
+        L1ToL2TransactionData::new(receiver_address, 21000 * 5, transfer_value, Bytes::new()),
+        &l1_rich_wallet_private_key(),
+        common_bridge_address(),
+        eth_client,
+    )
+    .await?;
+
+    println!("Waiting for L1 to L2 transaction receipt on L1");
+
+    let l1_to_l2_tx_receipt =
+        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
+    println!("Waiting for L1 to L2 transaction receipt on L2");
+
+    let _ = wait_for_l2_deposit_receipt(
+        l1_to_l2_tx_receipt.block_info.block_number,
+        eth_client,
+        proposer_client,
+    )
+    .await?;
+
+    println!("Checking balances after transfer");
+
+    let receiver_balance_after = proposer_client
+        .get_balance(receiver_address, BlockByNumber::Latest)
+        .await?;
+    assert_eq!(
+        receiver_balance_after,
+        receiver_balance_before + transfer_value
+    );
+    Ok(())
+}
+
+async fn test_gas_burning(eth_client: &EthClient) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Transferring funds on L2 through a deposit");
+    let rich_private_key = l1_rich_wallet_private_key();
+    let rich_address = get_address_from_secret_key(&rich_private_key)?;
+    let l2_gas_limit = 2_000_000;
+    let l1_extra_gas_limit = 400_000;
+
+    let l1_to_l2_tx_hash = send_l1_to_l2_tx(
+        rich_address,
+        Some(0),
+        Some(l2_gas_limit + l1_extra_gas_limit),
+        L1ToL2TransactionData::new(rich_address, l2_gas_limit, U256::zero(), Bytes::new()),
+        &rich_private_key,
+        common_bridge_address(),
+        eth_client,
+    )
+    .await?;
+
+    println!("Waiting for L1 to L2 transaction receipt on L1");
+
+    let l1_to_l2_tx_receipt =
+        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
+
+    assert!(l1_to_l2_tx_receipt.tx_info.gas_used > l2_gas_limit);
+    assert!(l1_to_l2_tx_receipt.tx_info.gas_used < l2_gas_limit + l1_extra_gas_limit);
+    Ok(())
+}
+
+/// In this test we deploy a contract on L2 and call it from L1 using the CommonBridge contract.
+/// We call the contract by making a deposit from L1 to L2 with the recipient being the rich account.
+/// The deposit will trigger the call to the contract.
+async fn test_privileged_tx_with_contract_call(
+    proposer_client: &EthClient,
+    eth_client: &EthClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let rich_wallet_private_key = l1_rich_wallet_private_key();
+
+    // pragma solidity ^0.8.27;
+    // contract Test {
+    //     event NumberSet(uint256 indexed number);
+    //     function emitNumber(uint256 _number) public {
+    //         emit NumberSet(_number);
+    //     }
+    // }
+    let init_code = hex::decode(
+        "6080604052348015600e575f5ffd5b506101008061001c5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c8063f15d140b14602a575b5f5ffd5b60406004803603810190603c919060a4565b6042565b005b807f9ec8254969d1974eac8c74afb0c03595b4ffe0a1d7ad8a7f82ed31b9c854259160405160405180910390a250565b5f5ffd5b5f819050919050565b6086816076565b8114608f575f5ffd5b50565b5f81359050609e81607f565b92915050565b5f6020828403121560b65760b56072565b5b5f60c1848285016092565b9150509291505056fea26469706673582212206f6d360696127c56e2d2a456f3db4a61e30eae0ea9b3af3c900c81ea062e8fe464736f6c634300081c0033",
+    )?;
+
+    let deployed_contract_address =
+        test_deploy(&init_code, &rich_wallet_private_key, proposer_client).await?;
+
+    let number_to_emit = U256::from(424242);
+    let calldata_to_contract: Bytes =
+        calldata::encode_calldata("emitNumber(uint256)", &[Value::Uint(number_to_emit)])?.into();
+
+    // We need to get the block number before the deposit to search for logs later.
+    let first_block = proposer_client.get_block_number().await?;
+
+    test_call_to_contract_with_deposit(
+        deployed_contract_address,
+        calldata_to_contract,
+        &rich_wallet_private_key,
+        proposer_client,
+        eth_client,
+    )
+    .await?;
+
+    println!("Waiting for event to be emitted");
+
+    let mut block_number = first_block;
+
+    let topic = keccak(b"NumberSet(uint256)");
+
+    while proposer_client
+        .get_logs(first_block, block_number, deployed_contract_address, topic)
+        .await
+        .is_ok_and(|logs| logs.is_empty())
+    {
+        println!("Waiting for the event to be built");
+        block_number += U256::one();
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+
+    let logs = proposer_client
+        .get_logs(first_block, block_number, deployed_contract_address, topic)
+        .await?;
+
+    let number_emitted = U256::from_big_endian(
+        &logs
+            .first()
+            .unwrap()
+            .log
+            .topics
+            .get(1)
+            .unwrap()
+            .to_fixed_bytes(),
+    );
+
+    assert_eq!(
+        number_emitted, number_to_emit,
+        "Event emitted with wrong value. Expected 424242, got {number_emitted}"
+    );
+
+    Ok(())
+}
+
+/// Test the deployment of a contract on L2 and call it from L1 using the CommonBridge contract.
+/// The call to the contract should revert but the deposit should be successful.
+async fn test_privileged_tx_with_contract_call_revert(
+    proposer_client: &EthClient,
+    eth_client: &EthClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // pragma solidity ^0.8.27;
+    // contract RevertTest {
+    //     function revert_call() public {
+    //         revert("Reverted");
+    //     }
+    // }
+    let rich_wallet_private_key = l1_rich_wallet_private_key();
+    let init_code = hex::decode(
+        "6080604052348015600e575f5ffd5b506101138061001c5f395ff3fe6080604052348015600e575f5ffd5b50600436106026575f3560e01c806311ebce9114602a575b5f5ffd5b60306032565b005b6040517f08c379a000000000000000000000000000000000000000000000000000000000815260040160629060c1565b60405180910390fd5b5f82825260208201905092915050565b7f52657665727465640000000000000000000000000000000000000000000000005f82015250565b5f60ad600883606b565b915060b682607b565b602082019050919050565b5f6020820190508181035f83015260d68160a3565b905091905056fea2646970667358221220903f571921ce472f979989f9135b8637314b68e080fd70d0da6ede87ad8b5bd564736f6c634300081c0033",
+    )?;
+
+    let deployed_contract_address =
+        test_deploy(&init_code, &rich_wallet_private_key, proposer_client).await?;
+
+    let calldata_to_contract: Bytes = calldata::encode_calldata("revert_call()", &[])?.into();
+
+    test_call_to_contract_with_deposit(
+        deployed_contract_address,
+        calldata_to_contract,
+        &rich_wallet_private_key,
+        proposer_client,
+        eth_client,
+    )
+    .await?;
+
+    Ok(())
+}
+
 async fn wait_for_l2_deposit_receipt(
     l1_receipt_block_number: BlockNumber,
     eth_client: &EthClient,
@@ -277,4 +529,274 @@ async fn wait_for_l2_deposit_receipt(
     println!("Waiting for deposit transaction receipt on L2");
 
     Ok(wait_for_transaction_receipt(l2_deposit_tx_hash, proposer_client, 1000, true).await?)
+}
+
+async fn perform_transfer(
+    proposer_client: &EthClient,
+    transferer_private_key: &SecretKey,
+    transfer_recipient_address: Address,
+    transfer_value: U256,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+
+    let transferer_initial_l2_balance = proposer_client
+        .get_balance(transferer_address, BlockByNumber::Latest)
+        .await?;
+
+    assert!(
+        transferer_initial_l2_balance >= transfer_value,
+        "L2 transferer doesn't have enough balance to transfer"
+    );
+
+    let transfer_recipient_initial_balance = proposer_client
+        .get_balance(transfer_recipient_address, BlockByNumber::Latest)
+        .await?;
+
+    let fee_vault_balance_before_transfer = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    let transfer_tx = transfer(
+        transfer_value,
+        transferer_address,
+        transfer_recipient_address,
+        transferer_private_key,
+        proposer_client,
+    )
+    .await?;
+
+    let transfer_tx_receipt =
+        wait_for_transaction_receipt(transfer_tx, proposer_client, 1000, true).await?;
+
+    let recoverable_fees_vault_balance = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    println!("Recoverable Fees Balance: {recoverable_fees_vault_balance}",);
+
+    println!("Checking balances on L2 after transfer");
+
+    let transferer_l2_balance_after_transfer = proposer_client
+        .get_balance(transferer_address, BlockByNumber::Latest)
+        .await?;
+
+    assert!(
+        (transferer_initial_l2_balance - transfer_value)
+            .abs_diff(transferer_l2_balance_after_transfer)
+            < L2_GAS_COST_MAX_DELTA,
+        "L2 transferer balance didn't decrease as expected after transfer. Gas costs were {}/{L2_GAS_COST_MAX_DELTA}",
+        (transferer_initial_l2_balance - transfer_value)
+            .abs_diff(transferer_l2_balance_after_transfer)
+    );
+
+    let transfer_recipient_l2_balance_after_transfer = proposer_client
+        .get_balance(transfer_recipient_address, BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        transfer_recipient_l2_balance_after_transfer,
+        transfer_recipient_initial_balance + transfer_value,
+        "L2 transfer recipient balance didn't increase as expected after transfer"
+    );
+
+    let fee_vault_balance_after_transfer = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    let transfer_fees = get_fees_details_l2(transfer_tx_receipt, proposer_client).await;
+
+    assert_eq!(
+        fee_vault_balance_after_transfer,
+        fee_vault_balance_before_transfer + transfer_fees.recoverable_fees,
+        "Fee vault balance didn't increase as expected after transfer"
+    );
+
+    Ok(())
+}
+
+// FIXME: Remove this before merging
+#[allow(dead_code)]
+#[derive(Debug)]
+struct FeesDetails {
+    total_fees: U256,
+    recoverable_fees: U256,
+    burned_fees: U256,
+}
+
+async fn get_fees_details_l2(tx_receipt: RpcReceipt, proposer_client: &EthClient) -> FeesDetails {
+    let total_fees: U256 =
+        (tx_receipt.tx_info.gas_used * tx_receipt.tx_info.effective_gas_price).into();
+
+    let effective_gas_price = tx_receipt.tx_info.effective_gas_price;
+    let base_fee_per_gas = proposer_client
+        .get_block_by_number(BlockByNumber::Number(tx_receipt.block_info.block_number))
+        .await
+        .unwrap()
+        .header
+        .base_fee_per_gas
+        .unwrap();
+
+    let max_priority_fee_per_gas_transfer: U256 = (effective_gas_price - base_fee_per_gas).into();
+
+    let recoverable_fees = max_priority_fee_per_gas_transfer.mul(tx_receipt.tx_info.gas_used);
+
+    FeesDetails {
+        total_fees,
+        recoverable_fees,
+        burned_fees: total_fees - recoverable_fees,
+    }
+}
+
+async fn test_deploy(
+    init_code: &[u8],
+    deployer_private_key: &SecretKey,
+    proposer_client: &EthClient,
+) -> Result<Address, Box<dyn std::error::Error>> {
+    println!("Deploying contract on L2");
+
+    let deployer_address = get_address_from_secret_key(deployer_private_key)?;
+
+    let deployer_balance_before_deploy = proposer_client
+        .get_balance(deployer_address, BlockByNumber::Latest)
+        .await?;
+
+    let fee_vault_balance_before_deploy = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    let (deploy_tx_hash, contract_address) = proposer_client
+        .deploy(
+            deployer_address,
+            *deployer_private_key,
+            init_code.to_vec().into(),
+            Overrides::default(),
+        )
+        .await?;
+
+    let deploy_tx_receipt =
+        wait_for_transaction_receipt(deploy_tx_hash, proposer_client, 5, true).await?;
+
+    let deploy_fees = get_fees_details_l2(deploy_tx_receipt, proposer_client).await;
+
+    let deployer_balance_after_deploy = proposer_client
+        .get_balance(deployer_address, BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        deployer_balance_after_deploy,
+        deployer_balance_before_deploy - deploy_fees.total_fees,
+        "Deployer L2 balance didn't decrease as expected after deploy"
+    );
+
+    let fee_vault_balance_after_deploy = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        fee_vault_balance_after_deploy,
+        fee_vault_balance_before_deploy + deploy_fees.recoverable_fees,
+        "Fee vault balance didn't increase as expected after deploy"
+    );
+
+    let deployed_contract_balance = proposer_client
+        .get_balance(contract_address, BlockByNumber::Latest)
+        .await?;
+
+    assert!(
+        deployed_contract_balance.is_zero(),
+        "Deployed contract balance should be zero after deploy"
+    );
+
+    Ok(contract_address)
+}
+
+async fn test_call_to_contract_with_deposit(
+    deployed_contract_address: Address,
+    calldata_to_contract: Bytes,
+    caller_private_key: &SecretKey,
+    proposer_client: &EthClient,
+    eth_client: &EthClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let caller_address =
+        get_address_from_secret_key(caller_private_key).expect("Failed to get address");
+
+    println!("Checking balances before call");
+
+    let caller_l1_balance_before_call = eth_client
+        .get_balance(caller_address, BlockByNumber::Latest)
+        .await?;
+
+    let deployed_contract_balance_before_call = proposer_client
+        .get_balance(deployed_contract_address, BlockByNumber::Latest)
+        .await?;
+
+    let fee_vault_balance_before_call = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    println!("Calling contract on L2 with deposit");
+
+    let l1_to_l2_tx_hash = send_l1_to_l2_tx(
+        caller_address,
+        Some(0),
+        Some(21000 * 10),
+        L1ToL2TransactionData::new(
+            deployed_contract_address,
+            21000 * 5,
+            U256::zero(),
+            calldata_to_contract.clone(),
+        ),
+        &l1_rich_wallet_private_key(),
+        common_bridge_address(),
+        eth_client,
+    )
+    .await?;
+
+    println!("Waiting for L1 to L2 transaction receipt on L1");
+
+    let l1_to_l2_tx_receipt =
+        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
+
+    println!("Waiting for L1 to L2 transaction receipt on L2");
+
+    let _ = wait_for_l2_deposit_receipt(
+        l1_to_l2_tx_receipt.block_info.block_number,
+        eth_client,
+        proposer_client,
+    )
+    .await?;
+
+    println!("Checking balances after call");
+
+    let caller_l1_balance_after_call = eth_client
+        .get_balance(caller_address, BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        caller_l1_balance_after_call,
+        caller_l1_balance_before_call
+            - l1_to_l2_tx_receipt.tx_info.gas_used
+                * l1_to_l2_tx_receipt.tx_info.effective_gas_price,
+        "Caller L1 balance didn't decrease as expected after call"
+    );
+
+    let fee_vault_balance_after_call = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        fee_vault_balance_after_call, fee_vault_balance_before_call,
+        "Fee vault balance increased unexpectedly after call"
+    );
+
+    let deployed_contract_balance_after_call = proposer_client
+        .get_balance(deployed_contract_address, BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        deployed_contract_balance_after_call, deployed_contract_balance_before_call,
+        "Deployed contract increased unexpectedly after call"
+    );
+
+    Ok(())
 }
