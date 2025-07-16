@@ -54,7 +54,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run tests
-        run: cargo test --manifest-path sdk/Cargo.toml
+        run: cargo test --manifest-path sdk/Cargo.toml --lib
 
   integration-test:
     name: Integration Test - ${{ matrix.name }}
