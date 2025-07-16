@@ -92,6 +92,10 @@ jobs:
           file: ../ethrex/crates/blockchain/dev/Dockerfile
           tags: ethrex_dev:latest
           push: false
+      - name: Clean docker cache
+        run: |
+          docker system prune -af
+          docker builder prune -af
 
       - name: Start L1 & Deploy contracts
         run: |
