@@ -76,7 +76,14 @@ jobs:
           version: v0.8.29
           token: ${{ secrets.GITHUB_TOKEN || '' }}
 
-      
+      - name: Install ethrex
+        run: |
+          cd ..
+          git clone https://github.com/lambdaclass/ethrex.git
+          
+          echo "ethrex installed successfully"
+
+ 
 
       - name: Run test
         run: |
