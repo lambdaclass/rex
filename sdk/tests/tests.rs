@@ -261,15 +261,9 @@ async fn wait_for_l2_deposit_receipt(
             Bytes::copy_from_slice(&data.calldata),
             Overrides {
                 chain_id: Some(proposer_client.get_chain_id().await?.try_into().unwrap()),
-                // Using the transaction_id as nonce.
-                // If we make a transaction on the L2 with this address, we may break the
-                // privileged transaction workflow.
                 nonce: Some(data.transaction_id.as_u64()),
                 value: Some(data.value),
                 gas_limit: Some(data.gas_limit.as_u64()),
-                // TODO(CHECK): Seems that when we start the L2, we need to set the gas.
-                // Otherwise, the transaction is not included in the mempool.
-                // We should override the blockchain to always include the transaction.
                 max_fee_per_gas: Some(0),
                 max_priority_fee_per_gas: Some(0),
                 ..Default::default()
