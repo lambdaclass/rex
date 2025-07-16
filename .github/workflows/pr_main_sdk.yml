@@ -57,7 +57,7 @@ jobs:
         run: cargo test --manifest-path sdk/Cargo.toml --lib
 
   integration-test:
-    name: Integration Test - ${{ matrix.name }}
+    name: Integration Test - SDK
     runs-on: ubuntu-latest
     strategy:
       matrix:
