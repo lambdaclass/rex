@@ -46,7 +46,7 @@ pub async fn deposit_through_contract_call(
         .await?;
 
     eth_client
-        .send_eip1559_transaction(&deposit_tx, &depositor_private_key)
+        .send_eip1559_transaction(&deposit_tx, depositor_private_key)
         .await
 }
 
