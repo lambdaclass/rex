@@ -65,18 +65,15 @@ pub async fn send_l1_to_l2_tx(
     eth_client: &EthClient,
 ) -> Result<H256, EthClientError> {
     let l1_calldata = l1_to_l2_tx_data.to_calldata()?;
-
     let l1_tx_overrides = Overrides {
         value: l1_value.map(Into::into),
         from: Some(l1_from),
         gas_limit: l1_gas_limit,
         ..Overrides::default()
     };
-
     let l1_to_l2_tx = eth_client
         .build_eip1559_transaction(bridge_address, l1_from, l1_calldata.into(), l1_tx_overrides)
         .await?;
-
     eth_client
         .send_eip1559_transaction(&l1_to_l2_tx, sender_private_key)
         .await

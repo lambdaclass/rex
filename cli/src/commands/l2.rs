@@ -296,9 +296,16 @@ impl Command {
                     .await?
                 } else {
                     println!("Depositing {amount} from {to:#x} to bridge");
-                    // TODO: estimate l1&l2 gas price
-                    deposit_through_transfer(amount, to, &private_key, bridge_address, &eth_client)
-                        .await?
+                    // TODO: estimate l1 gas price
+                    deposit_through_contract_call(
+                        amount,
+                        to,
+                        21000 * 10,
+                        &private_key,
+                        bridge_address,
+                        &eth_client,
+                    )
+                    .await?
                 };
 
                 println!("Deposit sent: {tx_hash:#x}");
