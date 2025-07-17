@@ -1,7 +1,7 @@
 use crate::calldata::{Value, encode_calldata};
 use crate::client::Overrides;
 use crate::{
-    client::{EthClient, EthClientError, eth::get_address_from_secret_key},
+    client::{EthClient, EthClientError},
     transfer,
 };
 use ethrex_common::{Address, H256, U256};
