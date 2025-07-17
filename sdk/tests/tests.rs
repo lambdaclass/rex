@@ -7,7 +7,7 @@ use rex_sdk::client::EthClient;
 use rex_sdk::client::Overrides;
 use rex_sdk::client::eth::BlockByNumber;
 use rex_sdk::client::eth::get_address_from_secret_key;
-use rex_sdk::l2::deposit::deposit_through_transfer;
+use rex_sdk::l2::deposit::{deposit_through_contract_call, deposit_through_transfer};
 use rex_sdk::l2::l1_to_l2_tx_data::{L1ToL2TransactionData, send_l1_to_l2_tx};
 use rex_sdk::transfer;
 use rex_sdk::wait_for_transaction_receipt;
@@ -57,7 +57,16 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
         .expect("Failed to get address from l1 rich wallet pk");
 
-    test_deposit(
+    test_deposit_through_transfer(
+        &rich_wallet_private_key,
+        bridge_address,
+        deposit_recipient_address,
+        &eth_client,
+        &proposer_client,
+    )
+    .await?;
+
+    test_deposit_through_contract_call(
         &rich_wallet_private_key,
         bridge_address,
         deposit_recipient_address,
@@ -160,7 +169,7 @@ fn fees_vault() -> Address {
         .unwrap_or(DEFAULT_PROPOSER_COINBASE_ADDRESS)
 }
 
-async fn test_deposit(
+async fn test_deposit_through_transfer(
     depositor_private_key: &SecretKey,
     bridge_address: Address,
     deposit_recipient_address: Address,
@@ -200,6 +209,111 @@ async fn test_deposit(
     let deposit_tx_hash = deposit_through_transfer(
         deposit_value,
         deposit_recipient_address,
+        depositor_private_key,
+        bridge_address,
+        eth_client,
+    )
+    .await?;
+
+    println!("Waiting for L1 deposit transaction receipt");
+
+    let deposit_tx_receipt =
+        wait_for_transaction_receipt(deposit_tx_hash, eth_client, 5, true).await?;
+
+    let depositor_l1_balance_after_deposit = eth_client
+        .get_balance(depositor, BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        depositor_l1_balance_after_deposit,
+        depositor_l1_initial_balance
+            - deposit_value
+            - deposit_tx_receipt.tx_info.gas_used * deposit_tx_receipt.tx_info.effective_gas_price,
+        "Depositor L1 balance didn't decrease as expected after deposit"
+    );
+
+    let bridge_balance_after_deposit = eth_client
+        .get_balance(bridge_address, BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        bridge_balance_after_deposit,
+        bridge_initial_balance + deposit_value,
+        "Bridge balance didn't increase as expected after deposit"
+    );
+
+    println!("Waiting for L2 deposit tx receipt");
+
+    let _ = wait_for_l2_deposit_receipt(
+        deposit_tx_receipt.block_info.block_number,
+        eth_client,
+        proposer_client,
+    )
+    .await?;
+
+    let deposit_recipient_l2_balance_after_deposit = proposer_client
+        .get_balance(deposit_recipient_address, BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        deposit_recipient_l2_balance_after_deposit,
+        deposit_recipient_l2_initial_balance + deposit_value,
+        "Deposit recipient L2 balance didn't increase as expected after deposit"
+    );
+
+    let fee_vault_balance_after_deposit = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        fee_vault_balance_after_deposit, fee_vault_balance_before_deposit,
+        "Fee vault balance should not change after deposit"
+    );
+
+    Ok(())
+}
+
+async fn test_deposit_through_contract_call(
+    depositor_private_key: &SecretKey,
+    bridge_address: Address,
+    deposit_recipient_address: Address,
+    eth_client: &EthClient,
+    proposer_client: &EthClient,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Fetching initial balances on L1 and L2");
+
+    let depositor = get_address_from_secret_key(depositor_private_key)?;
+    let deposit_value = std::env::var("INTEGRATION_TEST_DEPOSIT_VALUE")
+        .map(|value| U256::from_dec_str(&value).expect("Invalid deposit value"))
+        .unwrap_or(U256::from(1000000000000000000000u128));
+
+    let depositor_l1_initial_balance = eth_client
+        .get_balance(depositor, BlockByNumber::Latest)
+        .await?;
+
+    assert!(
+        depositor_l1_initial_balance >= deposit_value,
+        "L1 depositor doesn't have enough balance to deposit"
+    );
+
+    let deposit_recipient_l2_initial_balance = proposer_client
+        .get_balance(deposit_recipient_address, BlockByNumber::Latest)
+        .await?;
+
+    let bridge_initial_balance = eth_client
+        .get_balance(bridge_address, BlockByNumber::Latest)
+        .await?;
+
+    let fee_vault_balance_before_deposit = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    println!("Depositing funds from L1 to L2");
+
+    let deposit_tx_hash = deposit_through_contract_call(
+        deposit_value,
+        deposit_recipient_address,
+        21000 * 5,
         depositor_private_key,
         bridge_address,
         eth_client,
