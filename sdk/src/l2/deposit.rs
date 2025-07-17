@@ -5,7 +5,7 @@ use crate::{
     client::{EthClient, EthClientError},
     transfer,
 };
-use ethrex_common::{Address, Bytes, H256, U256};
+use ethrex_common::{Address, H256, U256};
 use secp256k1::SecretKey;
 
 const DEPOSIT_ERC20_SIGNATURE: &str = "depositERC20(address,address,address,uint256)";
@@ -29,7 +29,6 @@ pub async fn deposit_through_contract_call(
     eth_client: &EthClient,
 ) -> Result<H256, EthClientError> {
     let l1_from = get_address_from_secret_key(depositor_private_key)?;
-
     let calldata = encode_calldata("deposit(address)", &[Value::Address(to)])?;
 
     let deposit_tx = eth_client
