@@ -182,7 +182,7 @@ async fn test_deposit(
 
     assert_eq!(
         bridge_balance_after_deposit,
-        bridge_initial_balance + deposit_value / 100,
+        bridge_initial_balance + deposit_value,
         "Bridge balance didn't increase as expected after deposit"
     );
 
@@ -209,7 +209,8 @@ fn get_l1_balance(address: Address) -> Result<U256, Box<dyn std::error::Error>> 
         panic!("Error getting balance: {stderr}");
     }
 
-    Ok(U256::from_dec_str(&String::from_utf8(output.stdout).unwrap().as_str()[..27]).unwrap())
+    let str = String::from_utf8(output.stdout).unwrap();
+    Ok(U256::from_dec_str(str.trim()).unwrap())
 }
 
 fn get_l2_balance(address: Address) -> Result<U256, Box<dyn std::error::Error>> {
@@ -225,7 +226,8 @@ fn get_l2_balance(address: Address) -> Result<U256, Box<dyn std::error::Error>> 
         panic!("Error getting balance: {stderr}");
     }
 
-    Ok(U256::from_dec_str(&String::from_utf8(output.stdout).unwrap().as_str()[..27]).unwrap())
+    let str = String::from_utf8(output.stdout).unwrap();
+    Ok(U256::from_dec_str(str.trim()).unwrap())
 }
 
 fn deposit_l2(
