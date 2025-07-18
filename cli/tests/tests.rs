@@ -209,8 +209,14 @@ async fn test_transfer(
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
         .unwrap_or(U256::from(10000000000u128));
     let returner_address = get_address_from_secret_key(returnerer_private_key)?;
+    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
 
     perform_transfer(transferer_private_key, returner_address, transfer_value).await?;
+
+    // Only return 99% of the transfer, other amount is for fees
+    let return_amount = (transfer_value * 99) / 100;
+
+    perform_transfer(returnerer_private_key, transferer_address, return_amount).await?;
 
     Ok(())
 }
@@ -333,23 +339,6 @@ fn deposit_l2(
 
 fn get_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
-        .arg("receipt")
-        .arg(format!("{:#x}", tx_hash))
-        .output()
-        .unwrap();
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("{}", String::from_utf8(output.stdout).unwrap());
-        panic!("Error getting receipt: {stderr}");
-    }
-
-    Ok(String::from_utf8(output.stdout).unwrap())
-}
-
-fn get_l2_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
-    let output = Command::new("rex")
-        .arg("l2")
         .arg("receipt")
         .arg(format!("{:#x}", tx_hash))
         .output()
