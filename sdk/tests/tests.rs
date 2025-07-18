@@ -59,7 +59,7 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     let bridge_address = common_bridge_address();
     let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
         .expect("Failed to get address from l1 rich wallet pk");
-    println!("bridge_address {}", bridge_address);
+  
     test_deposit_through_transfer(
         &rich_wallet_private_key,
         bridge_address,
@@ -168,10 +168,6 @@ fn l2_return_transfer_private_key() -> SecretKey {
 }
 
 fn common_bridge_address() -> Address {
-    println!(
-        "ETHREX_WATCHER_BRIDGE_ADDRESS {}",
-        std::env::var("ETHREX_WATCHER_BRIDGE_ADDRESS").unwrap()
-    );
     std::env::var("ETHREX_WATCHER_BRIDGE_ADDRESS")
         .expect("ETHREX_WATCHER_BRIDGE_ADDRESS env var not set")
         .parse()
@@ -330,6 +326,7 @@ async fn test_deposit_through_contract_call(
 
     println!("Depositing funds from L1 to L2 through contract call");
 
+
     let deposit_tx_hash = deposit_through_contract_call(
         deposit_value,
         deposit_recipient_address,
@@ -452,15 +449,12 @@ async fn test_transfer_with_privileged_tx(
         transferer_address,
         Some(0),
         Some(21000 * 10),
-        L1ToL2TransactionData::new(receiver_address, 21000 * 10, transfer_value, Bytes::new()),
+        L1ToL2TransactionData::new(receiver_address, 21000 * 5, transfer_value, Bytes::new()),
         &l1_rich_wallet_private_key(),
         common_bridge_address(),
         eth_client,
     )
     .await?;
-    println!("Waiting asdsadsadasda L1 to L2 transaction receipt on L1");
-
-    tokio::time::sleep(std::time::Duration::from_secs(12)).await;
 
     println!("Waiting for L1 to L2 transaction receipt on L1");
 
@@ -633,7 +627,6 @@ async fn wait_for_l2_deposit_receipt(
     proposer_client: &EthClient,
 ) -> Result<RpcReceipt, Box<dyn std::error::Error>> {
     let topic = keccak(b"PrivilegedTxSent(address,address,address,uint256,uint256,uint256,bytes)");
-    println!("common_bridge_address {:#x}", common_bridge_address());
     let logs = eth_client
         .get_logs(
             U256::from(l1_receipt_block_number),
