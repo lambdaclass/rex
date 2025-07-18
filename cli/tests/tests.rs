@@ -116,6 +116,12 @@ fn common_bridge_address() -> Address {
         })
 }
 
+fn fees_vault() -> Address {
+    std::env::var("INTEGRATION_TEST_PROPOSER_COINBASE_ADDRESS")
+        .map(|address| address.parse().expect("Invalid proposer coinbase address"))
+        .unwrap_or(DEFAULT_PROPOSER_COINBASE_ADDRESS)
+}
+
 async fn test_deposit(
     depositor_private_key: &SecretKey,
     bridge_address: Address,
@@ -135,6 +141,8 @@ async fn test_deposit(
     let deposit_recipient_l2_initial_balance = get_l2_balance(deposit_recipient_address)?;
 
     let bridge_initial_balance = get_l1_balance(bridge_address)?;
+
+    let fee_vault_balance_before_deposit = get_l2_balance(fees_vault())?;
 
     println!("Depositing funds from L1 to L2");
 
@@ -192,6 +200,13 @@ async fn test_deposit(
         deposit_recipient_l2_balance_after_deposit,
         deposit_recipient_l2_initial_balance + deposit_value,
         "Deposit recipient L2 balance didn't increase as expected after deposit"
+    );
+
+    let fee_vault_balance_after_deposit = get_l2_balance(fees_vault())?;
+
+    assert_eq!(
+        fee_vault_balance_after_deposit, fee_vault_balance_before_deposit,
+        "Fee vault balance should not change after deposit"
     );
 
     Ok(())
