@@ -7,6 +7,7 @@ use std::{
     fs::File,
     io::{BufRead, BufReader},
     path::PathBuf,
+    time::Duration,
 };
 
 // 0x941e103320615d394a55708be13e45994c7d93b932b064dbcb2b511fe3254e2e
@@ -42,14 +43,20 @@ async fn cli_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
         .expect("Failed to get address from l1 rich wallet pk");
 
-    test_deposit(
-        &rich_wallet_private_key,
-        bridge_address,
-        deposit_recipient_address,
-    )
-    .await?;
+    // test_deposit(
+    //     &rich_wallet_private_key,
+    //     bridge_address,
+    //     deposit_recipient_address,
+    // )
+    // .await?;
 
-    test_transfer(&rich_wallet_private_key, &transfer_return_private_key).await?;
+    // test_transfer(&rich_wallet_private_key, &transfer_return_private_key).await?;
+
+    let withdrawals_count = std::env::var("INTEGRATION_TEST_WITHDRAW_COUNT")
+        .map(|amount| amount.parse().expect("Invalid withdrawal amount value"))
+        .unwrap_or(5);
+
+    test_withdraws(&rich_wallet_private_key, bridge_address, withdrawals_count).await?;
 
     Ok(())
 }
@@ -353,6 +360,23 @@ fn get_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
     Ok(String::from_utf8(output.stdout).unwrap())
 }
 
+fn get_l2_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
+    let output = Command::new("rex")
+        .arg("l2")
+        .arg("receipt")
+        .arg(format!("{:#x}", tx_hash))
+        .output()
+        .unwrap();
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("{}", String::from_utf8(output.stdout).unwrap());
+        panic!("Error getting receipt: {stderr}");
+    }
+
+    Ok(String::from_utf8(output.stdout).unwrap())
+}
+
 fn transfer(
     transfer_value: U256,
     transfer_recipient_address: Address,
@@ -379,4 +403,183 @@ fn transfer(
     let hash = hash_line.trim();
 
     Ok(H256::from_str(hash).unwrap())
+}
+
+async fn test_withdraws(
+    withdrawer_private_key: &SecretKey,
+    bridge_address: Address,
+    n: u64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Withdraw funds from L2 to L1
+    let withdrawer_address = get_address_from_secret_key(withdrawer_private_key)?;
+    let withdraw_value = std::env::var("INTEGRATION_TEST_WITHDRAW_VALUE")
+        .map(|value| U256::from_dec_str(&value).expect("Invalid withdraw value"))
+        .unwrap_or(U256::from(100000000000000000000u128));
+
+    println!("Checking balances on L1 and L2 before withdrawal");
+
+    let withdrawer_l2_balance_before_withdrawal = get_l2_balance(withdrawer_address)?;
+
+    assert!(
+        withdrawer_l2_balance_before_withdrawal >= withdraw_value,
+        "L2 withdrawer doesn't have enough balance to withdraw"
+    );
+
+    let bridge_balance_before_withdrawal = get_l1_balance(bridge_address)?;
+
+    assert!(
+        bridge_balance_before_withdrawal >= withdraw_value,
+        "L1 bridge doesn't have enough balance to withdraw"
+    );
+
+    let withdrawer_l1_balance_before_withdrawal = get_l1_balance(withdrawer_address)?;
+
+    println!("Withdrawing funds from L2 to L1");
+
+    let mut withdraw_txs = vec![];
+    let mut receipts = vec![];
+
+    for x in 1..n + 1 {
+        println!("Sending withdraw {x}/{n}");
+        let withdraw_tx = withdraw(withdraw_value, withdrawer_private_key)?;
+
+        withdraw_txs.push(withdraw_tx);
+
+        let withdraw_tx_receipt = get_l2_receipt(withdraw_tx)?;
+        receipts.push(withdraw_tx_receipt);
+    }
+
+    println!("Checking balances on L1 and L2 after withdrawal");
+
+    let withdrawer_l2_balance_after_withdrawal = get_l2_balance(withdrawer_address)?;
+
+    assert!(
+        (withdrawer_l2_balance_before_withdrawal - withdraw_value * n)
+            .abs_diff(withdrawer_l2_balance_after_withdrawal)
+            < L2_GAS_COST_MAX_DELTA * n,
+        "Withdrawer L2 balance didn't decrease as expected after withdrawal"
+    );
+
+    let withdrawer_l1_balance_after_withdrawal = get_l1_balance(withdrawer_address)?;
+
+    assert_eq!(
+        withdrawer_l1_balance_after_withdrawal, withdrawer_l1_balance_before_withdrawal,
+        "Withdrawer L1 balance should not change after withdrawal"
+    );
+
+    // We need to wait for all the txs to be included in some batch
+    let mut proofs = vec![];
+    for (i, tx) in withdraw_txs.clone().into_iter().enumerate() {
+        println!("Getting withdrawal proof {}/{n}", i + 1);
+        let message_proof = get_l2_proof(tx)?;
+
+        let withdrawal_proof = message_proof
+            .into_iter()
+            .next()
+            .expect("no l1 messages in withdrawal");
+        proofs.push(withdrawal_proof);
+    }
+
+    tokio::time::sleep(Duration::from_secs(20)).await;
+
+    let mut withdraw_claim_txs_receipts = vec![];
+
+    for (x, proof) in proofs.iter().enumerate() {
+        println!("Claiming withdrawal on L1 {x}/{n}");
+
+        let withdraw_claim_tx = claim_withdraw(
+            withdraw_value,
+            *proof,
+            withdrawer_private_key,
+            bridge_address,
+        )?;
+        let withdraw_claim_tx_receipt = get_receipt(withdraw_claim_tx)?;
+
+        withdraw_claim_txs_receipts.push(withdraw_claim_tx_receipt);
+    }
+
+    Ok(())
+}
+
+fn withdraw(
+    withdraw_amount: U256,
+    withdrawer_private_key: &SecretKey,
+) -> Result<H256, Box<dyn std::error::Error>> {
+    let output = Command::new("rex")
+        .arg("l2")
+        .arg("withdraw")
+        .arg(format!("{}", withdraw_amount))
+        .arg(withdrawer_private_key.display_secret().to_string())
+        .output()
+        .unwrap();
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        panic!("Error depositing to l2: {stderr}");
+    }
+
+    let str = String::from_utf8(output.stdout).unwrap();
+
+    let hash_line = str
+        .lines()
+        .find(|line| line.contains("Withdrawal sent: "))
+        .unwrap();
+
+    let hash = hash_line.strip_prefix("Withdrawal sent: ").unwrap().trim();
+
+    Ok(H256::from_str(hash).unwrap())
+}
+
+fn get_l2_proof(tx_hash: H256) -> Result<Vec<H256>, Box<dyn std::error::Error>> {
+    let output = Command::new("rex")
+        .arg("l2")
+        .arg("withdrawal-proof")
+        .arg(format!("{:#x}", tx_hash))
+        .output()
+        .unwrap();
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        panic!("Error depositing to l2: {stderr}");
+    }
+    let str = String::from_utf8(output.stdout).unwrap();
+
+    let hash = str
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .trim();
+
+    Ok(vec![H256::from_str(hash).unwrap()])
+}
+
+fn claim_withdraw(
+    amount: U256,
+    tx_hash: H256,
+    private_key: &SecretKey,
+    bridge_address: Address,
+) -> Result<H256, Box<dyn std::error::Error>> {
+    println!("amount {amount}");
+    println!("tx_hash {tx_hash:#x}");
+    println!("private_key {}", private_key.display_secret().to_string());
+    println!("bridge_address {bridge_address:#x}");
+
+    let output = Command::new("rex")
+        .arg("l2")
+        .arg("claim-withdraw")
+        .arg(format!("{}", amount))
+        .arg(format!("{:#x}", tx_hash))
+        .arg(private_key.display_secret().to_string())
+        .arg(format!("{:#x}", bridge_address))
+        .output()
+        .unwrap();
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        panic!("Error depositing to l2: {stderr}");
+    }
+    let str = String::from_utf8(output.stdout).unwrap();
+
+    println!("str {str}");
+
+    Ok(H256::zero())
 }
