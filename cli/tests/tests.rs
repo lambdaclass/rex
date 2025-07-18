@@ -30,7 +30,7 @@ const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
     0xad, 0x62, 0x0c, 0x8d,
 ]);
 
-const _L2_GAS_COST_MAX_DELTA: U256 = U256([100_000_000_000_000, 0, 0, 0]);
+const L2_GAS_COST_MAX_DELTA: U256 = U256([100_000_000_000_000, 0, 0, 0]);
 
 #[tokio::test]
 async fn cli_integration_test() -> Result<(), Box<dyn std::error::Error>> {
@@ -49,7 +49,7 @@ async fn cli_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     )
     .await?;
 
-    test_transfer(&rich_wallet_private_key, &transfer_return_private_key);
+    test_transfer(&rich_wallet_private_key, &transfer_return_private_key).await?;
 
     Ok(())
 }
@@ -200,7 +200,7 @@ async fn test_deposit(
     Ok(())
 }
 
-fn test_transfer(
+async fn test_transfer(
     transferer_private_key: &SecretKey,
     returnerer_private_key: &SecretKey,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -208,15 +208,14 @@ fn test_transfer(
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
         .unwrap_or(U256::from(10000000000u128));
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
     let returner_address = get_address_from_secret_key(returnerer_private_key)?;
 
-    perform_transfer(transferer_private_key, returner_address, transfer_value)?;
+    perform_transfer(transferer_private_key, returner_address, transfer_value).await?;
 
     Ok(())
 }
 
-fn perform_transfer(
+async fn perform_transfer(
     transferer_private_key: &SecretKey,
     transfer_recipient_address: Address,
     transfer_value: U256,
@@ -232,13 +231,38 @@ fn perform_transfer(
 
     let transfer_recipient_initial_balance = get_l2_balance(transfer_recipient_address)?;
 
-    let fee_vault_balance_before_transfer = get_l2_balance(fees_vault())?;
-
-    let transfer_tx = transfer(
+    let _ = transfer(
         transfer_value,
         transfer_recipient_address,
         transferer_private_key,
     )?;
+
+    tokio::time::sleep(std::time::Duration::from_secs(12)).await;
+
+    let recoverable_fees_vault_balance = get_l2_balance(fees_vault())?;
+
+    println!("Recoverable Fees Balance: {recoverable_fees_vault_balance}",);
+
+    println!("Checking balances on L2 after transfer");
+
+    let transferer_l2_balance_after_transfer = get_l2_balance(transferer_address)?;
+
+    assert!(
+        (transferer_initial_l2_balance - transfer_value)
+            .abs_diff(transferer_l2_balance_after_transfer)
+            < L2_GAS_COST_MAX_DELTA,
+        "L2 transferer balance didn't decrease as expected after transfer. Gas costs were {}/{L2_GAS_COST_MAX_DELTA}",
+        (transferer_initial_l2_balance - transfer_value)
+            .abs_diff(transferer_l2_balance_after_transfer)
+    );
+
+    let transfer_recipient_l2_balance_after_transfer = get_l2_balance(transfer_recipient_address)?;
+
+    assert_eq!(
+        transfer_recipient_l2_balance_after_transfer,
+        transfer_recipient_initial_balance + transfer_value,
+        "L2 transfer recipient balance didn't increase as expected after transfer"
+    );
 
     Ok(())
 }
@@ -316,6 +340,24 @@ fn get_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("{}", String::from_utf8(output.stdout).unwrap());
+        panic!("Error getting receipt: {stderr}");
+    }
+
+    Ok(String::from_utf8(output.stdout).unwrap())
+}
+
+fn get_l2_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
+    let output = Command::new("rex")
+        .arg("l2")
+        .arg("receipt")
+        .arg(format!("{:#x}", tx_hash))
+        .output()
+        .unwrap();
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("{}", String::from_utf8(output.stdout).unwrap());
         panic!("Error getting receipt: {stderr}");
     }
 
@@ -343,12 +385,9 @@ fn transfer(
 
     let str = String::from_utf8(output.stdout).unwrap();
 
-    let hash_line = str
-        .lines()
-        .find(|line| line.contains("Transfer sent: "))
-        .unwrap();
+    let hash_line = str.lines().next().unwrap();
 
-    let hash = hash_line.strip_prefix("Transfer sent: ").unwrap().trim();
+    let hash = hash_line.trim();
 
     Ok(H256::from_str(hash).unwrap())
 }
