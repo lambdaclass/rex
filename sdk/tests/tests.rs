@@ -457,6 +457,9 @@ async fn test_transfer_with_privileged_tx(
 
     println!("Waiting for L1 to L2 transaction receipt on L1");
 
+    // this sleep time shouldn't be here issue #173
+    tokio::time::sleep(std::time::Duration::from_secs(12)).await;
+
     let l1_to_l2_tx_receipt =
         wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
     println!("Waiting for L1 to L2 transaction receipt on L2");
