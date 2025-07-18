@@ -59,7 +59,7 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     let bridge_address = common_bridge_address();
     let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
         .expect("Failed to get address from l1 rich wallet pk");
-  
+
     test_deposit_through_transfer(
         &rich_wallet_private_key,
         bridge_address,
@@ -325,7 +325,6 @@ async fn test_deposit_through_contract_call(
         .await?;
 
     println!("Depositing funds from L1 to L2 through contract call");
-
 
     let deposit_tx_hash = deposit_through_contract_call(
         deposit_value,
