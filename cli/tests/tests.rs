@@ -1,27 +1,13 @@
-use clap::error::Error;
-use ethrex_common::{Address, Bytes, H160, H256, U256, types::BlockNumber};
-use ethrex_l2::sequencer::l1_watcher::PrivilegedTransactionData;
-use ethrex_rpc::types::receipt::{RpcReceipt, RpcReceiptTxInfo};
-use keccak_hash::keccak;
-use rex_sdk::calldata::{self, Value};
-use rex_sdk::client::EthClient;
-use rex_sdk::client::Overrides;
-use rex_sdk::client::eth::BlockByNumber;
+use ethrex_common::{Address, H160, H256, U256};
 use rex_sdk::client::eth::get_address_from_secret_key;
-use rex_sdk::l2::deposit::{deposit_through_contract_call, deposit_through_transfer};
-use rex_sdk::l2::l1_to_l2_tx_data::{L1ToL2TransactionData, send_l1_to_l2_tx};
-use rex_sdk::transfer;
-use rex_sdk::wait_for_transaction_receipt;
 use secp256k1::SecretKey;
-use std::process::{Command, ExitStatus};
-use std::{collections::HashMap, str::FromStr};
+use std::process::Command;
+use std::str::FromStr;
 use std::{
     fs::File,
     io::{BufRead, BufReader},
-    ops::Mul,
     path::PathBuf,
 };
-use tokio::time::sleep;
 
 // 0x941e103320615d394a55708be13e45994c7d93b932b064dbcb2b511fe3254e2e
 const DEFAULT_L1_RICH_WALLET_PRIVATE_KEY: H256 = H256([
@@ -44,14 +30,14 @@ const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
     0xad, 0x62, 0x0c, 0x8d,
 ]);
 
-const L2_GAS_COST_MAX_DELTA: U256 = U256([100_000_000_000_000, 0, 0, 0]);
+const _L2_GAS_COST_MAX_DELTA: U256 = U256([100_000_000_000_000, 0, 0, 0]);
 
 #[tokio::test]
 async fn cli_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     read_env_file_by_config();
 
     let rich_wallet_private_key = l1_rich_wallet_private_key();
-    let transfer_return_private_key = l2_return_transfer_private_key();
+    let _transfer_return_private_key = l2_return_transfer_private_key();
     let bridge_address = common_bridge_address();
     let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
         .expect("Failed to get address from l1 rich wallet pk");
