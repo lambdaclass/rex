@@ -37,7 +37,7 @@ async fn cli_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     read_env_file_by_config();
 
     let rich_wallet_private_key = l1_rich_wallet_private_key();
-    let _transfer_return_private_key = l2_return_transfer_private_key();
+    let transfer_return_private_key = l2_return_transfer_private_key();
     let bridge_address = common_bridge_address();
     let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
         .expect("Failed to get address from l1 rich wallet pk");
@@ -48,6 +48,8 @@ async fn cli_integration_test() -> Result<(), Box<dyn std::error::Error>> {
         deposit_recipient_address,
     )
     .await?;
+
+    test_transfer(&rich_wallet_private_key, &transfer_return_private_key);
 
     Ok(())
 }
@@ -198,6 +200,49 @@ async fn test_deposit(
     Ok(())
 }
 
+fn test_transfer(
+    transferer_private_key: &SecretKey,
+    returnerer_private_key: &SecretKey,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Transferring funds on L2");
+    let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
+        .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
+        .unwrap_or(U256::from(10000000000u128));
+    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let returner_address = get_address_from_secret_key(returnerer_private_key)?;
+
+    perform_transfer(transferer_private_key, returner_address, transfer_value)?;
+
+    Ok(())
+}
+
+fn perform_transfer(
+    transferer_private_key: &SecretKey,
+    transfer_recipient_address: Address,
+    transfer_value: U256,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+
+    let transferer_initial_l2_balance = get_l2_balance(transferer_address)?;
+
+    assert!(
+        transferer_initial_l2_balance >= transfer_value,
+        "L2 transferer doesn't have enough balance to transfer"
+    );
+
+    let transfer_recipient_initial_balance = get_l2_balance(transfer_recipient_address)?;
+
+    let fee_vault_balance_before_transfer = get_l2_balance(fees_vault())?;
+
+    let transfer_tx = transfer(
+        transfer_value,
+        transfer_recipient_address,
+        transferer_private_key,
+    )?;
+
+    Ok(())
+}
+
 fn get_l1_balance(address: Address) -> Result<U256, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
         .arg("balance")
@@ -275,4 +320,35 @@ fn get_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
     }
 
     Ok(String::from_utf8(output.stdout).unwrap())
+}
+
+fn transfer(
+    transfer_value: U256,
+    transfer_recipient_address: Address,
+    transferer_private_key: &SecretKey,
+) -> Result<H256, Box<dyn std::error::Error>> {
+    let output = Command::new("rex")
+        .arg("l2")
+        .arg("transfer")
+        .arg(format!("{}", transfer_value))
+        .arg(format!("{:#x}", transfer_recipient_address))
+        .arg(transferer_private_key.display_secret().to_string())
+        .output()
+        .unwrap();
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        panic!("Error depositing to l2: {stderr}");
+    }
+
+    let str = String::from_utf8(output.stdout).unwrap();
+
+    let hash_line = str
+        .lines()
+        .find(|line| line.contains("Transfer sent: "))
+        .unwrap();
+
+    let hash = hash_line.strip_prefix("Transfer sent: ").unwrap().trim();
+
+    Ok(H256::from_str(hash).unwrap())
 }
