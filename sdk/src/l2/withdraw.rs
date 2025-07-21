@@ -44,27 +44,22 @@ pub async fn withdraw(
 
 pub async fn claim_withdraw(
     amount: U256,
-    l2_withdrawal_tx_hash: H256,
     from: Address,
     from_pk: SecretKey,
     eth_client: &EthClient,
-    withdrawal_proof: &L1MessageProof,
+    message_proof: &L1MessageProof,
     bridge_address: Address,
 ) -> Result<H256, EthClientError> {
     println!("Claiming {amount} from bridge to {from:#x}");
 
-    const CLAIM_WITHDRAWAL_SIGNATURE: &str =
-        "claimWithdrawal(bytes32,uint256,uint256,uint256,bytes32[])";
+    const CLAIM_WITHDRAWAL_SIGNATURE: &str = "claimWithdrawal(uint256,uint256,uint256,bytes32[])";
 
     let calldata_values = vec![
-        Value::Uint(U256::from_big_endian(
-            l2_withdrawal_tx_hash.as_fixed_bytes(),
-        )),
         Value::Uint(amount),
-        Value::Uint(withdrawal_proof.batch_number.into()),
-        Value::Uint(U256::from(withdrawal_proof.index)),
+        Value::Uint(message_proof.batch_number.into()),
+        Value::Uint(message_proof.message_id),
         Value::Array(
-            withdrawal_proof
+            message_proof
                 .merkle_proof
                 .iter()
                 .map(|hash| Value::FixedBytes(hash.as_fixed_bytes().to_vec().into()))
@@ -97,7 +92,7 @@ pub async fn claim_withdraw(
         .await
 }
 
-/// Returns the formated hash of the withdrawal transaction,
+/// Returns the formatted hash of the withdrawal transaction,
 /// or None if the transaction is not a withdrawal.
 /// The hash is computed as keccak256(to || value || tx_hash)
 pub fn get_withdrawal_hash(tx: &Transaction) -> Option<H256> {

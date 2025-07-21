@@ -8,7 +8,7 @@ use ethrex_common::{Address, H256, U256};
 use rex_sdk::{
     client::{EthClient, eth::get_address_from_secret_key},
     l2::{
-        deposit::deposit_through_contract_call,
+        deposit::{deposit_erc20, deposit_through_contract_call},
         withdraw::{claim_withdraw, get_withdraw_merkle_proof, withdraw},
     },
     wait_for_transaction_receipt,
@@ -104,11 +104,18 @@ pub(crate) enum Command {
         #[clap(value_parser = parse_u256)]
         amount: U256,
         #[clap(
-            long = "token",
-            help = "ERC20 token address",
+            long = "token-l1",
+            help = "ERC20 token address on L1",
             long_help = "Specify the token address, the base token is used as default."
         )]
-        token_address: Option<Address>,
+        token_l1: Option<Address>,
+        #[clap(
+            long = "token-l2",
+            help = "ERC20 token address on L2",
+            long_help = "Specify the token address, it is required if you specify a token on L1.",
+            requires("token-l1")
+        )]
+        token_l2: Option<Address>,
         #[clap(
             long = "to",
             help = "Specify the wallet in which you want to deposit your funds."
@@ -252,7 +259,8 @@ impl Command {
         match self {
             Command::Deposit {
                 amount,
-                token_address,
+                token_l1,
+                token_l2,
                 to,
                 cast,
                 silent,
@@ -261,30 +269,44 @@ impl Command {
                 l1_rpc_url,
                 bridge_address,
             } => {
+                let eth_client = EthClient::new(&l1_rpc_url)?;
+                let to = to.unwrap_or(get_address_from_secret_key(&private_key)?);
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
-                if token_address.is_some() {
-                    todo!("Handle ERC20 deposits")
-                }
 
-                let eth_client = EthClient::new(&l1_rpc_url)?;
-
-                let to = to.unwrap_or(get_address_from_secret_key(&private_key)?);
-
-                println!("Depositing {amount} from {to:#x} to bridge");
-
-                // TODO: estimate l1&l2 gas price
-                let tx_hash = deposit_through_contract_call(
-                    amount,
-                    to,
-                    21000 * 10,
-                    21000 * 10,
-                    &private_key,
-                    bridge_address,
-                    &eth_client,
-                )
-                .await?;
+                // Deposit through ERC20 token transfer
+                let tx_hash = if let Some(token_l1) = token_l1 {
+                    let token_l2 = token_l2.expect(
+                        "Token address on L2 is required if token address on L1 is specified",
+                    );
+                    let from = get_address_from_secret_key(&private_key)?;
+                    println!(
+                        "Depositing {amount} from {from:#x} to L2 token {token_l2:#x} using L1 token {token_l1:#x}"
+                    );
+                    deposit_erc20(
+                        token_l1,
+                        token_l2,
+                        amount,
+                        from,
+                        private_key,
+                        &eth_client,
+                        bridge_address,
+                    )
+                    .await?
+                } else {
+                    println!("Depositing {amount} from {to:#x} to bridge");
+                    // TODO: estimate l1 gas price
+                    deposit_through_contract_call(
+                        amount,
+                        to,
+                        21000 * 10,
+                        &private_key,
+                        bridge_address,
+                        &eth_client,
+                    )
+                    .await?
+                };
 
                 println!("Deposit sent: {tx_hash:#x}");
 
@@ -318,7 +340,6 @@ impl Command {
 
                 let tx_hash = claim_withdraw(
                     claimed_amount,
-                    l2_withdrawal_tx_hash,
                     from,
                     private_key,
                     &eth_client,
