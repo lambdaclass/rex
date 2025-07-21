@@ -9,6 +9,7 @@ use rex_sdk::client::eth::BlockByNumber;
 use rex_sdk::client::eth::get_address_from_secret_key;
 use rex_sdk::l2::deposit::{deposit_through_contract_call, deposit_through_transfer};
 use rex_sdk::l2::l1_to_l2_tx_data::{L1ToL2TransactionData, send_l1_to_l2_tx};
+use rex_sdk::l2::withdraw::{claim_withdraw, withdraw};
 use rex_sdk::transfer;
 use rex_sdk::wait_for_transaction_receipt;
 use secp256k1::SecretKey;
@@ -17,6 +18,8 @@ use std::{
     io::{BufRead, BufReader},
     ops::Mul,
     path::PathBuf,
+    str::FromStr,
+    time::Duration,
 };
 
 const DEFAULT_ETH_URL: &str = "http://localhost:8545";
@@ -95,6 +98,19 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     test_privileged_tx_with_contract_call(&proposer_client, &eth_client).await?;
 
     test_privileged_tx_with_contract_call_revert(&proposer_client, &eth_client).await?;
+
+    let withdrawals_count = std::env::var("INTEGRATION_TEST_WITHDRAW_COUNT")
+        .map(|amount| amount.parse().expect("Invalid withdrawal amount value"))
+        .unwrap_or(5);
+
+    test_n_withdraws(
+        &rich_wallet_private_key,
+        &eth_client,
+        &proposer_client,
+        bridge_address,
+        withdrawals_count,
+    )
+    .await?;
 
     Ok(())
 }
@@ -204,7 +220,7 @@ async fn test_deposit_through_transfer(
         .get_balance(fees_vault(), BlockByNumber::Latest)
         .await?;
 
-    println!("Depositing funds from L1 to L2");
+    println!("Depositing funds from L1 to L2 through transfer");
 
     let deposit_tx_hash = deposit_through_transfer(
         deposit_value,
@@ -308,12 +324,12 @@ async fn test_deposit_through_contract_call(
         .get_balance(fees_vault(), BlockByNumber::Latest)
         .await?;
 
-    println!("Depositing funds from L1 to L2");
+    println!("Depositing funds from L1 to L2 through contract call");
 
     let deposit_tx_hash = deposit_through_contract_call(
         deposit_value,
         deposit_recipient_address,
-        21000 * 5,
+        21000 * 10,
         depositor_private_key,
         bridge_address,
         eth_client,
@@ -440,6 +456,9 @@ async fn test_transfer_with_privileged_tx(
     .await?;
 
     println!("Waiting for L1 to L2 transaction receipt on L1");
+
+    // this sleep time shouldn't be here issue #173
+    tokio::time::sleep(std::time::Duration::from_secs(12)).await;
 
     let l1_to_l2_tx_receipt =
         wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
@@ -910,6 +929,199 @@ async fn test_call_to_contract_with_deposit(
     assert_eq!(
         deployed_contract_balance_after_call, deployed_contract_balance_before_call,
         "Deployed contract increased unexpectedly after call"
+    );
+
+    Ok(())
+}
+
+async fn test_n_withdraws(
+    withdrawer_private_key: &SecretKey,
+    eth_client: &EthClient,
+    proposer_client: &EthClient,
+    bridge_address: Address,
+    n: u64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Withdraw funds from L2 to L1
+    let withdrawer_address = get_address_from_secret_key(withdrawer_private_key)?;
+    let withdraw_value = std::env::var("INTEGRATION_TEST_WITHDRAW_VALUE")
+        .map(|value| U256::from_dec_str(&value).expect("Invalid withdraw value"))
+        .unwrap_or(U256::from(100000000000000000000u128));
+
+    println!("Checking balances on L1 and L2 before withdrawal");
+
+    let withdrawer_l2_balance_before_withdrawal = proposer_client
+        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .await?;
+
+    assert!(
+        withdrawer_l2_balance_before_withdrawal >= withdraw_value,
+        "L2 withdrawer doesn't have enough balance to withdraw"
+    );
+
+    let bridge_balance_before_withdrawal = eth_client
+        .get_balance(common_bridge_address(), BlockByNumber::Latest)
+        .await?;
+
+    assert!(
+        bridge_balance_before_withdrawal >= withdraw_value,
+        "L1 bridge doesn't have enough balance to withdraw"
+    );
+
+    let withdrawer_l1_balance_before_withdrawal = eth_client
+        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .await?;
+
+    let fee_vault_balance_before_withdrawal = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    println!("Withdrawing funds from L2 to L1");
+
+    let mut withdraw_txs = vec![];
+    let mut receipts = vec![];
+
+    for x in 1..n + 1 {
+        println!("Sending withdraw {x}/{n}");
+        let withdraw_tx = withdraw(
+            withdraw_value,
+            withdrawer_address,
+            *withdrawer_private_key,
+            proposer_client,
+            None,
+        )
+        .await?;
+
+        withdraw_txs.push(withdraw_tx);
+
+        let withdraw_tx_receipt =
+            wait_for_transaction_receipt(withdraw_tx, proposer_client, 1000, true)
+                .await
+                .expect("Withdraw tx receipt not found");
+
+        receipts.push(withdraw_tx_receipt);
+    }
+
+    println!("Checking balances on L1 and L2 after withdrawal");
+
+    let withdrawer_l2_balance_after_withdrawal = proposer_client
+        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .await?;
+
+    assert!(
+        (withdrawer_l2_balance_before_withdrawal - withdraw_value * n)
+            .abs_diff(withdrawer_l2_balance_after_withdrawal)
+            < L2_GAS_COST_MAX_DELTA * n,
+        "Withdrawer L2 balance didn't decrease as expected after withdrawal"
+    );
+
+    let withdrawer_l1_balance_after_withdrawal = eth_client
+        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        withdrawer_l1_balance_after_withdrawal, withdrawer_l1_balance_before_withdrawal,
+        "Withdrawer L1 balance should not change after withdrawal"
+    );
+
+    let fee_vault_balance_after_withdrawal = proposer_client
+        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .await?;
+
+    let mut withdraw_fees = U256::zero();
+    for receipt in receipts {
+        withdraw_fees += get_fees_details_l2(receipt, proposer_client)
+            .await
+            .recoverable_fees;
+    }
+
+    assert_eq!(
+        fee_vault_balance_after_withdrawal,
+        fee_vault_balance_before_withdrawal + withdraw_fees,
+        "Fee vault balance didn't increase as expected after withdrawal"
+    );
+
+    // We need to wait for all the txs to be included in some batch
+    let mut proofs = vec![];
+    for (i, tx) in withdraw_txs.clone().into_iter().enumerate() {
+        println!("Getting withdrawal proof {}/{n}", i + 1);
+        let message_proof = proposer_client.wait_for_message_proof(tx, 1000).await?;
+        let withdrawal_proof = message_proof
+            .into_iter()
+            .next()
+            .expect("no l1messages in withdrawal");
+        proofs.push(withdrawal_proof);
+    }
+
+    let on_chain_proposer_address = Address::from_str(
+        &std::env::var("ETHREX_COMMITTER_ON_CHAIN_PROPOSER_ADDRESS")
+            .expect("ETHREX_COMMITTER_ON_CHAIN_PROPOSER_ADDRESS env var not set"),
+    )
+    .unwrap();
+    for proof in &proofs {
+        while eth_client
+            .get_last_verified_batch(on_chain_proposer_address)
+            .await
+            .unwrap()
+            < proof.batch_number
+        {
+            println!("Withdrawal is not verified on L1 yet");
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+    }
+
+    let mut withdraw_claim_txs_receipts = vec![];
+
+    for (x, proof) in proofs.iter().enumerate() {
+        println!("Claiming withdrawal on L1 {x}/{n}");
+
+        let withdraw_claim_tx = claim_withdraw(
+            withdraw_value,
+            withdrawer_address,
+            *withdrawer_private_key,
+            eth_client,
+            proof,
+            bridge_address,
+        )
+        .await?;
+        let withdraw_claim_tx_receipt =
+            wait_for_transaction_receipt(withdraw_claim_tx, eth_client, 5, true).await?;
+        withdraw_claim_txs_receipts.push(withdraw_claim_tx_receipt);
+    }
+
+    println!("Checking balances on L1 and L2 after claim");
+
+    let withdrawer_l1_balance_after_claim = eth_client
+        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .await?;
+
+    let gas_used_value: u64 = withdraw_claim_txs_receipts
+        .iter()
+        .map(|x| x.tx_info.gas_used * x.tx_info.effective_gas_price)
+        .sum();
+
+    assert_eq!(
+        withdrawer_l1_balance_after_claim,
+        withdrawer_l1_balance_after_withdrawal + withdraw_value * n - gas_used_value,
+        "Withdrawer L1 balance wasn't updated as expected after claim"
+    );
+
+    let withdrawer_l2_balance_after_claim = proposer_client
+        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        withdrawer_l2_balance_after_claim, withdrawer_l2_balance_after_withdrawal,
+        "Withdrawer L2 balance should not change after claim"
+    );
+
+    let bridge_balance_after_withdrawal = eth_client
+        .get_balance(common_bridge_address(), BlockByNumber::Latest)
+        .await?;
+
+    assert_eq!(
+        bridge_balance_after_withdrawal,
+        bridge_balance_before_withdrawal - withdraw_value * n,
+        "Bridge balance didn't decrease as expected after withdrawal"
     );
 
     Ok(())

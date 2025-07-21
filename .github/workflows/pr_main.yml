@@ -1,3 +1,5 @@
+permissions:
+  contents: read
 name: rex integration tests
 on:
   push:
@@ -9,7 +11,6 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
-
 
 jobs:
   sdk-integration-test:
@@ -83,6 +84,7 @@ jobs:
           cd /home/runner/work/rex/rex/sdk
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex-sdk --test tests -- --nocapture --test-threads=1
           killall ethrex_prover -s SIGINT
+
 
   cli-integration-test:
     name: Integration Test - CLI
