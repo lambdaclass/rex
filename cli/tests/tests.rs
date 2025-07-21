@@ -525,7 +525,7 @@ async fn test_withdraws(
         )
         .unwrap();
 
-        gas_used_value = gas_used_value + (gas_used * effective_gas_price);
+        gas_used_value += gas_used * effective_gas_price;
     }
 
     assert_eq!(
