@@ -73,12 +73,7 @@ pub fn read_env_file_by_config() {
             continue;
         };
         match line.split_once('=') {
-            Some((key, value)) => {
-                if std::env::vars().any(|(k, _)| k == key) {
-                    continue;
-                }
-                unsafe { std::env::set_var(key, value) }
-            }
+            Some((key, value)) => unsafe { std::env::set_var(key, value) },
             None => continue,
         };
     }
@@ -145,7 +140,7 @@ async fn test_deposit(
 
     println!("Waiting for L1 deposit transaction receipt");
 
-    tokio::time::sleep(std::time::Duration::from_secs(12)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(24)).await;
 
     let deposit_tx_receipt = get_receipt(deposit_tx_hash)?;
 
