@@ -73,7 +73,12 @@ pub fn read_env_file_by_config() {
             continue;
         };
         match line.split_once('=') {
-            Some((key, value)) => unsafe { std::env::set_var(key, value) },
+            Some((key, value)) => {
+                if std::env::vars().any(|(k, _)| k == key) {
+                    continue;
+                }
+                unsafe { std::env::set_var(key, value) }
+            }
             None => continue,
         };
     }
