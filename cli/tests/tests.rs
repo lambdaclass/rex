@@ -173,8 +173,6 @@ async fn test_deposit(
     )
     .unwrap();
 
-    println!("deposit_tx_receipt: {deposit_tx_receipt}");
-
     let depositor_l1_balance_after_deposit = get_l1_balance(deposit_recipient_address)?;
 
     assert_eq!(
