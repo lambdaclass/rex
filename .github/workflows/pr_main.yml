@@ -38,6 +38,7 @@ jobs:
         run: |
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
+          cd ethrex
           git checkout 187e8c27f9b9a22948cd82b0b3f79866c16ac489
           echo "ethrex installed successfully"
 
@@ -112,6 +113,7 @@ jobs:
         run: |
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
+          cd ethrex
           git checkout 187e8c27f9b9a22948cd82b0b3f79866c16ac489
           echo "ethrex installed successfully"
 
