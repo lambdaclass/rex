@@ -480,6 +480,7 @@ async fn test_withdraws(
         proofs.push(withdrawal_proof);
     }
 
+    // Wait for the withdrawal to be proved
     tokio::time::sleep(Duration::from_secs(60)).await;
 
     let mut withdraw_claim_txs_receipts = vec![];
