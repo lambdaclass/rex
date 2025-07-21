@@ -43,14 +43,14 @@ async fn cli_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
         .expect("Failed to get address from l1 rich wallet pk");
 
-    // test_deposit(
-    //     &rich_wallet_private_key,
-    //     bridge_address,
-    //     deposit_recipient_address,
-    // )
-    // .await?;
+    test_deposit(
+        &rich_wallet_private_key,
+        bridge_address,
+        deposit_recipient_address,
+    )
+    .await?;
 
-    // test_transfer(&rich_wallet_private_key, &transfer_return_private_key).await?;
+    test_transfer(&rich_wallet_private_key, &transfer_return_private_key).await?;
 
     let withdrawals_count = std::env::var("INTEGRATION_TEST_WITHDRAW_COUNT")
         .map(|amount| amount.parse().expect("Invalid withdrawal amount value"))
@@ -74,9 +74,9 @@ pub fn read_env_file_by_config() {
         };
         match line.split_once('=') {
             Some((key, value)) => {
-                // if std::env::vars().any(|(k, _)| k == key) {
-                //     continue;
-                // }
+                if std::env::vars().any(|(k, _)| k == key) {
+                    continue;
+                }
                 unsafe { std::env::set_var(key, value) }
             }
             None => continue,
@@ -471,7 +471,7 @@ async fn test_withdraws(
     let mut proofs = vec![];
     for (i, tx) in withdraw_txs.clone().into_iter().enumerate() {
         println!("Getting withdrawal proof {}/{n}", i + 1);
-        let message_proof = get_l2_proof(tx)?;
+        let message_proof = get_l2_withdrawal_proof(tx)?;
 
         let withdrawal_proof = message_proof
             .into_iter()
@@ -480,23 +480,73 @@ async fn test_withdraws(
         proofs.push(withdrawal_proof);
     }
 
-    tokio::time::sleep(Duration::from_secs(20)).await;
+    tokio::time::sleep(Duration::from_secs(60)).await;
 
     let mut withdraw_claim_txs_receipts = vec![];
 
-    for (x, proof) in proofs.iter().enumerate() {
-        println!("Claiming withdrawal on L1 {x}/{n}");
+    for (i, tx) in withdraw_txs.clone().into_iter().enumerate() {
+        println!("Claiming withdrawal on L1 {}/{n}", i + 1);
 
-        let withdraw_claim_tx = claim_withdraw(
-            withdraw_value,
-            *proof,
-            withdrawer_private_key,
-            bridge_address,
-        )?;
+        let withdraw_claim_tx =
+            claim_withdraw(withdraw_value, tx, withdrawer_private_key, bridge_address)?;
         let withdraw_claim_tx_receipt = get_receipt(withdraw_claim_tx)?;
 
         withdraw_claim_txs_receipts.push(withdraw_claim_tx_receipt);
     }
+
+    println!("Checking balances on L1 and L2 after claim");
+
+    let withdrawer_l1_balance_after_claim = get_l1_balance(withdrawer_address)?;
+
+    let mut gas_used_value = U256::zero();
+    for receipt in withdraw_claim_txs_receipts {
+        let gas_used = U256::from_str(
+            receipt
+                .split("gas_used: ")
+                .nth(1)
+                .unwrap()
+                .split(',')
+                .next()
+                .unwrap()
+                .trim(),
+        )
+        .unwrap();
+
+        let effective_gas_price = U256::from_str(
+            receipt
+                .split("effective_gas_price: ")
+                .nth(1)
+                .unwrap()
+                .split(',')
+                .next()
+                .unwrap()
+                .trim(),
+        )
+        .unwrap();
+
+        gas_used_value = gas_used_value + (gas_used * effective_gas_price);
+    }
+
+    assert_eq!(
+        withdrawer_l1_balance_after_claim,
+        withdrawer_l1_balance_after_withdrawal + withdraw_value * n - gas_used_value,
+        "Withdrawer L1 balance wasn't updated as expected after claim"
+    );
+
+    let withdrawer_l2_balance_after_claim = get_l2_balance(withdrawer_address)?;
+
+    assert_eq!(
+        withdrawer_l2_balance_after_claim, withdrawer_l2_balance_after_withdrawal,
+        "Withdrawer L2 balance should not change after claim"
+    );
+
+    let bridge_balance_after_withdrawal = get_l1_balance(bridge_address)?;
+
+    assert_eq!(
+        bridge_balance_after_withdrawal,
+        bridge_balance_before_withdrawal - withdraw_value * n,
+        "Bridge balance didn't decrease as expected after withdrawal"
+    );
 
     Ok(())
 }
@@ -530,7 +580,7 @@ fn withdraw(
     Ok(H256::from_str(hash).unwrap())
 }
 
-fn get_l2_proof(tx_hash: H256) -> Result<Vec<H256>, Box<dyn std::error::Error>> {
+fn get_l2_withdrawal_proof(tx_hash: H256) -> Result<Vec<H256>, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
         .arg("l2")
         .arg("withdrawal-proof")
@@ -559,11 +609,6 @@ fn claim_withdraw(
     private_key: &SecretKey,
     bridge_address: Address,
 ) -> Result<H256, Box<dyn std::error::Error>> {
-    println!("amount {amount}");
-    println!("tx_hash {tx_hash:#x}");
-    println!("private_key {}", private_key.display_secret().to_string());
-    println!("bridge_address {bridge_address:#x}");
-
     let output = Command::new("rex")
         .arg("l2")
         .arg("claim-withdraw")
@@ -573,13 +618,23 @@ fn claim_withdraw(
         .arg(format!("{:#x}", bridge_address))
         .output()
         .unwrap();
+
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         panic!("Error depositing to l2: {stderr}");
     }
+
     let str = String::from_utf8(output.stdout).unwrap();
 
-    println!("str {str}");
+    let hash_line = str
+        .lines()
+        .find(|line| line.contains("Withdrawal claim sent: "))
+        .unwrap();
 
-    Ok(H256::zero())
+    let hash = hash_line
+        .strip_prefix("Withdrawal claim sent: ")
+        .unwrap()
+        .trim();
+
+    Ok(H256::from_str(hash).unwrap())
 }
