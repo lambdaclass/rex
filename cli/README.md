@@ -314,11 +314,13 @@ Options:
 ### `rex encode-calldata`
 
 ```Shell
-Usage: rex encode-calldata <SIGNATURE> [ARGUMENTS]
+Encodes calldata
+
+Usage: rex encode-calldata <SIGNATURE> [ARGS]...
 
 Arguments:
   <SIGNATURE>
-  [SIGNATURE]
+  [ARGS]...
 
 Options:
   -h, --help  Print help
