@@ -58,6 +58,7 @@ pub struct TransferArgs {
 pub struct SendArgs {
     pub to: Address,
     #[clap(
+        long,
         value_parser = parse_u256,
         default_value = "0",
         required = false,
@@ -96,9 +97,15 @@ pub struct SendArgs {
         help = "Display transaction URL in the explorer."
     )]
     pub explorer_url: bool,
-    #[clap(value_parser = parse_private_key, env = "PRIVATE_KEY", required = false)]
+    #[clap(
+        long = "private-key",
+        short = 'k',
+        value_parser = parse_private_key,
+        env = "PRIVATE_KEY",
+        required = false
+    )]
     pub private_key: SecretKey,
-    #[arg(hide = true)]
+    #[clap(required = false)]
     pub _args: Vec<String>,
 }
 
@@ -108,6 +115,7 @@ pub struct CallArgs {
     #[clap(long, value_parser = parse_hex, required = false, default_value = "")]
     pub calldata: Bytes,
     #[clap(
+        long,
         value_parser = parse_u256,
         default_value = "0",
         required = false,
@@ -126,7 +134,7 @@ pub struct CallArgs {
         help = "Display transaction URL in the explorer."
     )]
     pub explorer_url: bool,
-    #[arg(hide = true)]
+    #[clap(required = false)]
     pub _args: Vec<String>,
 }
 
