@@ -126,7 +126,7 @@ pub struct CallArgs {
         help = "Display transaction URL in the explorer."
     )]
     pub explorer_url: bool,
-    #[arg(last = true, hide = true)]
+    #[arg(hide = true)]
     pub _args: Vec<String>,
 }
 
