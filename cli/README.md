@@ -261,6 +261,7 @@ Options:
           [env: RPC_URL=] [default: http://localhost:8545]
   -h, --help
           Print help
+```
 
 ### `rex call`
 
