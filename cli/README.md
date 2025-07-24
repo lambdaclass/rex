@@ -228,39 +228,54 @@ Options:
 ```Shell
 Send a transaction
 
-Usage: rex send [OPTIONS] <TO> [VALUE] <PRIVATE_KEY> -- [SIGNATURE [ARGS]]
+Usage: rex send [OPTIONS] <TO> [ARGS]...
 
 Arguments:
   <TO>
-  [VALUE]        Value to send in wei [default: 0]
-  <PRIVATE_KEY>  [env: PRIVATE_KEY=]
+  [ARGS]...
 
 Options:
-      --calldata <CALLDATA>                            [default: ]
+      --value <VALUE>
+          Value to send in wei [default: 0]
+      --calldata <CALLDATA>
+          [default: ]
       --chain-id <CHAIN_ID>
+
       --nonce <NONCE>
+
       --gas-limit <GAS_LIMIT>
+
       --gas-price <MAX_FEE_PER_GAS>
+
       --priority-gas-price <MAX_PRIORITY_FEE_PER_GAS>
-      --rpc-url <RPC_URL>                              [env: RPC_URL=] [default: http://localhost:8545]
-      -b                                               Do not wait for the transaction receipt
-      --explorer-url                                   Display transaction URL in the explorer.
-  -h, --help                                           Print help
-```
+
+  -c, --cast
+          Send the request asynchronously.
+  -s, --silent
+          Display only the tx hash.
+      --explorer-url
+          Display transaction URL in the explorer.
+  -k, --private-key <PRIVATE_KEY>
+          [env: PRIVATE_KEY=]
+      --rpc-url <RPC_URL>
+          [env: RPC_URL=] [default: http://localhost:8545]
+  -h, --help
+          Print help
 
 ### `rex call`
 
 ```Shell
 Make a call to a contract
 
-Usage: rex call [OPTIONS] <TO> [CALLDATA] [VALUE]  -- [SIGNATURE [ARGS]]
+Usage: rex call [OPTIONS] <TO> [ARGS]...
 
 Arguments:
   <TO>
-  [CALLDATA]  [default: ]
-  [VALUE]     Value to send in wei [default: 0]
+  [ARGS]...
 
 Options:
+      --calldata <CALLDATA>                [default: ]
+      --value <VALUE>                      Value to send in wei [default: 0]
       --from <FROM>
       --gas-limit <GAS_LIMIT>
       --max-fee-per-gas <MAX_FEE_PER_GAS>
