@@ -1,9 +1,9 @@
 use crate::calldata::{self, Value};
 use crate::client::eth::clients::send_eip1559_transaction;
 use crate::client::eth::errors::CalldataEncodeError;
-use crate::client::eth::signer::{LocalSigner, Signer};
 use crate::client::{EthClient, EthClientError, Overrides};
 use ethrex_common::{Address, Bytes, U256};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use keccak_hash::H256;
 use secp256k1::SecretKey;
 

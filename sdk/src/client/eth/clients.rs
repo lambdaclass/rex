@@ -3,6 +3,7 @@ use ethrex_common::{
     H256, U256,
     types::{EIP1559Transaction, TxKind, TxType, WrappedEIP4844Transaction},
 };
+use ethrex_l2_rpc::signer::{Signable, Signer};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::{
     clients::eth::WrappedTransaction,
@@ -11,7 +12,6 @@ use ethrex_rpc::{
 use keccak_hash::keccak;
 use tracing::warn;
 
-use crate::client::eth::signer::{Signable, Signer};
 use crate::client::eth::{EthClient, EthClientError, Overrides};
 
 const WAIT_TIME_FOR_RECEIPT_SECONDS: u64 = 2;

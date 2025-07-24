@@ -1,5 +1,4 @@
 use crate::client::eth::clients::send_eip1559_transaction;
-use crate::client::eth::signer::{LocalSigner, Signer};
 use crate::{
     calldata::{Value, encode_calldata},
     client::{EthClient, EthClientError, Overrides, eth::L1MessageProof},
@@ -12,6 +11,7 @@ use ethrex_common::{
     Address, Bytes, H256, U256,
     types::{Transaction, TxKind},
 };
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::types::block::BlockBodyWrapper;
 use itertools::Itertools;
 use secp256k1::SecretKey;

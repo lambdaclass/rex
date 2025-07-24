@@ -31,7 +31,6 @@ use std::{ops::Div, str::FromStr};
 pub mod clients;
 pub mod errors;
 pub mod eth_sender;
-pub mod signer;
 
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]

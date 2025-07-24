@@ -1,7 +1,6 @@
 use crate::calldata::{Value, encode_calldata};
 use crate::client::Overrides;
 use crate::client::eth::clients::send_eip1559_transaction;
-use crate::client::eth::signer::{LocalSigner, Signer};
 use crate::{
     client::eth::get_address_from_secret_key,
     client::{EthClient, EthClientError},
@@ -9,6 +8,7 @@ use crate::{
 };
 
 use ethrex_common::{Address, H256, U256};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use secp256k1::SecretKey;
 
 const DEPOSIT_ERC20_SIGNATURE: &str = "depositERC20(address,address,address,uint256)";

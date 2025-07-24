@@ -1,6 +1,7 @@
 use ethrex_common::types::{GenericTransaction, TxKind};
 use ethrex_common::{Address, U256};
 use ethrex_common::{Bytes, H256};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_rpc::utils::{RpcRequest, RpcRequestId};
@@ -11,7 +12,6 @@ use serde_json::json;
 use crate::client::eth::RpcResponse;
 use crate::client::eth::clients::send_eip1559_transaction;
 use crate::client::eth::errors::CallError;
-use crate::client::eth::signer::{LocalSigner, Signer};
 use crate::client::{EthClient, EthClientError};
 
 #[derive(Default, Clone, Debug)]

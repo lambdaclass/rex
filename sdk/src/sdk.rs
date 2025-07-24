@@ -1,10 +1,10 @@
 use ethrex_common::types::GenericTransaction;
 use ethrex_common::{Address, H256, U256};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::types::receipt::RpcReceipt;
 use secp256k1::SecretKey;
 
 use crate::client::eth::clients::send_eip1559_transaction;
-use crate::client::eth::signer::{LocalSigner, Signer};
 use crate::client::{EthClient, EthClientError, Overrides};
 
 pub mod calldata;

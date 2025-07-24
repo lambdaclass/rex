@@ -7,11 +7,11 @@ use crate::{
 };
 use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::{Address, Bytes, H256, H520};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use keccak_hash::keccak;
 use rex_sdk::calldata::{Value, decode_calldata};
 use rex_sdk::client::eth::clients::send_eip1559_transaction;
-use rex_sdk::client::eth::signer::{LocalSigner, Signer};
 use rex_sdk::create::compute_create_address;
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
 use rex_sdk::{
