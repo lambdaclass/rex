@@ -1,8 +1,11 @@
-use crate::client::{EthClient, EthClientError, Overrides};
 use ethrex_common::types::GenericTransaction;
 use ethrex_common::{Address, H256, U256};
 use ethrex_rpc::types::receipt::RpcReceipt;
 use secp256k1::SecretKey;
+
+use crate::client::eth::clients::send_eip1559_transaction;
+use crate::client::eth::signer::{LocalSigner, Signer};
+use crate::client::{EthClient, EthClientError, Overrides};
 
 pub mod calldata;
 pub mod client;
@@ -53,7 +56,9 @@ pub async fn transfer(
     tx_generic.from = from;
     let gas_limit = client.estimate_gas(tx_generic).await?;
     tx.gas_limit = gas_limit;
-    client.send_eip1559_transaction(&tx, private_key).await
+    let signer = Signer::Local(LocalSigner::new(*private_key));
+
+    send_eip1559_transaction(client, &tx, &signer).await
 }
 
 pub async fn wait_for_transaction_receipt(

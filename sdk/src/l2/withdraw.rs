@@ -1,3 +1,5 @@
+use crate::client::eth::clients::send_eip1559_transaction;
+use crate::client::eth::signer::{LocalSigner, Signer};
 use crate::{
     calldata::{Value, encode_calldata},
     client::{EthClient, EthClientError, Overrides, eth::L1MessageProof},
@@ -37,9 +39,9 @@ pub async fn withdraw(
         )
         .await?;
 
-    proposer_client
-        .send_eip1559_transaction(&withdraw_transaction, &from_pk)
-        .await
+    let signer = Signer::Local(LocalSigner::new(from_pk));
+
+    send_eip1559_transaction(proposer_client, &withdraw_transaction, &signer).await
 }
 
 pub async fn claim_withdraw(
@@ -86,10 +88,9 @@ pub async fn claim_withdraw(
             },
         )
         .await?;
+    let signer = Signer::Local(LocalSigner::new(from_pk));
 
-    eth_client
-        .send_eip1559_transaction(&claim_tx, &from_pk)
-        .await
+    send_eip1559_transaction(eth_client, &claim_tx, &signer).await
 }
 
 /// Returns the formatted hash of the withdrawal transaction,

@@ -1,5 +1,3 @@
-use std::fmt::{self, Display};
-
 use errors::{
     EstimateGasError, EthClientError, GetBalanceError, GetBlockByHashError, GetBlockByNumberError,
     GetBlockNumberError, GetCodeError, GetGasPriceError, GetLogsError, GetMaxPriorityFeeError,
@@ -10,13 +8,14 @@ use ethrex_common::{
     Address, Bytes, H160, H256, U256,
     types::{
         BlobsBundle, EIP1559Transaction, EIP4844Transaction, GenericTransaction,
-        PrivilegedL2Transaction, Signable, TxKind, TxType, WrappedEIP4844Transaction,
+        PrivilegedL2Transaction, TxKind, TxType, WrappedEIP4844Transaction,
     },
 };
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::{
     types::{
         block::RpcBlock,
+        block_identifier::{BlockIdentifier, BlockTag},
         receipt::{RpcLog, RpcReceipt},
     },
     utils::{RpcErrorResponse, RpcRequest, RpcRequestId, RpcSuccessResponse},
@@ -26,11 +25,13 @@ use reqwest::{Client, Url};
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::fmt::{self};
 use std::{ops::Div, str::FromStr};
-use tracing::warn;
 
+pub mod clients;
 pub mod errors;
 pub mod eth_sender;
+pub mod signer;
 
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]
@@ -58,65 +59,11 @@ pub enum WrappedTransaction {
     L2(PrivilegedL2Transaction),
 }
 
-#[derive(Debug, Clone)]
-pub enum BlockByNumber {
-    Number(u64),
-    Latest,
-    Earliest,
-    Pending,
-}
-
-impl From<BlockByNumber> for Value {
-    fn from(value: BlockByNumber) -> Self {
-        match value {
-            BlockByNumber::Number(n) => json!(format!("{n:#x}")),
-            BlockByNumber::Latest => json!("latest"),
-            BlockByNumber::Earliest => json!("earliest"),
-            BlockByNumber::Pending => json!("pending"),
-        }
-    }
-}
-
-impl From<u64> for BlockByNumber {
-    fn from(value: u64) -> Self {
-        BlockByNumber::Number(value)
-    }
-}
-
-impl Display for BlockByNumber {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BlockByNumber::Number(n) => write!(f, "{n:#x}"),
-            BlockByNumber::Latest => write!(f, "latest"),
-            BlockByNumber::Earliest => write!(f, "earliest"),
-            BlockByNumber::Pending => write!(f, "pending"),
-        }
-    }
-}
-
-impl TryFrom<&str> for BlockByNumber {
-    type Error = EthClientError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "latest" => Ok(BlockByNumber::Latest),
-            "earliest" => Ok(BlockByNumber::Earliest),
-            "pending" => Ok(BlockByNumber::Pending),
-            _ => value
-                .parse::<u64>()
-                .map(BlockByNumber::from)
-                .map_err(|_| EthClientError::Custom("Invalid block number".to_string())),
-        }
-    }
-}
-
 pub const MAX_NUMBER_OF_RETRIES: u64 = 10;
 pub const BACKOFF_FACTOR: u64 = 2;
 // Give at least 8 blocks before trying to bump gas.
 pub const MIN_RETRY_DELAY: u64 = 96;
 pub const MAX_RETRY_DELAY: u64 = 1800;
-
-const WAIT_TIME_FOR_RECEIPT_SECONDS: u64 = 2;
 
 // 0x08c379a0 == Error(String)
 pub const ERROR_FUNCTION_SELECTOR: [u8; 4] = [0x08, 0xc3, 0x79, 0xa0];
@@ -249,164 +196,10 @@ impl EthClient {
         }
     }
 
-    pub async fn send_eip1559_transaction(
-        &self,
-        tx: &EIP1559Transaction,
-        private_key: &SecretKey,
-    ) -> Result<H256, EthClientError> {
-        let signed_tx = tx
-            .sign(private_key)
-            .map_err(|error| EthClientError::FailedToSignPayload(error.to_string()))?;
-
-        let mut encoded_tx = signed_tx.encode_to_vec();
-        encoded_tx.insert(0, TxType::EIP1559.into());
-
-        self.send_raw_transaction(encoded_tx.as_slice()).await
-    }
-
-    pub async fn send_eip4844_transaction(
-        &self,
-        wrapped_tx: &WrappedEIP4844Transaction,
-        private_key: &SecretKey,
-    ) -> Result<H256, EthClientError> {
-        let mut wrapped_tx = wrapped_tx.clone();
-        wrapped_tx
-            .tx
-            .sign_inplace(private_key)
-            .map_err(|error| EthClientError::FailedToSignPayload(error.to_string()))?;
-
-        let mut encoded_tx = wrapped_tx.encode_to_vec();
-        encoded_tx.insert(0, TxType::EIP4844.into());
-
-        self.send_raw_transaction(encoded_tx.as_slice()).await
-    }
-
-    pub async fn send_wrapped_transaction(
-        &self,
-        wrapped_tx: &WrappedTransaction,
-        private_key: &SecretKey,
-    ) -> Result<H256, EthClientError> {
-        match wrapped_tx {
-            WrappedTransaction::EIP4844(wrapped_eip4844_transaction) => {
-                self.send_eip4844_transaction(wrapped_eip4844_transaction, private_key)
-                    .await
-            }
-            WrappedTransaction::EIP1559(eip1559_transaction) => {
-                self.send_eip1559_transaction(eip1559_transaction, private_key)
-                    .await
-            }
-            WrappedTransaction::L2(privileged_l2_transaction) => {
-                self.send_privileged_l2_transaction(privileged_l2_transaction)
-                    .await
-            }
-        }
-    }
-
     /// Increase max fee per gas by percentage% (set it to (100+percentage)% of the original)
     pub fn bump_eip1559(&self, tx: &mut EIP1559Transaction, percentage: u64) {
         tx.max_fee_per_gas = (tx.max_fee_per_gas * (100 + percentage)) / 100;
         tx.max_priority_fee_per_gas += (tx.max_priority_fee_per_gas * (100 + percentage)) / 100;
-    }
-
-    pub async fn send_tx_bump_gas_exponential_backoff(
-        &self,
-        wrapped_tx: &mut WrappedTransaction,
-        private_key: &SecretKey,
-    ) -> Result<H256, EthClientError> {
-        let mut number_of_retries = 0;
-
-        'outer: while number_of_retries < self.max_number_of_retries {
-            if let Some(max_fee_per_gas) = self.maximum_allowed_max_fee_per_gas {
-                let (tx_max_fee, tx_max_priority_fee) = match wrapped_tx {
-                    WrappedTransaction::EIP4844(tx) => (
-                        &mut tx.tx.max_fee_per_gas,
-                        &mut tx.tx.max_priority_fee_per_gas,
-                    ),
-                    WrappedTransaction::EIP1559(tx) => {
-                        (&mut tx.max_fee_per_gas, &mut tx.max_priority_fee_per_gas)
-                    }
-                    WrappedTransaction::L2(tx) => {
-                        (&mut tx.max_fee_per_gas, &mut tx.max_priority_fee_per_gas)
-                    }
-                };
-
-                if *tx_max_fee > max_fee_per_gas {
-                    *tx_max_fee = max_fee_per_gas;
-
-                    // Ensure that max_priority_fee_per_gas does not exceed max_fee_per_gas
-                    if *tx_max_priority_fee > *tx_max_fee {
-                        *tx_max_priority_fee = *tx_max_fee;
-                    }
-
-                    warn!(
-                        "max_fee_per_gas exceeds the allowed limit, adjusting it to {max_fee_per_gas}"
-                    );
-                }
-            }
-
-            // Check blob gas fees only for EIP4844 transactions
-            if let WrappedTransaction::EIP4844(tx) = wrapped_tx {
-                if let Some(max_fee_per_blob_gas) = self.maximum_allowed_max_fee_per_blob_gas {
-                    if tx.tx.max_fee_per_blob_gas > U256::from(max_fee_per_blob_gas) {
-                        tx.tx.max_fee_per_blob_gas = U256::from(max_fee_per_blob_gas);
-                        warn!(
-                            "max_fee_per_blob_gas exceeds the allowed limit, adjusting it to {max_fee_per_blob_gas}"
-                        );
-                    }
-                }
-            }
-            let tx_hash = self
-                .send_wrapped_transaction(wrapped_tx, private_key)
-                .await?;
-
-            if number_of_retries > 0 {
-                warn!(
-                    "Resending Transaction after bumping gas, attempts [{number_of_retries}/{}]\nTxHash: {tx_hash:#x}",
-                    self.max_number_of_retries
-                );
-            }
-
-            let mut receipt = self.get_transaction_receipt(tx_hash).await?;
-
-            let mut attempt = 1;
-            let attempts_to_wait_in_seconds = self
-                .backoff_factor
-                .pow(number_of_retries as u32)
-                .clamp(self.min_retry_delay, self.max_retry_delay);
-            while receipt.is_none() {
-                if attempt >= (attempts_to_wait_in_seconds / WAIT_TIME_FOR_RECEIPT_SECONDS) {
-                    // We waited long enough for the receipt but did not find it, bump gas
-                    // and go to the next one.
-                    match wrapped_tx {
-                        WrappedTransaction::EIP4844(wrapped_eip4844_transaction) => {
-                            self.bump_eip4844(wrapped_eip4844_transaction, 30);
-                        }
-                        WrappedTransaction::EIP1559(eip1559_transaction) => {
-                            self.bump_eip1559(eip1559_transaction, 30);
-                        }
-                        WrappedTransaction::L2(privileged_l2_transaction) => {
-                            self.bump_privileged_l2(privileged_l2_transaction, 30);
-                        }
-                    }
-
-                    number_of_retries += 1;
-                    continue 'outer;
-                }
-
-                attempt += 1;
-
-                tokio::time::sleep(std::time::Duration::from_secs(
-                    WAIT_TIME_FOR_RECEIPT_SECONDS,
-                ))
-                .await;
-
-                receipt = self.get_transaction_receipt(tx_hash).await?;
-            }
-
-            return Ok(tx_hash);
-        }
-
-        Err(EthClientError::TimeoutError)
     }
 
     /// Increase max fee per gas by percentage% (set it to (100+percentage)% of the original)
@@ -591,7 +384,7 @@ impl EthClient {
     pub async fn get_nonce(
         &self,
         address: Address,
-        block: BlockByNumber,
+        block: BlockIdentifier,
     ) -> Result<u64, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
@@ -661,7 +454,7 @@ impl EthClient {
     /// If no `block_number` is provided, get the latest.
     pub async fn get_block_by_number(
         &self,
-        block: BlockByNumber,
+        block: BlockIdentifier,
     ) -> Result<RpcBlock, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
@@ -739,7 +532,7 @@ impl EthClient {
     pub async fn get_balance(
         &self,
         address: Address,
-        block: BlockByNumber,
+        block: BlockIdentifier,
     ) -> Result<U256, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
@@ -800,7 +593,7 @@ impl EthClient {
     pub async fn get_code(
         &self,
         address: Address,
-        block: BlockByNumber,
+        block: BlockIdentifier,
     ) -> Result<Bytes, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
@@ -1071,7 +864,8 @@ impl EthClient {
         if let Some(nonce) = overrides.nonce {
             return Ok(nonce);
         }
-        self.get_nonce(address, BlockByNumber::Latest).await
+        self.get_nonce(address, BlockIdentifier::Tag(BlockTag::Latest))
+            .await
     }
 
     pub async fn get_last_committed_batch(
