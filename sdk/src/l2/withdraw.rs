@@ -1,8 +1,14 @@
 use crate::{
     calldata::{Value, encode_calldata},
-    client::{EthClient, EthClientError, Overrides, eth::L1MessageProof},
+    client::{
+        EthClient, EthClientError, Overrides,
+        eth::{L1MessageProof, get_address_from_secret_key},
+    },
     l2::{
-        constants::{COMMON_BRIDGE_L2_ADDRESS, L2_WITHDRAW_SIGNATURE},
+        constants::{
+            CLAIM_WITHDRAWAL_ERC20_SIGNATURE, COMMON_BRIDGE_L2_ADDRESS, L2_WITHDRAW_SIGNATURE,
+            L2_WITHDRAW_SIGNATURE_ERC20,
+        },
         merkle_tree::merkle_proof,
     },
 };
@@ -42,6 +48,36 @@ pub async fn withdraw(
         .await
 }
 
+pub async fn withdraw_erc20(
+    amount: U256,
+    from: Address,
+    from_pk: SecretKey,
+    token_l1: Address,
+    token_l2: Address,
+    l2_client: &EthClient,
+) -> Result<H256, EthClientError> {
+    let data = [
+        Value::Address(token_l1),
+        Value::Address(token_l2),
+        Value::Address(from),
+        Value::Uint(amount),
+    ];
+    let withdraw_data = encode_calldata(L2_WITHDRAW_SIGNATURE_ERC20, &data)
+        .expect("Failed to encode calldata for withdraw ERC20");
+    let withdraw_transaction = l2_client
+        .build_eip1559_transaction(
+            COMMON_BRIDGE_L2_ADDRESS,
+            from,
+            Bytes::from(withdraw_data),
+            Default::default(),
+        )
+        .await?;
+
+    l2_client
+        .send_eip1559_transaction(&withdraw_transaction, &from_pk)
+        .await
+}
+
 pub async fn claim_withdraw(
     amount: U256,
     from: Address,
@@ -69,6 +105,57 @@ pub async fn claim_withdraw(
 
     let claim_withdrawal_data = encode_calldata(CLAIM_WITHDRAWAL_SIGNATURE, &calldata_values)
         .expect("Failed to encode calldata for claim withdrawal");
+
+    println!(
+        "Claiming withdrawal with calldata: {}",
+        hex::encode(&claim_withdrawal_data)
+    );
+
+    let claim_tx = eth_client
+        .build_eip1559_transaction(
+            bridge_address,
+            from,
+            claim_withdrawal_data.into(),
+            Overrides {
+                from: Some(from),
+                ..Default::default()
+            },
+        )
+        .await?;
+
+    eth_client
+        .send_eip1559_transaction(&claim_tx, &from_pk)
+        .await
+}
+
+pub async fn claim_erc20withdraw(
+    token_l1: Address,
+    token_l2: Address,
+    amount: U256,
+    from_pk: SecretKey,
+    eth_client: &EthClient,
+    message_proof: &L1MessageProof,
+    bridge_address: Address,
+) -> Result<H256, EthClientError> {
+    let from = get_address_from_secret_key(&from_pk)?;
+    let calldata_values = vec![
+        Value::Address(token_l1),
+        Value::Address(token_l2),
+        Value::Uint(amount),
+        Value::Uint(U256::from(message_proof.batch_number)),
+        Value::Uint(message_proof.message_id),
+        Value::Array(
+            message_proof
+                .merkle_proof
+                .clone()
+                .into_iter()
+                .map(|v| Value::FixedBytes(Bytes::copy_from_slice(v.as_bytes())))
+                .collect(),
+        ),
+    ];
+
+    let claim_withdrawal_data =
+        encode_calldata(CLAIM_WITHDRAWAL_ERC20_SIGNATURE, &calldata_values)?;
 
     println!(
         "Claiming withdrawal with calldata: {}",
