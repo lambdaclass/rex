@@ -65,7 +65,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./bin
-          pattern: "rex" # For now it is just rex
+          pattern: "rex*"
 
       - name: Format name
         run: echo "RELEASE_NAME=$(echo ${{ github.ref_name }} | cut -d_ -f2)" >> $GITHUB_ENV
