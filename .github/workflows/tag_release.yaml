@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+-*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
 permissions:
   contents: write
@@ -40,7 +41,7 @@ jobs:
 
       - name: Build rex
         run: |
-          cargo build --release --bin cli
+          cargo build --release --bin rex
           mv target/release/rex rex-${{ matrix.os }}_${{ matrix.arch }}
 
       - name: Upload artifact
