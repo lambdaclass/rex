@@ -50,7 +50,6 @@ jobs:
           name: rex-${{ matrix.os }}_${{ matrix.arch }}
           path: rex-${{ matrix.os }}_${{ matrix.arch }}
 
-# Creates a draft release on GitHub with the binaries
   finalize-release:
     needs:
       - build-rex
