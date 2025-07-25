@@ -27,7 +27,6 @@ use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{ops::Div, str::FromStr};
-use tracing::warn;
 
 pub mod errors;
 pub mod eth_sender;
@@ -338,7 +337,7 @@ impl EthClient {
                         *tx_max_priority_fee = *tx_max_fee;
                     }
 
-                    warn!(
+                    println!(
                         "max_fee_per_gas exceeds the allowed limit, adjusting it to {max_fee_per_gas}"
                     );
                 }
@@ -349,7 +348,7 @@ impl EthClient {
                 if let Some(max_fee_per_blob_gas) = self.maximum_allowed_max_fee_per_blob_gas {
                     if tx.tx.max_fee_per_blob_gas > U256::from(max_fee_per_blob_gas) {
                         tx.tx.max_fee_per_blob_gas = U256::from(max_fee_per_blob_gas);
-                        warn!(
+                        println!(
                             "max_fee_per_blob_gas exceeds the allowed limit, adjusting it to {max_fee_per_blob_gas}"
                         );
                     }
@@ -360,7 +359,7 @@ impl EthClient {
                 .await?;
 
             if number_of_retries > 0 {
-                warn!(
+                println!(
                     "Resending Transaction after bumping gas, attempts [{number_of_retries}/{}]\nTxHash: {tx_hash:#x}",
                     self.max_number_of_retries
                 );
