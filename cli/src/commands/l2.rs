@@ -364,17 +364,18 @@ impl Command {
                 private_key,
                 rpc_url,
             } => {
+                let from = get_address_from_secret_key(&private_key)?;
+
+                let client = EthClient::new(&rpc_url)?;
+
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
 
                 if token_address.is_some() {
+                    // withdraw_erc20(..)
                     todo!("Handle ERC20 withdrawals")
                 }
-
-                let from = get_address_from_secret_key(&private_key)?;
-
-                let client = EthClient::new(&rpc_url)?;
 
                 let tx_hash = withdraw(amount, from, private_key, &client, nonce).await?;
 
