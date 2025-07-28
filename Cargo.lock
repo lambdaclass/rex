@@ -5170,7 +5170,6 @@ dependencies = [
  "hex",
  "itertools 0.14.0",
  "keccak-hash",
- "log",
  "rand 0.9.1",
  "rayon",
  "rex-sdk",
@@ -5203,13 +5202,9 @@ dependencies = [
  "jsonwebtoken 9.3.1",
  "keccak-hash",
  "rand 0.8.5",
-<<<<<<< HEAD
  "rand_xoshiro",
  "rayon",
- "reqwest 0.12.20",
-=======
  "reqwest 0.12.22",
->>>>>>> main
  "secp256k1",
  "serde",
  "serde_json",
