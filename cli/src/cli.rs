@@ -11,8 +11,7 @@ use keccak_hash::keccak;
 use rex_sdk::calldata::{Value, decode_calldata};
 use rex_sdk::client::eth::BlockByNumber;
 use rex_sdk::create::{
-    DETERMINISTIC_DEPLOYER, brute_force_create2_rayon, compute_create_address,
-    compute_create2_address,
+    DETERMINISTIC_DEPLOYER, brute_force_create2, compute_create_address, compute_create2_address,
 };
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
 use rex_sdk::utils::to_checksum_address;
@@ -341,7 +340,7 @@ impl Command {
                         io::stdout().flush().ok();
 
                         let start = std::time::Instant::now();
-                        let (salt, contract_address) = brute_force_create2_rayon(
+                        let (salt, contract_address) = brute_force_create2(
                             deployer,
                             init_code_hash,
                             begins,
