@@ -1,7 +1,6 @@
 use ethrex_common::H256;
 use keccak_hash::keccak;
 use serde::{Deserialize, Serialize};
-use tracing::info;
 
 #[derive(Debug, thiserror::Error, Clone, Serialize, Deserialize)]
 pub enum MerkleError {
@@ -12,7 +11,7 @@ pub enum MerkleError {
 }
 
 pub fn merkelize(data: Vec<H256>) -> Result<H256, MerkleError> {
-    info!("Merkelizing {:?}", data);
+    println!("Merkelizing {data:?}");
     let mut data = data;
     let mut first = true;
     while data.len() > 1 || first {
