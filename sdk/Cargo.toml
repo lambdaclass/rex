@@ -42,7 +42,3 @@ eyre = "0.6"
 
 [lib]
 path = "./src/sdk.rs"
-
-[[example]]
-name = "simple_usage"
-path = "./examples/simple_usage.rs"
