@@ -1,8 +1,7 @@
 use ethrex_common::Address;
 use ethrex_rlp::encode::RLPEncode;
 use keccak_hash::{H256, keccak};
-use rand_xoshiro::Xoshiro256PlusPlus;
-use rand_xoshiro::rand_core::{SeedableRng, TryRngCore};
+use rand::RngCore;
 use rayon::prelude::*;
 use std::iter;
 
@@ -56,12 +55,11 @@ pub fn brute_force_create2(
     let ends = ends.map(|s| if case_sensitive { s } else { s.to_lowercase() });
     let contains = contains.map(|s| if case_sensitive { s } else { s.to_lowercase() });
 
-    let mut rng = Xoshiro256PlusPlus::from_os_rng();
-    let mut bytes = [0u8; 32];
+    let mut salt_bytes = [0u8; 32];
 
     iter::repeat_with(|| {
-        rng.try_fill_bytes(&mut bytes).unwrap();
-        H256::from(bytes)
+        rand::thread_rng().fill_bytes(&mut salt_bytes);
+        H256::from(salt_bytes)
     })
     .par_bridge() // Convert into a parallel iterator
     .find_any(|salt| {
