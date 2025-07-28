@@ -54,4 +54,4 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run tests
-        run: cargo test --manifest-path cli/Cargo.toml
+        run: cargo test --manifest-path cli/Cargo.toml --lib

@@ -1,0 +1,491 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg version="1.1" width="1200" height="630" onload="init(evt)" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:fg="http://github.com/jonhoo/inferno"><!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.--><!--NOTES: --><defs><linearGradient id="background" y1="0" y2="1" x1="0" x2="0"><stop stop-color="#eeeeee" offset="5%"/><stop stop-color="#eeeeb0" offset="95%"/></linearGradient></defs><style type="text/css">
+text { font-family:monospace; font-size:12px }
+#title { text-anchor:middle; font-size:17px; }
+#matched { text-anchor:end; }
+#search { text-anchor:end; opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style><script type="text/ecmascript"><![CDATA[
+        var nametype = 'Function:';
+        var fontsize = 12;
+        var fontwidth = 0.59;
+        var xpad = 10;
+        var inverted = false;
+        var searchcolor = 'rgb(230,0,230)';
+        var fluiddrawing = true;
+        var truncate_text_right = false;
+    ]]><![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames, known_font_width;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    known_font_width = get_monospace_width(frames);
+    total_samples = parseInt(frames.attributes.total_samples.value);
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[*|x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+            svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            update_text_for_elements(frames.children);
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad;
+            matchedtxt.attributes.x.value = svgWidth - xpad;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes["fg:x"]) {
+            var params = get_params()
+            params.x = el.attributes["fg:x"].value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["fg:orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("fg:orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["fg:orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["fg:orig_" + attr].value;
+    e.removeAttribute("fg:orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function get_monospace_width(frames) {
+    // Given the id="frames" element, return the width of text characters if
+    // this is a monospace font, otherwise return 0.
+    text = find_child(frames.children[0], "text");
+    originalContent = text.textContent;
+    text.textContent = "!";
+    bangWidth = text.getComputedTextLength();
+    text.textContent = "W";
+    wWidth = text.getComputedTextLength();
+    text.textContent = originalContent;
+    if (bangWidth === wWidth) {
+        return bangWidth;
+    } else {
+        return 0;
+    }
+}
+function update_text_for_elements(elements) {
+    // In order to render quickly in the browser, you want to do one pass of
+    // reading attributes, and one pass of mutating attributes. See
+    // https://web.dev/avoid-large-complex-layouts-and-layout-thrashing/ for details.
+
+    // Fall back to inefficient calculation, if we're variable-width font.
+    // TODO This should be optimized somehow too.
+    if (known_font_width === 0) {
+        for (var i = 0; i < elements.length; i++) {
+            update_text(elements[i]);
+        }
+        return;
+    }
+
+    var textElemNewAttributes = [];
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var r = find_child(e, "rect");
+        var t = find_child(e, "text");
+        var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+        var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+        var newX = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+        // Smaller than this size won't fit anything
+        if (w < 2 * known_font_width) {
+            textElemNewAttributes.push([newX, ""]);
+            continue;
+        }
+
+        // Fit in full text width
+        if (txt.length * known_font_width < w) {
+            textElemNewAttributes.push([newX, txt]);
+            continue;
+        }
+
+        var substringLength = Math.floor(w / known_font_width) - 2;
+        if (truncate_text_right) {
+            // Truncate the right side of the text.
+            textElemNewAttributes.push([newX, txt.substring(0, substringLength) + ".."]);
+            continue;
+        } else {
+            // Truncate the left side of the text.
+            textElemNewAttributes.push([newX, ".." + txt.substring(txt.length - substringLength, txt.length)]);
+            continue;
+        }
+    }
+
+    console.assert(textElemNewAttributes.length === elements.length, "Resize failed, please file a bug at https://github.com/jonhoo/inferno/");
+
+    // Now that we know new textContent, set it all in one go so we don't refresh a bazillion times.
+    for (var i = 0; i < elements.length; i++) {
+        var e = elements[i];
+        var values = textElemNewAttributes[i];
+        var t = find_child(e, "text");
+        t.attributes.x.value = values[0];
+        t.textContent = values[1];
+    }
+}
+
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * parseInt(e.attributes["fg:x"].value) / total_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / total_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, zoomed_width_samples) {
+    if (e.tagName == "text") {
+        var parent_x = parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value);
+        e.attributes.x.value = format_percent(parent_x + (100 * 3 / frames.attributes.width.value));
+    } else if (e.tagName == "rect") {
+        e.attributes.x.value = format_percent(100 * (parseInt(e.attributes["fg:x"].value) - x) / zoomed_width_samples);
+        e.attributes.width.value = format_percent(100 * parseInt(e.attributes["fg:w"].value) / zoomed_width_samples);
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, zoomed_width_samples);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseInt(attr["fg:w"].value);
+    var xmin = parseInt(attr["fg:x"].value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    var to_update_text = [];
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseInt(a["fg:x"].value);
+        var ew = parseInt(a["fg:w"].value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                to_update_text.push(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, width);
+                to_update_text.push(e);
+            }
+        }
+    }
+    update_text_for_elements(to_update_text);
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+    }
+    update_text_for_elements(el);
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        // Skip over frames which are either not visible, or below the zoomed-to frame
+        if (e.classList.contains("hide") || e.classList.contains("parent")) {
+            continue;
+        }
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseInt(rect.attributes["fg:w"].value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseInt(rect.attributes["fg:x"].value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    for (var k in keys) {
+        var x = parseInt(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]></script><rect x="0" y="0" width="100%" height="630" fill="url(#background)"/><text id="title" fill="rgb(0,0,0)" x="50.0000%" y="24.00">Flame Graph</text><text id="details" fill="rgb(0,0,0)" x="10" y="613.00"> </text><text id="unzoom" class="hide" fill="rgb(0,0,0)" x="10" y="24.00">Reset Zoom</text><text id="search" fill="rgb(0,0,0)" x="1190" y="24.00">Search</text><text id="matched" fill="rgb(0,0,0)" x="1190" y="613.00"> </text><svg id="frames" x="10" width="1180" total_samples="11641"><g><title>libsystem_pthread.dylib`pthread_mutex_unlock (6 samples, 0.05%)</title><rect x="0.0086%" y="421" width="0.0515%" height="15" fill="rgb(227,0,7)" fg:x="1" fg:w="6"/><text x="0.2586%" y="431.50"></text></g><g><title>libsystem_malloc.dylib`_free (9 samples, 0.08%)</title><rect x="0.3350%" y="405" width="0.0773%" height="15" fill="rgb(217,0,24)" fg:x="39" fg:w="9"/><text x="0.5850%" y="415.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (4 samples, 0.03%)</title><rect x="0.4123%" y="405" width="0.0344%" height="15" fill="rgb(221,193,54)" fg:x="48" fg:w="4"/><text x="0.6623%" y="415.50"></text></g><g><title>libsystem_platform.dylib`_platform_memcmp (22 samples, 0.19%)</title><rect x="0.4553%" y="405" width="0.1890%" height="15" fill="rgb(248,212,6)" fg:x="53" fg:w="22"/><text x="0.7053%" y="415.50"></text></g><g><title>libsystem_kernel.dylib`__psynch_mutexdrop (2,194 samples, 18.85%)</title><rect x="0.7731%" y="389" width="18.8472%" height="15" fill="rgb(208,68,35)" fg:x="90" fg:w="2194"/><text x="1.0231%" y="399.50">libsystem_kernel.dylib`__psyn..</text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_unlock_slow (2,211 samples, 18.99%)</title><rect x="0.6443%" y="405" width="18.9932%" height="15" fill="rgb(232,128,0)" fg:x="75" fg:w="2211"/><text x="0.8943%" y="415.50">libsystem_pthread.dylib`_pthre..</text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_wake (2 samples, 0.02%)</title><rect x="19.6203%" y="389" width="0.0172%" height="15" fill="rgb(207,160,47)" fg:x="2284" fg:w="2"/><text x="19.8703%" y="399.50"></text></g><g><title>libsystem_pthread.dylib`pthread_mutex_lock (2 samples, 0.02%)</title><rect x="19.6375%" y="405" width="0.0172%" height="15" fill="rgb(228,23,34)" fg:x="2286" fg:w="2"/><text x="19.8875%" y="415.50"></text></g><g><title>libsystem_pthread.dylib`pthread_mutex_unlock (99 samples, 0.85%)</title><rect x="19.6547%" y="405" width="0.8504%" height="15" fill="rgb(218,30,26)" fg:x="2288" fg:w="99"/><text x="19.9047%" y="415.50"></text></g><g><title>libsystem_malloc.dylib`DYLD-STUB$$_platform_bzero (2 samples, 0.02%)</title><rect x="20.7972%" y="389" width="0.0172%" height="15" fill="rgb(220,122,19)" fg:x="2421" fg:w="2"/><text x="21.0472%" y="399.50"></text></g><g><title>libsystem_malloc.dylib`_free (9 samples, 0.08%)</title><rect x="20.8144%" y="389" width="0.0773%" height="15" fill="rgb(250,228,42)" fg:x="2423" fg:w="9"/><text x="21.0644%" y="399.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (18 samples, 0.15%)</title><rect x="20.8917%" y="389" width="0.1546%" height="15" fill="rgb(240,193,28)" fg:x="2432" fg:w="18"/><text x="21.1417%" y="399.50"></text></g><g><title>libsystem_platform.dylib`__bzero (2 samples, 0.02%)</title><rect x="21.0549%" y="389" width="0.0172%" height="15" fill="rgb(216,20,37)" fg:x="2451" fg:w="2"/><text x="21.3049%" y="399.50"></text></g><g><title>libsystem_platform.dylib`_platform_memset (6 samples, 0.05%)</title><rect x="21.0721%" y="389" width="0.0515%" height="15" fill="rgb(206,188,39)" fg:x="2453" fg:w="6"/><text x="21.3221%" y="399.50"></text></g><g><title>rex`&lt;[V] as alloc::slice::Concat&lt;T&gt;&gt;::concat (7 samples, 0.06%)</title><rect x="21.1236%" y="389" width="0.0601%" height="15" fill="rgb(217,207,13)" fg:x="2459" fg:w="7"/><text x="21.3736%" y="399.50"></text></g><g><title>rex`&lt;tiny_keccak::keccak::Keccak as tiny_keccak::Hasher&gt;::finalize (3 samples, 0.03%)</title><rect x="21.1837%" y="389" width="0.0258%" height="15" fill="rgb(231,73,38)" fg:x="2466" fg:w="3"/><text x="21.4337%" y="399.50"></text></g><g><title>rex`&lt;tiny_keccak::keccak::Keccak as tiny_keccak::Hasher&gt;::update (14 samples, 0.12%)</title><rect x="21.2095%" y="389" width="0.1203%" height="15" fill="rgb(225,20,46)" fg:x="2469" fg:w="14"/><text x="21.4595%" y="399.50"></text></g><g><title>rex`DYLD-STUB$$free (4 samples, 0.03%)</title><rect x="21.3298%" y="389" width="0.0344%" height="15" fill="rgb(210,31,41)" fg:x="2483" fg:w="4"/><text x="21.5798%" y="399.50"></text></g><g><title>rex`&lt;primitive_types::H160 as core::fmt::LowerHex&gt;::fmt (4 samples, 0.03%)</title><rect x="21.4329%" y="373" width="0.0344%" height="15" fill="rgb(221,200,47)" fg:x="2495" fg:w="4"/><text x="21.6829%" y="383.50"></text></g><g><title>rex`&lt;&amp;T as core::fmt::LowerHex&gt;::fmt (27 samples, 0.23%)</title><rect x="22.3520%" y="341" width="0.2319%" height="15" fill="rgb(226,26,5)" fg:x="2602" fg:w="27"/><text x="22.6020%" y="351.50"></text></g><g><title>rex`core::fmt::num::_&lt;impl core::fmt::LowerHex for i8&gt;::fmt (13 samples, 0.11%)</title><rect x="22.5840%" y="341" width="0.1117%" height="15" fill="rgb(249,33,26)" fg:x="2629" fg:w="13"/><text x="22.8340%" y="351.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (43 samples, 0.37%)</title><rect x="24.6456%" y="325" width="0.3694%" height="15" fill="rgb(235,183,28)" fg:x="2869" fg:w="43"/><text x="24.8956%" y="335.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral (69 samples, 0.59%)</title><rect x="25.0150%" y="325" width="0.5927%" height="15" fill="rgb(221,5,38)" fg:x="2912" fg:w="69"/><text x="25.2650%" y="335.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (101 samples, 0.87%)</title><rect x="27.4976%" y="309" width="0.8676%" height="15" fill="rgb(247,18,42)" fg:x="3201" fg:w="101"/><text x="27.7476%" y="319.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_char (4 samples, 0.03%)</title><rect x="28.3653%" y="309" width="0.0344%" height="15" fill="rgb(241,131,45)" fg:x="3302" fg:w="4"/><text x="28.6153%" y="319.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_malloc (10 samples, 0.09%)</title><rect x="29.7741%" y="277" width="0.0859%" height="15" fill="rgb(249,31,29)" fg:x="3466" fg:w="10"/><text x="30.0241%" y="287.50"></text></g><g><title>libsystem_malloc.dylib`_realloc (9 samples, 0.08%)</title><rect x="29.8600%" y="277" width="0.0773%" height="15" fill="rgb(225,111,53)" fg:x="3476" fg:w="9"/><text x="30.1100%" y="287.50"></text></g><g><title>libsystem_malloc.dylib`realloc (5 samples, 0.04%)</title><rect x="29.9459%" y="277" width="0.0430%" height="15" fill="rgb(238,160,17)" fg:x="3486" fg:w="5"/><text x="30.1959%" y="287.50"></text></g><g><title>rex`DYLD-STUB$$malloc (2 samples, 0.02%)</title><rect x="29.9888%" y="277" width="0.0172%" height="15" fill="rgb(214,148,48)" fg:x="3491" fg:w="2"/><text x="30.2388%" y="287.50"></text></g><g><title>rex`_RNvCscSpY9Juk0HT_7___rustc11___rdl_alloc (2 samples, 0.02%)</title><rect x="30.0060%" y="277" width="0.0172%" height="15" fill="rgb(232,36,49)" fg:x="3493" fg:w="2"/><text x="30.2560%" y="287.50"></text></g><g><title>rex`_RNvCscSpY9Juk0HT_7___rustc13___rdl_realloc (6 samples, 0.05%)</title><rect x="30.0232%" y="277" width="0.0515%" height="15" fill="rgb(209,103,24)" fg:x="3495" fg:w="6"/><text x="30.2732%" y="287.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_realloc (3 samples, 0.03%)</title><rect x="30.1778%" y="261" width="0.0258%" height="15" fill="rgb(229,88,8)" fg:x="3513" fg:w="3"/><text x="30.4278%" y="271.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (7 samples, 0.06%)</title><rect x="30.7706%" y="229" width="0.0601%" height="15" fill="rgb(213,181,19)" fg:x="3582" fg:w="7"/><text x="31.0206%" y="239.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_pointer_size (33 samples, 0.28%)</title><rect x="30.8393%" y="229" width="0.2835%" height="15" fill="rgb(254,191,54)" fg:x="3590" fg:w="33"/><text x="31.0893%" y="239.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (69 samples, 0.59%)</title><rect x="31.5523%" y="213" width="0.5927%" height="15" fill="rgb(241,83,37)" fg:x="3673" fg:w="69"/><text x="31.8023%" y="223.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc (48 samples, 0.41%)</title><rect x="32.1450%" y="213" width="0.4123%" height="15" fill="rgb(233,36,39)" fg:x="3742" fg:w="48"/><text x="32.3950%" y="223.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_realloc (171 samples, 1.47%)</title><rect x="31.1228%" y="229" width="1.4689%" height="15" fill="rgb(226,3,54)" fg:x="3623" fg:w="171"/><text x="31.3728%" y="239.50"></text></g><g><title>libsystem_platform.dylib`_platform_memset (4 samples, 0.03%)</title><rect x="32.5573%" y="213" width="0.0344%" height="15" fill="rgb(245,192,40)" fg:x="3790" fg:w="4"/><text x="32.8073%" y="223.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_realloc (278 samples, 2.39%)</title><rect x="30.4355%" y="245" width="2.3881%" height="15" fill="rgb(238,167,29)" fg:x="3543" fg:w="278"/><text x="30.6855%" y="255.50">li..</text></g><g><title>libsystem_platform.dylib`_platform_memmove (27 samples, 0.23%)</title><rect x="32.5917%" y="229" width="0.2319%" height="15" fill="rgb(232,182,51)" fg:x="3794" fg:w="27"/><text x="32.8417%" y="239.50"></text></g><g><title>libsystem_malloc.dylib`default_zone_realloc (6 samples, 0.05%)</title><rect x="32.8236%" y="245" width="0.0515%" height="15" fill="rgb(231,60,39)" fg:x="3821" fg:w="6"/><text x="33.0736%" y="255.50"></text></g><g><title>libsystem_malloc.dylib`_realloc (320 samples, 2.75%)</title><rect x="30.2036%" y="261" width="2.7489%" height="15" fill="rgb(208,69,12)" fg:x="3516" fg:w="320"/><text x="30.4536%" y="271.50">li..</text></g><g><title>libsystem_malloc.dylib`nanov2_realloc (9 samples, 0.08%)</title><rect x="32.8752%" y="245" width="0.0773%" height="15" fill="rgb(235,93,37)" fg:x="3827" fg:w="9"/><text x="33.1252%" y="255.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc_type (24 samples, 0.21%)</title><rect x="32.9525%" y="261" width="0.2062%" height="15" fill="rgb(213,116,39)" fg:x="3836" fg:w="24"/><text x="33.2025%" y="271.50"></text></g><g><title>rex`alloc::raw_vec::RawVecInner&lt;A&gt;::reserve::do_reserve_and_handle (468 samples, 4.02%)</title><rect x="29.4648%" y="293" width="4.0203%" height="15" fill="rgb(222,207,29)" fg:x="3430" fg:w="468"/><text x="29.7148%" y="303.50">rex`..</text></g><g><title>rex`alloc::raw_vec::finish_grow (397 samples, 3.41%)</title><rect x="30.0747%" y="277" width="3.4104%" height="15" fill="rgb(206,96,30)" fg:x="3501" fg:w="397"/><text x="30.3247%" y="287.50">rex..</text></g><g><title>libsystem_malloc.dylib`nanov2_size (38 samples, 0.33%)</title><rect x="33.1587%" y="261" width="0.3264%" height="15" fill="rgb(218,138,4)" fg:x="3860" fg:w="38"/><text x="33.4087%" y="271.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (595 samples, 5.11%)</title><rect x="28.3996%" y="309" width="5.1112%" height="15" fill="rgb(250,191,14)" fg:x="3306" fg:w="595"/><text x="28.6496%" y="319.50">rex`&lt;a..</text></g><g><title>rex`alloc::raw_vec::finish_grow (3 samples, 0.03%)</title><rect x="33.4851%" y="293" width="0.0258%" height="15" fill="rgb(239,60,40)" fg:x="3898" fg:w="3"/><text x="33.7351%" y="303.50"></text></g><g><title>rex`DYLD-STUB$$memcpy (18 samples, 0.15%)</title><rect x="33.5109%" y="309" width="0.1546%" height="15" fill="rgb(206,27,48)" fg:x="3901" fg:w="18"/><text x="33.7609%" y="319.50"></text></g><g><title>rex`alloc::raw_vec::RawVecInner&lt;A&gt;::reserve::do_reserve_and_handle (9 samples, 0.08%)</title><rect x="33.6655%" y="309" width="0.0773%" height="15" fill="rgb(225,35,8)" fg:x="3919" fg:w="9"/><text x="33.9155%" y="319.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral (128 samples, 1.10%)</title><rect x="33.7428%" y="309" width="1.0996%" height="15" fill="rgb(250,213,24)" fg:x="3928" fg:w="128"/><text x="33.9928%" y="319.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral::write_prefix (44 samples, 0.38%)</title><rect x="34.8424%" y="309" width="0.3780%" height="15" fill="rgb(247,123,22)" fg:x="4056" fg:w="44"/><text x="35.0924%" y="319.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (7 samples, 0.06%)</title><rect x="35.2203%" y="293" width="0.0601%" height="15" fill="rgb(231,138,38)" fg:x="4100" fg:w="7"/><text x="35.4703%" y="303.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_pointer_size (3 samples, 0.03%)</title><rect x="35.4695%" y="213" width="0.0258%" height="15" fill="rgb(231,145,46)" fg:x="4129" fg:w="3"/><text x="35.7195%" y="223.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (4 samples, 0.03%)</title><rect x="35.5296%" y="197" width="0.0344%" height="15" fill="rgb(251,118,11)" fg:x="4136" fg:w="4"/><text x="35.7796%" y="207.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_realloc (12 samples, 0.10%)</title><rect x="35.4952%" y="213" width="0.1031%" height="15" fill="rgb(217,147,25)" fg:x="4132" fg:w="12"/><text x="35.7452%" y="223.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc (4 samples, 0.03%)</title><rect x="35.5640%" y="197" width="0.0344%" height="15" fill="rgb(247,81,37)" fg:x="4140" fg:w="4"/><text x="35.8140%" y="207.50"></text></g><g><title>libsystem_malloc.dylib`_realloc (21 samples, 0.18%)</title><rect x="35.4351%" y="245" width="0.1804%" height="15" fill="rgb(209,12,38)" fg:x="4125" fg:w="21"/><text x="35.6851%" y="255.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_realloc (21 samples, 0.18%)</title><rect x="35.4351%" y="229" width="0.1804%" height="15" fill="rgb(227,1,9)" fg:x="4125" fg:w="21"/><text x="35.6851%" y="239.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (2 samples, 0.02%)</title><rect x="35.5983%" y="213" width="0.0172%" height="15" fill="rgb(248,47,43)" fg:x="4144" fg:w="2"/><text x="35.8483%" y="223.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc_type (2 samples, 0.02%)</title><rect x="35.6155%" y="245" width="0.0172%" height="15" fill="rgb(221,10,30)" fg:x="4146" fg:w="2"/><text x="35.8655%" y="255.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_char (43 samples, 0.37%)</title><rect x="35.2805%" y="293" width="0.3694%" height="15" fill="rgb(210,229,1)" fg:x="4107" fg:w="43"/><text x="35.5305%" y="303.50"></text></g><g><title>rex`alloc::raw_vec::RawVec&lt;T,A&gt;::grow_one (34 samples, 0.29%)</title><rect x="35.3578%" y="277" width="0.2921%" height="15" fill="rgb(222,148,37)" fg:x="4116" fg:w="34"/><text x="35.6078%" y="287.50"></text></g><g><title>rex`alloc::raw_vec::finish_grow (27 samples, 0.23%)</title><rect x="35.4179%" y="261" width="0.2319%" height="15" fill="rgb(234,67,33)" fg:x="4123" fg:w="27"/><text x="35.6679%" y="271.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_size (2 samples, 0.02%)</title><rect x="35.6327%" y="245" width="0.0172%" height="15" fill="rgb(247,98,35)" fg:x="4148" fg:w="2"/><text x="35.8827%" y="255.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (3 samples, 0.03%)</title><rect x="35.6499%" y="293" width="0.0258%" height="15" fill="rgb(247,138,52)" fg:x="4150" fg:w="3"/><text x="35.8999%" y="303.50"></text></g><g><title>rex`&lt;primitive_types::H160 as core::fmt::LowerHex&gt;::fmt (1,653 samples, 14.20%)</title><rect x="21.5360%" y="357" width="14.1998%" height="15" fill="rgb(213,79,30)" fg:x="2507" fg:w="1653"/><text x="21.7860%" y="367.50">rex`&lt;primitive_types::..</text></g><g><title>rex`core::fmt::write (1,518 samples, 13.04%)</title><rect x="22.6956%" y="341" width="13.0401%" height="15" fill="rgb(246,177,23)" fg:x="2642" fg:w="1518"/><text x="22.9456%" y="351.50">rex`core::fmt::write</text></g><g><title>rex`core::fmt::num::_&lt;impl core::fmt::LowerHex for i8&gt;::fmt (1,179 samples, 10.13%)</title><rect x="25.6078%" y="325" width="10.1280%" height="15" fill="rgb(230,62,27)" fg:x="2981" fg:w="1179"/><text x="25.8578%" y="335.50">rex`core::fmt::..</text></g><g><title>rex`core::fmt::Formatter::pad_integral (60 samples, 0.52%)</title><rect x="35.2203%" y="309" width="0.5154%" height="15" fill="rgb(216,154,8)" fg:x="4100" fg:w="60"/><text x="35.4703%" y="319.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral::write_prefix (6 samples, 0.05%)</title><rect x="35.6842%" y="293" width="0.0515%" height="15" fill="rgb(244,35,45)" fg:x="4154" fg:w="6"/><text x="35.9342%" y="303.50"></text></g><g><title>rex`alloc::fmt::format::format_inner (1,695 samples, 14.56%)</title><rect x="21.3641%" y="389" width="14.5606%" height="15" fill="rgb(251,115,12)" fg:x="2487" fg:w="1695"/><text x="21.6141%" y="399.50">rex`alloc::fmt::format..</text></g><g><title>rex`core::fmt::write (1,683 samples, 14.46%)</title><rect x="21.4672%" y="373" width="14.4575%" height="15" fill="rgb(240,54,50)" fg:x="2499" fg:w="1683"/><text x="21.7172%" y="383.50">rex`core::fmt::write</text></g><g><title>rex`core::fmt::write (22 samples, 0.19%)</title><rect x="35.7358%" y="357" width="0.1890%" height="15" fill="rgb(233,84,52)" fg:x="4160" fg:w="22"/><text x="35.9858%" y="367.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_malloc (10 samples, 0.09%)</title><rect x="36.4917%" y="373" width="0.0859%" height="15" fill="rgb(207,117,47)" fg:x="4248" fg:w="10"/><text x="36.7417%" y="383.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (23 samples, 0.20%)</title><rect x="36.5776%" y="373" width="0.1976%" height="15" fill="rgb(249,43,39)" fg:x="4258" fg:w="23"/><text x="36.8276%" y="383.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (58 samples, 0.50%)</title><rect x="36.7838%" y="373" width="0.4982%" height="15" fill="rgb(209,38,44)" fg:x="4282" fg:w="58"/><text x="37.0338%" y="383.50"></text></g><g><title>rex`&lt;[V] as alloc::slice::Concat&lt;T&gt;&gt;::concat (86 samples, 0.74%)</title><rect x="37.2906%" y="373" width="0.7388%" height="15" fill="rgb(236,212,23)" fg:x="4341" fg:w="86"/><text x="37.5406%" y="383.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc_type (24 samples, 0.21%)</title><rect x="37.8232%" y="357" width="0.2062%" height="15" fill="rgb(242,79,21)" fg:x="4403" fg:w="24"/><text x="38.0732%" y="367.50"></text></g><g><title>rex`&lt;tiny_keccak::keccak::Keccak as tiny_keccak::Hasher&gt;::finalize (29 samples, 0.25%)</title><rect x="38.0294%" y="373" width="0.2491%" height="15" fill="rgb(211,96,35)" fg:x="4427" fg:w="29"/><text x="38.2794%" y="383.50"></text></g><g><title>rex`&lt;tiny_keccak::keccak::Keccak as tiny_keccak::Hasher&gt;::update (89 samples, 0.76%)</title><rect x="38.2785%" y="373" width="0.7645%" height="15" fill="rgb(253,215,40)" fg:x="4456" fg:w="89"/><text x="38.5285%" y="383.50"></text></g><g><title>rex`DYLD-STUB$$memcpy (4 samples, 0.03%)</title><rect x="39.0430%" y="373" width="0.0344%" height="15" fill="rgb(211,81,21)" fg:x="4545" fg:w="4"/><text x="39.2930%" y="383.50"></text></g><g><title>rex`_RNvCscSpY9Juk0HT_7___rustc11___rdl_alloc (3 samples, 0.03%)</title><rect x="39.0774%" y="373" width="0.0258%" height="15" fill="rgb(208,190,38)" fg:x="4549" fg:w="3"/><text x="39.3274%" y="383.50"></text></g><g><title>rex`primitive_types::H160::from_slice (3 samples, 0.03%)</title><rect x="39.1118%" y="373" width="0.0258%" height="15" fill="rgb(235,213,38)" fg:x="4553" fg:w="3"/><text x="39.3618%" y="383.50"></text></g><g><title>rex`rex_sdk::create::compute_create2_address (1,330 samples, 11.43%)</title><rect x="35.9419%" y="389" width="11.4251%" height="15" fill="rgb(237,122,38)" fg:x="4184" fg:w="1330"/><text x="36.1919%" y="399.50">rex`rex_sdk::crea..</text></g><g><title>rex`tiny_keccak::keccakf::keccakf (958 samples, 8.23%)</title><rect x="39.1375%" y="373" width="8.2295%" height="15" fill="rgb(244,218,35)" fg:x="4556" fg:w="958"/><text x="39.3875%" y="383.50">rex`tiny_ke..</text></g><g><title>rex`&lt;rayon::iter::find::FindFolder&lt;T,P&gt; as rayon::iter::plumbing::Folder&lt;T&gt;&gt;::consume (3,136 samples, 26.94%)</title><rect x="20.5051%" y="405" width="26.9393%" height="15" fill="rgb(240,68,47)" fg:x="2387" fg:w="3136"/><text x="20.7551%" y="415.50">rex`&lt;rayon::iter::find::FindFolder&lt;T,P&gt; as ..</text></g><g><title>rex`tiny_keccak::keccak::Keccak::v256 (9 samples, 0.08%)</title><rect x="47.3671%" y="389" width="0.0773%" height="15" fill="rgb(210,16,53)" fg:x="5514" fg:w="9"/><text x="47.6171%" y="399.50"></text></g><g><title>rex`DYLD-STUB$$free (5 samples, 0.04%)</title><rect x="47.4444%" y="405" width="0.0430%" height="15" fill="rgb(235,124,12)" fg:x="5523" fg:w="5"/><text x="47.6944%" y="415.50"></text></g><g><title>rex`DYLD-STUB$$pthread_mutex_lock (2 samples, 0.02%)</title><rect x="47.4873%" y="405" width="0.0172%" height="15" fill="rgb(224,169,11)" fg:x="5528" fg:w="2"/><text x="47.7373%" y="415.50"></text></g><g><title>rex`rand_core::impls::fill_bytes_via_next (23 samples, 0.20%)</title><rect x="47.5045%" y="405" width="0.1976%" height="15" fill="rgb(250,166,2)" fg:x="5530" fg:w="23"/><text x="47.7545%" y="415.50"></text></g><g><title>rex`rex_sdk::create::compute_create2_address (3 samples, 0.03%)</title><rect x="47.7021%" y="405" width="0.0258%" height="15" fill="rgb(242,216,29)" fg:x="5553" fg:w="3"/><text x="47.9521%" y="415.50"></text></g><g><title>libsystem_kernel.dylib`__psynch_mutexwait (2,947 samples, 25.32%)</title><rect x="48.1831%" y="373" width="25.3157%" height="15" fill="rgb(230,116,27)" fg:x="5609" fg:w="2947"/><text x="48.4331%" y="383.50">libsystem_kernel.dylib`__psynch_mutexwait</text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_lock_slow (3,041 samples, 26.12%)</title><rect x="47.7364%" y="389" width="26.1232%" height="15" fill="rgb(228,99,48)" fg:x="5557" fg:w="3041"/><text x="47.9864%" y="399.50">libsystem_pthread.dylib`_pthread_mutex_fir..</text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_lock_wait (42 samples, 0.36%)</title><rect x="73.4988%" y="373" width="0.3608%" height="15" fill="rgb(253,11,6)" fg:x="8556" fg:w="42"/><text x="73.7488%" y="383.50"></text></g><g><title>rex`&lt;&amp;rayon::iter::par_bridge::IterParallelProducer&lt;Iter&gt; as rayon::iter::plumbing::UnindexedProducer&gt;::fold_with (8,667 samples, 74.45%)</title><rect x="0.0601%" y="421" width="74.4524%" height="15" fill="rgb(247,143,39)" fg:x="7" fg:w="8667"/><text x="0.3101%" y="431.50">rex`&lt;&amp;rayon::iter::par_bridge::IterParallelProducer&lt;Iter&gt; as rayon::iter::plumbing::UnindexedProducer&gt;::fold_with</text></g><g><title>rex`std::sys::pal::unix::sync::mutex::Mutex::lock (3,118 samples, 26.78%)</title><rect x="47.7279%" y="405" width="26.7846%" height="15" fill="rgb(236,97,10)" fg:x="5556" fg:w="3118"/><text x="47.9779%" y="415.50">rex`std::sys::pal::unix::sync::mutex::Mutex..</text></g><g><title>libsystem_pthread.dylib`pthread_mutex_lock (76 samples, 0.65%)</title><rect x="73.8596%" y="389" width="0.6529%" height="15" fill="rgb(233,208,19)" fg:x="8598" fg:w="76"/><text x="74.1096%" y="399.50"></text></g><g><title>rex`&lt;rayon::iter::find::FindFolder&lt;T,P&gt; as rayon::iter::plumbing::Folder&lt;T&gt;&gt;::consume (3 samples, 0.03%)</title><rect x="74.5125%" y="421" width="0.0258%" height="15" fill="rgb(216,164,2)" fg:x="8674" fg:w="3"/><text x="74.7625%" y="431.50"></text></g><g><title>rex`DYLD-STUB$$pthread_mutex_unlock (4 samples, 0.03%)</title><rect x="74.5383%" y="421" width="0.0344%" height="15" fill="rgb(220,129,5)" fg:x="8677" fg:w="4"/><text x="74.7883%" y="431.50"></text></g><g><title>libsystem_malloc.dylib`_free (2 samples, 0.02%)</title><rect x="74.6070%" y="341" width="0.0172%" height="15" fill="rgb(242,17,10)" fg:x="8685" fg:w="2"/><text x="74.8570%" y="351.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (2 samples, 0.02%)</title><rect x="74.6242%" y="341" width="0.0172%" height="15" fill="rgb(242,107,0)" fg:x="8687" fg:w="2"/><text x="74.8742%" y="351.50"></text></g><g><title>libsystem_platform.dylib`_platform_memcmp (3 samples, 0.03%)</title><rect x="74.6414%" y="341" width="0.0258%" height="15" fill="rgb(251,28,31)" fg:x="8689" fg:w="3"/><text x="74.8914%" y="351.50"></text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_unlock_slow (395 samples, 3.39%)</title><rect x="74.6671%" y="341" width="3.3932%" height="15" fill="rgb(233,223,10)" fg:x="8692" fg:w="395"/><text x="74.9171%" y="351.50">lib..</text></g><g><title>libsystem_kernel.dylib`__psynch_mutexdrop (393 samples, 3.38%)</title><rect x="74.6843%" y="325" width="3.3760%" height="15" fill="rgb(215,21,27)" fg:x="8694" fg:w="393"/><text x="74.9343%" y="335.50">lib..</text></g><g><title>libsystem_pthread.dylib`pthread_mutex_unlock (21 samples, 0.18%)</title><rect x="78.0689%" y="341" width="0.1804%" height="15" fill="rgb(232,23,21)" fg:x="9088" fg:w="21"/><text x="78.3189%" y="351.50"></text></g><g><title>libsystem_malloc.dylib`_free (4 samples, 0.03%)</title><rect x="78.2922%" y="325" width="0.0344%" height="15" fill="rgb(244,5,23)" fg:x="9114" fg:w="4"/><text x="78.5422%" y="335.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (7 samples, 0.06%)</title><rect x="78.3266%" y="325" width="0.0601%" height="15" fill="rgb(226,81,46)" fg:x="9118" fg:w="7"/><text x="78.5766%" y="335.50"></text></g><g><title>libsystem_platform.dylib`_platform_memset (2 samples, 0.02%)</title><rect x="78.3867%" y="325" width="0.0172%" height="15" fill="rgb(247,70,30)" fg:x="9125" fg:w="2"/><text x="78.6367%" y="335.50"></text></g><g><title>rex`&lt;[V] as alloc::slice::Concat&lt;T&gt;&gt;::concat (2 samples, 0.02%)</title><rect x="78.4039%" y="325" width="0.0172%" height="15" fill="rgb(212,68,19)" fg:x="9127" fg:w="2"/><text x="78.6539%" y="335.50"></text></g><g><title>rex`&lt;&amp;T as core::fmt::LowerHex&gt;::fmt (5 samples, 0.04%)</title><rect x="78.6187%" y="277" width="0.0430%" height="15" fill="rgb(240,187,13)" fg:x="9152" fg:w="5"/><text x="78.8687%" y="287.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (3 samples, 0.03%)</title><rect x="78.9709%" y="261" width="0.0258%" height="15" fill="rgb(223,113,26)" fg:x="9193" fg:w="3"/><text x="79.2209%" y="271.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral (9 samples, 0.08%)</title><rect x="78.9966%" y="261" width="0.0773%" height="15" fill="rgb(206,192,2)" fg:x="9196" fg:w="9"/><text x="79.2466%" y="271.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (18 samples, 0.15%)</title><rect x="79.5293%" y="245" width="0.1546%" height="15" fill="rgb(241,108,4)" fg:x="9258" fg:w="18"/><text x="79.7793%" y="255.50"></text></g><g><title>libsystem_malloc.dylib`_realloc (2 samples, 0.02%)</title><rect x="79.9244%" y="213" width="0.0172%" height="15" fill="rgb(247,173,49)" fg:x="9304" fg:w="2"/><text x="80.1744%" y="223.50"></text></g><g><title>rex`_RNvCscSpY9Juk0HT_7___rustc13___rdl_realloc (2 samples, 0.02%)</title><rect x="79.9502%" y="213" width="0.0172%" height="15" fill="rgb(224,114,35)" fg:x="9307" fg:w="2"/><text x="80.2002%" y="223.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (2 samples, 0.02%)</title><rect x="80.1220%" y="165" width="0.0172%" height="15" fill="rgb(245,159,27)" fg:x="9327" fg:w="2"/><text x="80.3720%" y="175.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_pointer_size (6 samples, 0.05%)</title><rect x="80.1392%" y="165" width="0.0515%" height="15" fill="rgb(245,172,44)" fg:x="9329" fg:w="6"/><text x="80.3892%" y="175.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (9 samples, 0.08%)</title><rect x="80.2852%" y="149" width="0.0773%" height="15" fill="rgb(236,23,11)" fg:x="9346" fg:w="9"/><text x="80.5352%" y="159.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc (12 samples, 0.10%)</title><rect x="80.3625%" y="149" width="0.1031%" height="15" fill="rgb(205,117,38)" fg:x="9355" fg:w="12"/><text x="80.6125%" y="159.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_realloc (35 samples, 0.30%)</title><rect x="80.1907%" y="165" width="0.3007%" height="15" fill="rgb(237,72,25)" fg:x="9335" fg:w="35"/><text x="80.4407%" y="175.50"></text></g><g><title>libsystem_platform.dylib`_platform_memset (3 samples, 0.03%)</title><rect x="80.4656%" y="149" width="0.0258%" height="15" fill="rgb(244,70,9)" fg:x="9367" fg:w="3"/><text x="80.7156%" y="159.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_realloc (56 samples, 0.48%)</title><rect x="80.0533%" y="181" width="0.4811%" height="15" fill="rgb(217,125,39)" fg:x="9319" fg:w="56"/><text x="80.3033%" y="191.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (5 samples, 0.04%)</title><rect x="80.4914%" y="165" width="0.0430%" height="15" fill="rgb(235,36,10)" fg:x="9370" fg:w="5"/><text x="80.7414%" y="175.50"></text></g><g><title>libsystem_malloc.dylib`_realloc (67 samples, 0.58%)</title><rect x="79.9759%" y="197" width="0.5756%" height="15" fill="rgb(251,123,47)" fg:x="9310" fg:w="67"/><text x="80.2259%" y="207.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc_type (5 samples, 0.04%)</title><rect x="80.5515%" y="197" width="0.0430%" height="15" fill="rgb(221,13,13)" fg:x="9377" fg:w="5"/><text x="80.8015%" y="207.50"></text></g><g><title>rex`alloc::raw_vec::RawVecInner&lt;A&gt;::reserve::do_reserve_and_handle (90 samples, 0.77%)</title><rect x="79.8643%" y="229" width="0.7731%" height="15" fill="rgb(238,131,9)" fg:x="9297" fg:w="90"/><text x="80.1143%" y="239.50"></text></g><g><title>rex`alloc::raw_vec::finish_grow (78 samples, 0.67%)</title><rect x="79.9674%" y="213" width="0.6700%" height="15" fill="rgb(211,50,8)" fg:x="9309" fg:w="78"/><text x="80.2174%" y="223.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_size (5 samples, 0.04%)</title><rect x="80.5945%" y="197" width="0.0430%" height="15" fill="rgb(245,182,24)" fg:x="9382" fg:w="5"/><text x="80.8445%" y="207.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (112 samples, 0.96%)</title><rect x="79.6839%" y="245" width="0.9621%" height="15" fill="rgb(242,14,37)" fg:x="9276" fg:w="112"/><text x="79.9339%" y="255.50"></text></g><g><title>rex`DYLD-STUB$$memcpy (3 samples, 0.03%)</title><rect x="80.6460%" y="245" width="0.0258%" height="15" fill="rgb(246,228,12)" fg:x="9388" fg:w="3"/><text x="80.8960%" y="255.50"></text></g><g><title>rex`alloc::raw_vec::RawVecInner&lt;A&gt;::reserve::do_reserve_and_handle (3 samples, 0.03%)</title><rect x="80.6718%" y="245" width="0.0258%" height="15" fill="rgb(213,55,15)" fg:x="9391" fg:w="3"/><text x="80.9218%" y="255.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral (19 samples, 0.16%)</title><rect x="80.6975%" y="245" width="0.1632%" height="15" fill="rgb(209,9,3)" fg:x="9394" fg:w="19"/><text x="80.9475%" y="255.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral::write_prefix (8 samples, 0.07%)</title><rect x="80.8608%" y="245" width="0.0687%" height="15" fill="rgb(230,59,30)" fg:x="9413" fg:w="8"/><text x="81.1108%" y="255.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_char (6 samples, 0.05%)</title><rect x="80.9295%" y="229" width="0.0515%" height="15" fill="rgb(209,121,21)" fg:x="9421" fg:w="6"/><text x="81.1795%" y="239.50"></text></g><g><title>rex`alloc::raw_vec::RawVec&lt;T,A&gt;::grow_one (6 samples, 0.05%)</title><rect x="80.9295%" y="213" width="0.0515%" height="15" fill="rgb(220,109,13)" fg:x="9421" fg:w="6"/><text x="81.1795%" y="223.50"></text></g><g><title>rex`alloc::raw_vec::finish_grow (3 samples, 0.03%)</title><rect x="80.9552%" y="197" width="0.0258%" height="15" fill="rgb(232,18,1)" fg:x="9424" fg:w="3"/><text x="81.2052%" y="207.50"></text></g><g><title>libsystem_malloc.dylib`_realloc (3 samples, 0.03%)</title><rect x="80.9552%" y="181" width="0.0258%" height="15" fill="rgb(215,41,42)" fg:x="9424" fg:w="3"/><text x="81.2052%" y="191.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_realloc (3 samples, 0.03%)</title><rect x="80.9552%" y="165" width="0.0258%" height="15" fill="rgb(224,123,36)" fg:x="9424" fg:w="3"/><text x="81.2052%" y="175.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_realloc (2 samples, 0.02%)</title><rect x="80.9638%" y="149" width="0.0172%" height="15" fill="rgb(240,125,3)" fg:x="9425" fg:w="2"/><text x="81.2138%" y="159.50"></text></g><g><title>rex`&lt;primitive_types::H160 as core::fmt::LowerHex&gt;::fmt (296 samples, 2.54%)</title><rect x="78.4898%" y="293" width="2.5427%" height="15" fill="rgb(205,98,50)" fg:x="9137" fg:w="296"/><text x="78.7398%" y="303.50">re..</text></g><g><title>rex`core::fmt::write (275 samples, 2.36%)</title><rect x="78.6702%" y="277" width="2.3623%" height="15" fill="rgb(205,185,37)" fg:x="9158" fg:w="275"/><text x="78.9202%" y="287.50">re..</text></g><g><title>rex`core::fmt::num::_&lt;impl core::fmt::LowerHex for i8&gt;::fmt (228 samples, 1.96%)</title><rect x="79.0740%" y="261" width="1.9586%" height="15" fill="rgb(238,207,15)" fg:x="9205" fg:w="228"/><text x="79.3240%" y="271.50">r..</text></g><g><title>rex`core::fmt::Formatter::pad_integral (12 samples, 0.10%)</title><rect x="80.9295%" y="245" width="0.1031%" height="15" fill="rgb(213,199,42)" fg:x="9421" fg:w="12"/><text x="81.1795%" y="255.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral::write_prefix (5 samples, 0.04%)</title><rect x="80.9896%" y="229" width="0.0430%" height="15" fill="rgb(235,201,11)" fg:x="9428" fg:w="5"/><text x="81.2396%" y="239.50"></text></g><g><title>rex`alloc::fmt::format::format_inner (305 samples, 2.62%)</title><rect x="78.4383%" y="325" width="2.6200%" height="15" fill="rgb(207,46,11)" fg:x="9131" fg:w="305"/><text x="78.6883%" y="335.50">re..</text></g><g><title>rex`core::fmt::write (302 samples, 2.59%)</title><rect x="78.4640%" y="309" width="2.5943%" height="15" fill="rgb(241,35,35)" fg:x="9134" fg:w="302"/><text x="78.7140%" y="319.50">re..</text></g><g><title>rex`core::fmt::write (3 samples, 0.03%)</title><rect x="81.0326%" y="293" width="0.0258%" height="15" fill="rgb(243,32,47)" fg:x="9433" fg:w="3"/><text x="81.2826%" y="303.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (14 samples, 0.12%)</title><rect x="81.1356%" y="309" width="0.1203%" height="15" fill="rgb(247,202,23)" fg:x="9445" fg:w="14"/><text x="81.3856%" y="319.50"></text></g><g><title>rex`&lt;[V] as alloc::slice::Concat&lt;T&gt;&gt;::concat (14 samples, 0.12%)</title><rect x="81.2559%" y="309" width="0.1203%" height="15" fill="rgb(219,102,11)" fg:x="9459" fg:w="14"/><text x="81.5059%" y="319.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc_type (3 samples, 0.03%)</title><rect x="81.3504%" y="293" width="0.0258%" height="15" fill="rgb(243,110,44)" fg:x="9470" fg:w="3"/><text x="81.6004%" y="303.50"></text></g><g><title>rex`&lt;tiny_keccak::keccak::Keccak as tiny_keccak::Hasher&gt;::finalize (3 samples, 0.03%)</title><rect x="81.3762%" y="309" width="0.0258%" height="15" fill="rgb(222,74,54)" fg:x="9473" fg:w="3"/><text x="81.6262%" y="319.50"></text></g><g><title>rex`&lt;tiny_keccak::keccak::Keccak as tiny_keccak::Hasher&gt;::update (16 samples, 0.14%)</title><rect x="81.4019%" y="309" width="0.1374%" height="15" fill="rgb(216,99,12)" fg:x="9476" fg:w="16"/><text x="81.6519%" y="319.50"></text></g><g><title>rex`rex_sdk::create::compute_create2_address (215 samples, 1.85%)</title><rect x="81.0583%" y="325" width="1.8469%" height="15" fill="rgb(226,22,26)" fg:x="9436" fg:w="215"/><text x="81.3083%" y="335.50">r..</text></g><g><title>rex`tiny_keccak::keccakf::keccakf (158 samples, 1.36%)</title><rect x="81.5480%" y="309" width="1.3573%" height="15" fill="rgb(217,163,10)" fg:x="9493" fg:w="158"/><text x="81.7980%" y="319.50"></text></g><g><title>rex`&lt;rayon::iter::find::FindFolder&lt;T,P&gt; as rayon::iter::plumbing::Folder&lt;T&gt;&gt;::consume (544 samples, 4.67%)</title><rect x="78.2493%" y="341" width="4.6731%" height="15" fill="rgb(213,25,53)" fg:x="9109" fg:w="544"/><text x="78.4993%" y="351.50">rex`&lt;..</text></g><g><title>rex`tiny_keccak::keccak::Keccak::v256 (2 samples, 0.02%)</title><rect x="82.9052%" y="325" width="0.0172%" height="15" fill="rgb(252,105,26)" fg:x="9651" fg:w="2"/><text x="83.1552%" y="335.50"></text></g><g><title>rex`DYLD-STUB$$free (2 samples, 0.02%)</title><rect x="82.9224%" y="341" width="0.0172%" height="15" fill="rgb(220,39,43)" fg:x="9653" fg:w="2"/><text x="83.1724%" y="351.50"></text></g><g><title>rex`rand_core::impls::fill_bytes_via_next (2 samples, 0.02%)</title><rect x="82.9482%" y="341" width="0.0172%" height="15" fill="rgb(229,68,48)" fg:x="9656" fg:w="2"/><text x="83.1982%" y="351.50"></text></g><g><title>libsystem_kernel.dylib`__psynch_mutexwait (502 samples, 4.31%)</title><rect x="83.0599%" y="309" width="4.3123%" height="15" fill="rgb(252,8,32)" fg:x="9669" fg:w="502"/><text x="83.3099%" y="319.50">libsy..</text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_lock_slow (520 samples, 4.47%)</title><rect x="82.9740%" y="325" width="4.4670%" height="15" fill="rgb(223,20,43)" fg:x="9659" fg:w="520"/><text x="83.2240%" y="335.50">libsy..</text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_lock_wait (8 samples, 0.07%)</title><rect x="87.3722%" y="309" width="0.0687%" height="15" fill="rgb(229,81,49)" fg:x="10171" fg:w="8"/><text x="87.6222%" y="319.50"></text></g><g><title>rex`&lt;&amp;rayon::iter::par_bridge::IterParallelProducer&lt;Iter&gt; as rayon::iter::plumbing::UnindexedProducer&gt;::fold_with (1,508 samples, 12.95%)</title><rect x="74.5898%" y="357" width="12.9542%" height="15" fill="rgb(236,28,36)" fg:x="8683" fg:w="1508"/><text x="74.8398%" y="367.50">rex`&lt;&amp;rayon::iter::..</text></g><g><title>rex`std::sys::pal::unix::sync::mutex::Mutex::lock (532 samples, 4.57%)</title><rect x="82.9740%" y="341" width="4.5701%" height="15" fill="rgb(249,185,26)" fg:x="9659" fg:w="532"/><text x="83.2240%" y="351.50">rex`s..</text></g><g><title>libsystem_pthread.dylib`pthread_mutex_lock (12 samples, 0.10%)</title><rect x="87.4409%" y="325" width="0.1031%" height="15" fill="rgb(249,174,33)" fg:x="10179" fg:w="12"/><text x="87.6909%" y="335.50"></text></g><g><title>rex`rayon_core::join::join_context::_{{closure}} (1,511 samples, 12.98%)</title><rect x="74.5812%" y="421" width="12.9800%" height="15" fill="rgb(233,201,37)" fg:x="8682" fg:w="1511"/><text x="74.8312%" y="431.50">rex`rayon_core::joi..</text></g><g><title>rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer (1,511 samples, 12.98%)</title><rect x="74.5812%" y="405" width="12.9800%" height="15" fill="rgb(221,78,26)" fg:x="8682" fg:w="1511"/><text x="74.8312%" y="415.50">rex`rayon::iter::pl..</text></g><g><title>rex`rayon_core::join::join_context::_{{closure}} (1,511 samples, 12.98%)</title><rect x="74.5812%" y="389" width="12.9800%" height="15" fill="rgb(250,127,30)" fg:x="8682" fg:w="1511"/><text x="74.8312%" y="399.50">rex`rayon_core::joi..</text></g><g><title>rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer (1,511 samples, 12.98%)</title><rect x="74.5812%" y="373" width="12.9800%" height="15" fill="rgb(230,49,44)" fg:x="8682" fg:w="1511"/><text x="74.8312%" y="383.50">rex`rayon::iter::pl..</text></g><g><title>rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer (10,194 samples, 87.57%)</title><rect x="0.0086%" y="437" width="87.5698%" height="15" fill="rgb(229,67,23)" fg:x="1" fg:w="10194"/><text x="0.2586%" y="447.50">rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer</text></g><g><title>libsystem_malloc.dylib`_free (2 samples, 0.02%)</title><rect x="87.6127%" y="229" width="0.0172%" height="15" fill="rgb(249,83,47)" fg:x="10199" fg:w="2"/><text x="87.8627%" y="239.50"></text></g><g><title>libsystem_platform.dylib`_platform_memcmp (7 samples, 0.06%)</title><rect x="87.6385%" y="229" width="0.0601%" height="15" fill="rgb(215,43,3)" fg:x="10202" fg:w="7"/><text x="87.8885%" y="239.50"></text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_unlock_slow (320 samples, 2.75%)</title><rect x="87.6987%" y="229" width="2.7489%" height="15" fill="rgb(238,154,13)" fg:x="10209" fg:w="320"/><text x="87.9487%" y="239.50">li..</text></g><g><title>libsystem_kernel.dylib`__psynch_mutexdrop (316 samples, 2.71%)</title><rect x="87.7330%" y="213" width="2.7145%" height="15" fill="rgb(219,56,2)" fg:x="10213" fg:w="316"/><text x="87.9830%" y="223.50">li..</text></g><g><title>libsystem_pthread.dylib`pthread_mutex_unlock (17 samples, 0.15%)</title><rect x="90.4476%" y="229" width="0.1460%" height="15" fill="rgb(233,0,4)" fg:x="10529" fg:w="17"/><text x="90.6976%" y="239.50"></text></g><g><title>libsystem_malloc.dylib`_free (2 samples, 0.02%)</title><rect x="90.6365%" y="213" width="0.0172%" height="15" fill="rgb(235,30,7)" fg:x="10551" fg:w="2"/><text x="90.8865%" y="223.50"></text></g><g><title>rex`&lt;&amp;T as core::fmt::LowerHex&gt;::fmt (4 samples, 0.03%)</title><rect x="90.8771%" y="165" width="0.0344%" height="15" fill="rgb(250,79,13)" fg:x="10579" fg:w="4"/><text x="91.1271%" y="175.50"></text></g><g><title>rex`core::fmt::num::_&lt;impl core::fmt::LowerHex for i8&gt;::fmt (2 samples, 0.02%)</title><rect x="90.9114%" y="165" width="0.0172%" height="15" fill="rgb(211,146,34)" fg:x="10583" fg:w="2"/><text x="91.1614%" y="175.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (8 samples, 0.07%)</title><rect x="91.3753%" y="149" width="0.0687%" height="15" fill="rgb(228,22,38)" fg:x="10637" fg:w="8"/><text x="91.6253%" y="159.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral (9 samples, 0.08%)</title><rect x="91.4440%" y="149" width="0.0773%" height="15" fill="rgb(235,168,5)" fg:x="10645" fg:w="9"/><text x="91.6940%" y="159.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (22 samples, 0.19%)</title><rect x="91.8650%" y="133" width="0.1890%" height="15" fill="rgb(221,155,16)" fg:x="10694" fg:w="22"/><text x="92.1150%" y="143.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_char (2 samples, 0.02%)</title><rect x="92.0539%" y="133" width="0.0172%" height="15" fill="rgb(215,215,53)" fg:x="10716" fg:w="2"/><text x="92.3039%" y="143.50"></text></g><g><title>rex`DYLD-STUB$$malloc (2 samples, 0.02%)</title><rect x="92.3632%" y="101" width="0.0172%" height="15" fill="rgb(223,4,10)" fg:x="10752" fg:w="2"/><text x="92.6132%" y="111.50"></text></g><g><title>rex`DYLD-STUB$$realloc (2 samples, 0.02%)</title><rect x="92.3804%" y="101" width="0.0172%" height="15" fill="rgb(234,103,6)" fg:x="10754" fg:w="2"/><text x="92.6304%" y="111.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_pointer_size (8 samples, 0.07%)</title><rect x="92.5522%" y="53" width="0.0687%" height="15" fill="rgb(227,97,0)" fg:x="10774" fg:w="8"/><text x="92.8022%" y="63.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (10 samples, 0.09%)</title><rect x="92.7154%" y="37" width="0.0859%" height="15" fill="rgb(234,150,53)" fg:x="10793" fg:w="10"/><text x="92.9654%" y="47.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_realloc (35 samples, 0.30%)</title><rect x="92.6209%" y="53" width="0.3007%" height="15" fill="rgb(228,201,54)" fg:x="10782" fg:w="35"/><text x="92.8709%" y="63.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc (14 samples, 0.12%)</title><rect x="92.8013%" y="37" width="0.1203%" height="15" fill="rgb(222,22,37)" fg:x="10803" fg:w="14"/><text x="93.0513%" y="47.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_realloc (55 samples, 0.47%)</title><rect x="92.5092%" y="69" width="0.4725%" height="15" fill="rgb(237,53,32)" fg:x="10769" fg:w="55"/><text x="92.7592%" y="79.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (7 samples, 0.06%)</title><rect x="92.9216%" y="53" width="0.0601%" height="15" fill="rgb(233,25,53)" fg:x="10817" fg:w="7"/><text x="93.1716%" y="63.50"></text></g><g><title>libsystem_malloc.dylib`_realloc (64 samples, 0.55%)</title><rect x="92.4405%" y="85" width="0.5498%" height="15" fill="rgb(210,40,34)" fg:x="10761" fg:w="64"/><text x="92.6905%" y="95.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc_type (2 samples, 0.02%)</title><rect x="92.9903%" y="85" width="0.0172%" height="15" fill="rgb(241,220,44)" fg:x="10825" fg:w="2"/><text x="93.2403%" y="95.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_str (124 samples, 1.07%)</title><rect x="92.0711%" y="133" width="1.0652%" height="15" fill="rgb(235,28,35)" fg:x="10718" fg:w="124"/><text x="92.3211%" y="143.50"></text></g><g><title>rex`alloc::raw_vec::RawVecInner&lt;A&gt;::reserve::do_reserve_and_handle (96 samples, 0.82%)</title><rect x="92.3117%" y="117" width="0.8247%" height="15" fill="rgb(210,56,17)" fg:x="10746" fg:w="96"/><text x="92.5617%" y="127.50"></text></g><g><title>rex`alloc::raw_vec::finish_grow (86 samples, 0.74%)</title><rect x="92.3976%" y="101" width="0.7388%" height="15" fill="rgb(224,130,29)" fg:x="10756" fg:w="86"/><text x="92.6476%" y="111.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_size (15 samples, 0.13%)</title><rect x="93.0075%" y="85" width="0.1289%" height="15" fill="rgb(235,212,8)" fg:x="10827" fg:w="15"/><text x="93.2575%" y="95.50"></text></g><g><title>rex`DYLD-STUB$$memcpy (3 samples, 0.03%)</title><rect x="93.1363%" y="133" width="0.0258%" height="15" fill="rgb(223,33,50)" fg:x="10842" fg:w="3"/><text x="93.3863%" y="143.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral (39 samples, 0.34%)</title><rect x="93.1621%" y="133" width="0.3350%" height="15" fill="rgb(219,149,13)" fg:x="10845" fg:w="39"/><text x="93.4121%" y="143.50"></text></g><g><title>rex`core::fmt::Formatter::pad_integral::write_prefix (9 samples, 0.08%)</title><rect x="93.4971%" y="133" width="0.0773%" height="15" fill="rgb(250,156,29)" fg:x="10884" fg:w="9"/><text x="93.7471%" y="143.50"></text></g><g><title>libsystem_malloc.dylib`_realloc (2 samples, 0.02%)</title><rect x="93.6002%" y="69" width="0.0172%" height="15" fill="rgb(216,193,19)" fg:x="10896" fg:w="2"/><text x="93.8502%" y="79.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_realloc (2 samples, 0.02%)</title><rect x="93.6002%" y="53" width="0.0172%" height="15" fill="rgb(216,135,14)" fg:x="10896" fg:w="2"/><text x="93.8502%" y="63.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc_type (2 samples, 0.02%)</title><rect x="93.6174%" y="69" width="0.0172%" height="15" fill="rgb(241,47,5)" fg:x="10898" fg:w="2"/><text x="93.8674%" y="79.50"></text></g><g><title>rex`&lt;alloc::string::String as core::fmt::Write&gt;::write_char (8 samples, 0.07%)</title><rect x="93.5744%" y="117" width="0.0687%" height="15" fill="rgb(233,42,35)" fg:x="10893" fg:w="8"/><text x="93.8244%" y="127.50"></text></g><g><title>rex`alloc::raw_vec::RawVec&lt;T,A&gt;::grow_one (6 samples, 0.05%)</title><rect x="93.5916%" y="101" width="0.0515%" height="15" fill="rgb(231,13,6)" fg:x="10895" fg:w="6"/><text x="93.8416%" y="111.50"></text></g><g><title>rex`alloc::raw_vec::finish_grow (5 samples, 0.04%)</title><rect x="93.6002%" y="85" width="0.0430%" height="15" fill="rgb(207,181,40)" fg:x="10896" fg:w="5"/><text x="93.8502%" y="95.50"></text></g><g><title>rex`&lt;primitive_types::H160 as core::fmt::LowerHex&gt;::fmt (341 samples, 2.93%)</title><rect x="90.7224%" y="181" width="2.9293%" height="15" fill="rgb(254,173,49)" fg:x="10561" fg:w="341"/><text x="90.9724%" y="191.50">re..</text></g><g><title>rex`core::fmt::write (317 samples, 2.72%)</title><rect x="90.9286%" y="165" width="2.7231%" height="15" fill="rgb(221,1,38)" fg:x="10585" fg:w="317"/><text x="91.1786%" y="175.50">re..</text></g><g><title>rex`core::fmt::num::_&lt;impl core::fmt::LowerHex for i8&gt;::fmt (248 samples, 2.13%)</title><rect x="91.5213%" y="149" width="2.1304%" height="15" fill="rgb(206,124,46)" fg:x="10654" fg:w="248"/><text x="91.7713%" y="159.50">r..</text></g><g><title>rex`core::fmt::Formatter::pad_integral (9 samples, 0.08%)</title><rect x="93.5744%" y="133" width="0.0773%" height="15" fill="rgb(249,21,11)" fg:x="10893" fg:w="9"/><text x="93.8244%" y="143.50"></text></g><g><title>rex`alloc::fmt::format::format_inner (352 samples, 3.02%)</title><rect x="90.6709%" y="213" width="3.0238%" height="15" fill="rgb(222,201,40)" fg:x="10555" fg:w="352"/><text x="90.9209%" y="223.50">rex..</text></g><g><title>rex`core::fmt::write (348 samples, 2.99%)</title><rect x="90.7053%" y="197" width="2.9894%" height="15" fill="rgb(235,61,29)" fg:x="10559" fg:w="348"/><text x="90.9553%" y="207.50">rex..</text></g><g><title>rex`core::fmt::write (5 samples, 0.04%)</title><rect x="93.6517%" y="181" width="0.0430%" height="15" fill="rgb(219,207,3)" fg:x="10902" fg:w="5"/><text x="93.9017%" y="191.50"></text></g><g><title>libsystem_malloc.dylib`_malloc_zone_malloc (2 samples, 0.02%)</title><rect x="93.7978%" y="197" width="0.0172%" height="15" fill="rgb(222,56,46)" fg:x="10919" fg:w="2"/><text x="94.0478%" y="207.50"></text></g><g><title>libsystem_malloc.dylib`_nanov2_free (3 samples, 0.03%)</title><rect x="93.8150%" y="197" width="0.0258%" height="15" fill="rgb(239,76,54)" fg:x="10921" fg:w="3"/><text x="94.0650%" y="207.50"></text></g><g><title>libsystem_platform.dylib`_platform_memmove (12 samples, 0.10%)</title><rect x="93.8407%" y="197" width="0.1031%" height="15" fill="rgb(231,124,27)" fg:x="10924" fg:w="12"/><text x="94.0907%" y="207.50"></text></g><g><title>rex`&lt;[V] as alloc::slice::Concat&lt;T&gt;&gt;::concat (12 samples, 0.10%)</title><rect x="93.9438%" y="197" width="0.1031%" height="15" fill="rgb(249,195,6)" fg:x="10936" fg:w="12"/><text x="94.1938%" y="207.50"></text></g><g><title>libsystem_malloc.dylib`nanov2_malloc_type (5 samples, 0.04%)</title><rect x="94.0040%" y="181" width="0.0430%" height="15" fill="rgb(237,174,47)" fg:x="10943" fg:w="5"/><text x="94.2540%" y="191.50"></text></g><g><title>rex`&lt;tiny_keccak::keccak::Keccak as tiny_keccak::Hasher&gt;::finalize (5 samples, 0.04%)</title><rect x="94.0469%" y="197" width="0.0430%" height="15" fill="rgb(206,201,31)" fg:x="10948" fg:w="5"/><text x="94.2969%" y="207.50"></text></g><g><title>rex`&lt;tiny_keccak::keccak::Keccak as tiny_keccak::Hasher&gt;::update (14 samples, 0.12%)</title><rect x="94.0899%" y="197" width="0.1203%" height="15" fill="rgb(231,57,52)" fg:x="10953" fg:w="14"/><text x="94.3399%" y="207.50"></text></g><g><title>rex`primitive_types::H160::from_slice (3 samples, 0.03%)</title><rect x="94.2273%" y="197" width="0.0258%" height="15" fill="rgb(248,177,22)" fg:x="10969" fg:w="3"/><text x="94.4773%" y="207.50"></text></g><g><title>rex`rex_sdk::create::compute_create2_address (219 samples, 1.88%)</title><rect x="93.6947%" y="213" width="1.8813%" height="15" fill="rgb(215,211,37)" fg:x="10907" fg:w="219"/><text x="93.9447%" y="223.50">r..</text></g><g><title>rex`tiny_keccak::keccakf::keccakf (154 samples, 1.32%)</title><rect x="94.2531%" y="197" width="1.3229%" height="15" fill="rgb(241,128,51)" fg:x="10972" fg:w="154"/><text x="94.5031%" y="207.50"></text></g><g><title>rex`&lt;rayon::iter::find::FindFolder&lt;T,P&gt; as rayon::iter::plumbing::Folder&lt;T&gt;&gt;::consume (583 samples, 5.01%)</title><rect x="90.5936%" y="229" width="5.0082%" height="15" fill="rgb(227,165,31)" fg:x="10546" fg:w="583"/><text x="90.8436%" y="239.50">rex`&lt;r..</text></g><g><title>rex`tiny_keccak::keccak::Keccak::v256 (3 samples, 0.03%)</title><rect x="95.5760%" y="213" width="0.0258%" height="15" fill="rgb(228,167,24)" fg:x="11126" fg:w="3"/><text x="95.8260%" y="223.50"></text></g><g><title>rex`rand_core::impls::fill_bytes_via_next (2 samples, 0.02%)</title><rect x="95.6189%" y="229" width="0.0172%" height="15" fill="rgb(228,143,12)" fg:x="11131" fg:w="2"/><text x="95.8689%" y="239.50"></text></g><g><title>libsystem_kernel.dylib`__psynch_mutexwait (485 samples, 4.17%)</title><rect x="95.6877%" y="197" width="4.1663%" height="15" fill="rgb(249,149,8)" fg:x="11139" fg:w="485"/><text x="95.9377%" y="207.50">libsy..</text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_lock_slow (493 samples, 4.24%)</title><rect x="95.6361%" y="213" width="4.2350%" height="15" fill="rgb(243,35,44)" fg:x="11133" fg:w="493"/><text x="95.8861%" y="223.50">libsy..</text></g><g><title>libsystem_pthread.dylib`_pthread_mutex_firstfit_lock_wait (2 samples, 0.02%)</title><rect x="99.8540%" y="197" width="0.0172%" height="15" fill="rgb(246,89,9)" fg:x="11624" fg:w="2"/><text x="100.1040%" y="207.50"></text></g><g><title>rex`&lt;&amp;rayon::iter::par_bridge::IterParallelProducer&lt;Iter&gt; as rayon::iter::plumbing::UnindexedProducer&gt;::fold_with (1,443 samples, 12.40%)</title><rect x="87.5784%" y="245" width="12.3958%" height="15" fill="rgb(233,213,13)" fg:x="10195" fg:w="1443"/><text x="87.8284%" y="255.50">rex`&lt;&amp;rayon::iter::..</text></g><g><title>rex`std::sys::pal::unix::sync::mutex::Mutex::lock (505 samples, 4.34%)</title><rect x="95.6361%" y="229" width="4.3381%" height="15" fill="rgb(233,141,41)" fg:x="11133" fg:w="505"/><text x="95.8861%" y="239.50">rex`s..</text></g><g><title>libsystem_pthread.dylib`pthread_mutex_lock (12 samples, 0.10%)</title><rect x="99.8711%" y="213" width="0.1031%" height="15" fill="rgb(239,167,4)" fg:x="11626" fg:w="12"/><text x="100.1211%" y="223.50"></text></g><g><title>rex`&lt;rayon::iter::find::FindFolder&lt;T,P&gt; as rayon::iter::plumbing::Folder&lt;T&gt;&gt;::consume (2 samples, 0.02%)</title><rect x="99.9742%" y="245" width="0.0172%" height="15" fill="rgb(209,217,16)" fg:x="11638" fg:w="2"/><text x="100.2242%" y="255.50"></text></g><g><title>all (11,641 samples, 100%)</title><rect x="0.0000%" y="581" width="100.0000%" height="15" fill="rgb(219,88,35)" fg:x="0" fg:w="11641"/><text x="0.2500%" y="591.50"></text></g><g><title>libsystem_pthread.dylib`thread_start (11,640 samples, 99.99%)</title><rect x="0.0086%" y="565" width="99.9914%" height="15" fill="rgb(220,193,23)" fg:x="1" fg:w="11640"/><text x="0.2586%" y="575.50">libsystem_pthread.dylib`thread_start</text></g><g><title>libsystem_pthread.dylib`_pthread_start (11,640 samples, 99.99%)</title><rect x="0.0086%" y="549" width="99.9914%" height="15" fill="rgb(230,90,52)" fg:x="1" fg:w="11640"/><text x="0.2586%" y="559.50">libsystem_pthread.dylib`_pthread_start</text></g><g><title>rex`std::sys::pal::unix::thread::Thread::new::thread_start (11,640 samples, 99.99%)</title><rect x="0.0086%" y="533" width="99.9914%" height="15" fill="rgb(252,106,19)" fg:x="1" fg:w="11640"/><text x="0.2586%" y="543.50">rex`std::sys::pal::unix::thread::Thread::new::thread_start</text></g><g><title>rex`core::ops::function::FnOnce::call_once{{vtable.shim}} (11,640 samples, 99.99%)</title><rect x="0.0086%" y="517" width="99.9914%" height="15" fill="rgb(206,74,20)" fg:x="1" fg:w="11640"/><text x="0.2586%" y="527.50">rex`core::ops::function::FnOnce::call_once{{vtable.shim}}</text></g><g><title>rex`std::sys::backtrace::__rust_begin_short_backtrace (11,640 samples, 99.99%)</title><rect x="0.0086%" y="501" width="99.9914%" height="15" fill="rgb(230,138,44)" fg:x="1" fg:w="11640"/><text x="0.2586%" y="511.50">rex`std::sys::backtrace::__rust_begin_short_backtrace</text></g><g><title>rex`rayon_core::registry::ThreadBuilder::run (11,640 samples, 99.99%)</title><rect x="0.0086%" y="485" width="99.9914%" height="15" fill="rgb(235,182,43)" fg:x="1" fg:w="11640"/><text x="0.2586%" y="495.50">rex`rayon_core::registry::ThreadBuilder::run</text></g><g><title>rex`rayon_core::registry::WorkerThread::wait_until_cold (11,640 samples, 99.99%)</title><rect x="0.0086%" y="469" width="99.9914%" height="15" fill="rgb(242,16,51)" fg:x="1" fg:w="11640"/><text x="0.2586%" y="479.50">rex`rayon_core::registry::WorkerThread::wait_until_cold</text></g><g><title>rex`&lt;rayon_core::job::StackJob&lt;L,F,R&gt; as rayon_core::job::Job&gt;::execute (11,640 samples, 99.99%)</title><rect x="0.0086%" y="453" width="99.9914%" height="15" fill="rgb(248,9,4)" fg:x="1" fg:w="11640"/><text x="0.2586%" y="463.50">rex`&lt;rayon_core::job::StackJob&lt;L,F,R&gt; as rayon_core::job::Job&gt;::execute</text></g><g><title>rex`rayon_core::join::join_context::_{{closure}} (1,446 samples, 12.42%)</title><rect x="87.5784%" y="437" width="12.4216%" height="15" fill="rgb(210,31,22)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="447.50">rex`rayon_core::joi..</text></g><g><title>rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer (1,446 samples, 12.42%)</title><rect x="87.5784%" y="421" width="12.4216%" height="15" fill="rgb(239,54,39)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="431.50">rex`rayon::iter::pl..</text></g><g><title>rex`rayon_core::join::join_context::_{{closure}} (1,446 samples, 12.42%)</title><rect x="87.5784%" y="405" width="12.4216%" height="15" fill="rgb(230,99,41)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="415.50">rex`rayon_core::joi..</text></g><g><title>rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer (1,446 samples, 12.42%)</title><rect x="87.5784%" y="389" width="12.4216%" height="15" fill="rgb(253,106,12)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="399.50">rex`rayon::iter::pl..</text></g><g><title>rex`rayon_core::join::join_context::_{{closure}} (1,446 samples, 12.42%)</title><rect x="87.5784%" y="373" width="12.4216%" height="15" fill="rgb(213,46,41)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="383.50">rex`rayon_core::joi..</text></g><g><title>rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer (1,446 samples, 12.42%)</title><rect x="87.5784%" y="357" width="12.4216%" height="15" fill="rgb(215,133,35)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="367.50">rex`rayon::iter::pl..</text></g><g><title>rex`rayon_core::join::join_context::_{{closure}} (1,446 samples, 12.42%)</title><rect x="87.5784%" y="341" width="12.4216%" height="15" fill="rgb(213,28,5)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="351.50">rex`rayon_core::joi..</text></g><g><title>rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer (1,446 samples, 12.42%)</title><rect x="87.5784%" y="325" width="12.4216%" height="15" fill="rgb(215,77,49)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="335.50">rex`rayon::iter::pl..</text></g><g><title>rex`rayon_core::join::join_context::_{{closure}} (1,446 samples, 12.42%)</title><rect x="87.5784%" y="309" width="12.4216%" height="15" fill="rgb(248,100,22)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="319.50">rex`rayon_core::joi..</text></g><g><title>rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer (1,446 samples, 12.42%)</title><rect x="87.5784%" y="293" width="12.4216%" height="15" fill="rgb(208,67,9)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="303.50">rex`rayon::iter::pl..</text></g><g><title>rex`rayon_core::join::join_context::_{{closure}} (1,446 samples, 12.42%)</title><rect x="87.5784%" y="277" width="12.4216%" height="15" fill="rgb(219,133,21)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="287.50">rex`rayon_core::joi..</text></g><g><title>rex`rayon::iter::plumbing::bridge_unindexed_producer_consumer (1,446 samples, 12.42%)</title><rect x="87.5784%" y="261" width="12.4216%" height="15" fill="rgb(246,46,29)" fg:x="10195" fg:w="1446"/><text x="87.8284%" y="271.50">rex`rayon::iter::pl..</text></g></svg></svg>
