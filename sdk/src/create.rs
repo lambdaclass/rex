@@ -2,8 +2,7 @@ use ethrex_common::Address;
 use ethrex_rlp::encode::RLPEncode;
 use keccak_hash::{H256, keccak};
 use rand_xoshiro::Xoshiro256PlusPlus;
-use rand_xoshiro::rand_core::SeedableRng;
-use rand_xoshiro::rand_core::TryRngCore;
+use rand_xoshiro::rand_core::{SeedableRng, TryRngCore};
 use rayon::prelude::*;
 use std::iter;
 
