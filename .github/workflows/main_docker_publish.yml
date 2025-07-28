@@ -2,7 +2,7 @@ name: Publish Docker
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
   workflow_dispatch:
 
 env:
