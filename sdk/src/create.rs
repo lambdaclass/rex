@@ -4,7 +4,6 @@ use keccak_hash::{H256, keccak};
 use rand::RngCore;
 use rayon::prelude::*;
 use std::iter;
-use std::sync::Arc;
 
 use crate::utils::to_checksum_address;
 
@@ -92,9 +91,10 @@ pub fn brute_force_create2_rayon(
     contains: Option<String>,
     case_sensitive: bool,
 ) -> (H256, Address) {
-    let begins = Arc::new(begins.map(|s| if case_sensitive { s } else { s.to_lowercase() }));
-    let ends = Arc::new(ends.map(|s| if case_sensitive { s } else { s.to_lowercase() }));
-    let contains = Arc::new(contains.map(|s| if case_sensitive { s } else { s.to_lowercase() }));
+    // If not case sensitive make the comparison with lowercase
+    let begins = begins.map(|s| if case_sensitive { s } else { s.to_lowercase() });
+    let ends = ends.map(|s| if case_sensitive { s } else { s.to_lowercase() });
+    let contains = contains.map(|s| if case_sensitive { s } else { s.to_lowercase() });
 
     iter::repeat_with(|| {
         let mut salt_bytes = [0u8; 32];
@@ -106,6 +106,7 @@ pub fn brute_force_create2_rayon(
         // Find a salt that satisfies the criteria set by the user.
         let addr = compute_create2_address(deployer, init_code_hash, *salt);
 
+        // Convert address to string, if it's not case sensitive leave it in lowercase.
         let addr_str = if !case_sensitive {
             format!("{addr:x}")
         } else {
