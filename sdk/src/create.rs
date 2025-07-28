@@ -113,7 +113,7 @@ pub fn brute_force_create2_rayon(
 
         // Convert address to string, if it's not case sensitive leave it in lowercase.
         let addr_str = if !case_sensitive {
-            format!("{addr:x}")
+            format!("{addr:x}") // we could compare bytes directly but this produces cleaner code
         } else {
             to_checksum_address(&format!("{addr:x}"))
         };
