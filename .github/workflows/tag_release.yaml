@@ -1,0 +1,94 @@
+name: Rex Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+  packages: write
+
+
+jobs:
+  build-rex:
+    strategy:
+      matrix:
+        platform:
+          - ubuntu-22.04
+          - ubuntu-22.04-arm
+          - macos-latest
+        include:
+          - platform: ubuntu-22.04
+            os: linux
+            arch: x86_64
+          - platform: ubuntu-22.04-arm
+            os: linux
+            arch: aarch64
+          - platform: macos-latest
+            os: macos
+            arch: aarch64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Rustup toolchain install
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ vars.RUST_VERSION }}
+
+      - name: Build rex
+        run: |
+          cargo build --release --bin rex
+          mv target/release/rex rex-${{ matrix.os }}_${{ matrix.arch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rex-${{ matrix.os }}_${{ matrix.arch }}
+          path: rex-${{ matrix.os }}_${{ matrix.arch }}
+
+  finalize-release:
+    needs:
+      - build-rex
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./bin
+          pattern: "rex*"
+
+      - name: Get previous tag
+        run: |
+          name=$(git --no-pager tag --sort=creatordate --merged ${{ github.ref_name }} | tail -2 | head -1)
+          echo "PREVIOUS_TAG: $name"
+          echo "PREVIOUS_TAG=$name" >> $GITHUB_ENV
+
+      - name: Update CHANGELOG
+        id: changelog
+        uses: requarks/changelog-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fromTag: ${{ github.ref_name }}
+          toTag: ${{ env.PREVIOUS_TAG }}
+          writeToFile: false
+
+      - name: Finalize Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: ./bin/**/*
+          draft: false
+          prerelease: false
+          tag_name: ${{ github.ref_name }}
+          name: "rex: ${{ github.ref_name }}"
+          body: ${{ steps.changelog.outputs.changes }}

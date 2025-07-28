@@ -147,8 +147,9 @@ pub async fn claim_erc20withdraw(
         Value::Array(
             message_proof
                 .merkle_proof
-                .iter()
-                .map(|v| Value::Uint(U256::from_big_endian(v.as_bytes())))
+                .clone()
+                .into_iter()
+                .map(|v| Value::FixedBytes(Bytes::copy_from_slice(v.as_bytes())))
                 .collect(),
         ),
     ];
