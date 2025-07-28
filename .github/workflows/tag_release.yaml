@@ -66,9 +66,6 @@ jobs:
           path: ./bin
           pattern: "rex*"
 
-      - name: Format name
-        run: echo "RELEASE_NAME=$(echo ${{ github.ref_name }} | cut -d_ -f2)" >> $GITHUB_ENV
-
       - name: Get previous tag
         run: |
           name=$(git --no-pager tag --sort=creatordate --merged ${{ github.ref_name }} | tail -2 | head -1)
@@ -93,5 +90,5 @@ jobs:
           draft: false
           prerelease: false
           tag_name: ${{ github.ref_name }}
-          name: "rex: ${{ env.RELEASE_NAME }}"
+          name: "rex: ${{ github.ref_name }}"
           body: ${{ steps.changelog.outputs.changes }}
