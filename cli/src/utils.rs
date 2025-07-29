@@ -24,6 +24,17 @@ pub fn parse_hex(s: &str) -> eyre::Result<Bytes, FromHexError> {
     }
 }
 
+/// Parses a hex string, stripping the "0x" prefix if present.
+/// Unlike `parse_hex`, the string doesn't need to be of even length.
+pub fn parse_hex_string(s: &str) -> eyre::Result<String> {
+    let s = s.strip_prefix("0x").unwrap_or(s);
+    if s.chars().all(|c| c.is_ascii_hexdigit()) {
+        Ok(s.to_string())
+    } else {
+        Err(eyre::eyre!("Invalid hex string"))
+    }
+}
+
 fn parse_call_args(args: Vec<String>) -> eyre::Result<Option<(String, Vec<Value>)>> {
     let mut args_iter = args.iter();
     let Some(signature) = args_iter.next() else {
