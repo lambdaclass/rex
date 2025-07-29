@@ -1,9 +1,8 @@
 use ethrex_common::Address;
 use ethrex_rlp::encode::RLPEncode;
 use keccak_hash::{H256, keccak};
-use rand::RngCore;
+use rand::{RngCore, thread_rng};
 use rayon::prelude::*;
-use std::iter;
 
 use crate::utils::to_checksum_address;
 
@@ -51,39 +50,40 @@ pub fn brute_force_create2(
     case_sensitive: bool,
 ) -> (H256, Address) {
     // If not case sensitive make the comparison with lowercase
+
+    let mut rng = thread_rng();
     let begins = begins.map(|s| if case_sensitive { s } else { s.to_lowercase() });
     let ends = ends.map(|s| if case_sensitive { s } else { s.to_lowercase() });
     let contains = contains.map(|s| if case_sensitive { s } else { s.to_lowercase() });
 
-    let mut salt_bytes = [0u8; 32];
+    loop {
+        // Generate a batch of random salts (100k is a good number)
+        let salts: Vec<H256> = (0..100000)
+            .map(|_| {
+                let mut salt_bytes = [0u8; 32];
+                rng.fill_bytes(&mut salt_bytes);
+                H256::from(salt_bytes)
+            })
+            .collect();
 
-    iter::repeat_with(|| {
-        rand::thread_rng().fill_bytes(&mut salt_bytes);
-        H256::from(salt_bytes)
-    })
-    .par_bridge() // Convert into a parallel iterator
-    .find_any(|salt| {
-        // Find a salt that satisfies the criteria set by the user.
-        let addr = compute_create2_address(deployer, init_code_hash, *salt);
+        if let Some(salt) = salts.par_iter().find_any(|salt| {
+            let addr = compute_create2_address(deployer, init_code_hash, **salt);
+            let addr_str = if !case_sensitive {
+                format!("{addr:x}")
+            } else {
+                to_checksum_address(&format!("{addr:x}"))
+            };
 
-        // Convert address to string, if it's not case sensitive leave it in lowercase.
-        let addr_str = if !case_sensitive {
-            format!("{addr:x}") // we could compare bytes directly but this produces cleaner code
-        } else {
-            to_checksum_address(&format!("{addr:x}"))
-        };
+            let matches_begins = begins.as_deref().is_none_or(|b| addr_str.starts_with(b));
+            let matches_ends = ends.as_deref().is_none_or(|e| addr_str.ends_with(e));
+            let matches_contains = contains.as_deref().is_none_or(|c| addr_str.contains(c));
 
-        let matches_begins = begins.as_deref().is_none_or(|b| addr_str.starts_with(b));
-        let matches_ends = ends.as_deref().is_none_or(|e| addr_str.ends_with(&e));
-        let matches_contains = contains.as_deref().is_none_or(|c| addr_str.contains(c));
-
-        matches_begins && matches_ends && matches_contains
-    })
-    .map(|salt| {
-        let addr = compute_create2_address(deployer, init_code_hash, salt);
-        (salt, addr)
-    })
-    .expect("should eventually find a match")
+            matches_begins && matches_ends && matches_contains
+        }) {
+            let addr = compute_create2_address(deployer, init_code_hash, *salt);
+            break (*salt, addr);
+        }
+    }
 }
 
 #[test]
