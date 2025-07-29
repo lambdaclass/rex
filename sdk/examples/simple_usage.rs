@@ -64,10 +64,7 @@ async fn main() {
         to,
         &args.private_key,
         &eth_client,
-        Overrides {
-            value: Some(amount),
-            ..Default::default()
-        },
+        Overrides::default(),
     )
     .await
     .unwrap();
