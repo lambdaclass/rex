@@ -6,15 +6,17 @@ use crate::{
 use clap::Subcommand;
 use ethrex_common::{Address, H256, U256};
 use rex_sdk::{
-    client::{EthClient, Overrides, eth::get_address_from_secret_key},
+    client::{EthClient, eth::get_address_from_secret_key},
     l2::{
-        deposit::deposit,
-        withdraw::{claim_withdraw, get_withdraw_merkle_proof, withdraw},
+        deposit::{deposit_erc20, deposit_through_contract_call},
+        withdraw::{
+            claim_erc20withdraw, claim_withdraw, get_withdraw_merkle_proof, withdraw,
+            withdraw_erc20,
+        },
     },
     wait_for_transaction_receipt,
 };
 use secp256k1::SecretKey;
-
 #[derive(Subcommand)]
 pub(crate) enum Command {
     #[clap(about = "Get the account's balance on L2.", visible_aliases = ["bal", "b"])]
@@ -62,7 +64,22 @@ pub(crate) enum Command {
     },
     #[clap(about = "Finalize a pending withdrawal.")]
     ClaimWithdraw {
+        #[clap(value_parser = parse_u256)]
+        claimed_amount: U256,
         l2_withdrawal_tx_hash: H256,
+        #[clap(
+            long = "token-l1",
+            help = "ERC20 token address on L1",
+            long_help = "Specify the token address, the base token is used as default."
+        )]
+        token_l1: Option<Address>,
+        #[clap(
+            long = "token-l2",
+            help = "ERC20 token address on L2",
+            long_help = "Specify the token address, it is required if you specify a token on L1.",
+            requires("token-l1")
+        )]
+        token_l2: Option<Address>,
         #[clap(
             long,
             short = 'c',
@@ -103,11 +120,18 @@ pub(crate) enum Command {
         #[clap(value_parser = parse_u256)]
         amount: U256,
         #[clap(
-            long = "token",
-            help = "ERC20 token address",
+            long = "token-l1",
+            help = "ERC20 token address on L1",
             long_help = "Specify the token address, the base token is used as default."
         )]
-        token_address: Option<Address>,
+        token_l1: Option<Address>,
+        #[clap(
+            long = "token-l2",
+            help = "ERC20 token address on L2",
+            long_help = "Specify the token address, it is required if you specify a token on L1.",
+            requires("token-l1")
+        )]
+        token_l2: Option<Address>,
         #[clap(
             long = "to",
             help = "Specify the wallet in which you want to deposit your funds."
@@ -136,7 +160,10 @@ pub(crate) enum Command {
         explorer_url: bool,
         #[clap(value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
-        #[arg(env = "BRIDGE_ADDRESS")]
+        #[arg(
+            env = "BRIDGE_ADDRESS",
+            help = "Make sure you are using the correct bridge address before submitting your deposit."
+        )]
         bridge_address: Address,
         #[arg(default_value = "http://localhost:8545", env = "L1_RPC_URL")]
         l1_rpc_url: String,
@@ -197,11 +224,18 @@ pub(crate) enum Command {
         #[clap(long = "nonce")]
         nonce: Option<u64>,
         #[clap(
-            long = "token",
-            help = "ERC20 token address",
+            long = "token-l1",
+            help = "ERC20 token address on L1",
             long_help = "Specify the token address, the base token is used as default."
         )]
-        token_address: Option<Address>,
+        token_l1: Option<Address>,
+        #[clap(
+            long = "token-l2",
+            help = "ERC20 token address on L2",
+            long_help = "Specify the token address, it is required if you specify a token on L1.",
+            requires("token-l1")
+        )]
+        token_l2: Option<Address>,
         #[clap(
             long,
             short = 'c',
@@ -248,7 +282,8 @@ impl Command {
         match self {
             Command::Deposit {
                 amount,
-                token_address,
+                token_l1,
+                token_l2,
                 to,
                 cast,
                 silent,
@@ -257,35 +292,44 @@ impl Command {
                 l1_rpc_url,
                 bridge_address,
             } => {
+                let eth_client = EthClient::new(&l1_rpc_url)?;
+                let to = to.unwrap_or(get_address_from_secret_key(&private_key)?);
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                if to.is_some() {
-                    // There are two ways of depositing funds into the L2:
-                    // 1. Directly transferring funds to the bridge.
-                    // 2. Depositing through a contract call to the deposit method of the bridge.
-                    // The second method is not handled in the CLI yet.
-                    todo!("Handle deposits through contract")
-                }
-
-                if token_address.is_some() {
-                    todo!("Handle ERC20 deposits")
-                }
-
-                let from = get_address_from_secret_key(&private_key)?;
-
-                let eth_client = EthClient::new(&l1_rpc_url);
-
-                let tx_hash = deposit(
-                    amount,
-                    from,
-                    private_key,
-                    &eth_client,
-                    bridge_address,
-                    Overrides::default(),
-                )
-                .await?;
+                // Deposit through ERC20 token transfer
+                let tx_hash = if let Some(token_l1) = token_l1 {
+                    let token_l2 = token_l2.expect(
+                        "Token address on L2 is required if token address on L1 is specified",
+                    );
+                    let from = get_address_from_secret_key(&private_key)?;
+                    println!(
+                        "Depositing {amount} from {from:#x} to L2 token {token_l2:#x} using L1 token {token_l1:#x}"
+                    );
+                    deposit_erc20(
+                        token_l1,
+                        token_l2,
+                        amount,
+                        from,
+                        private_key,
+                        &eth_client,
+                        bridge_address,
+                    )
+                    .await?
+                } else {
+                    println!("Depositing {amount} from {to:#x} to bridge");
+                    // TODO: estimate l1 gas price
+                    deposit_through_contract_call(
+                        amount,
+                        to,
+                        21000 * 10,
+                        &private_key,
+                        bridge_address,
+                        &eth_client,
+                    )
+                    .await?
+                };
 
                 println!("Deposit sent: {tx_hash:#x}");
 
@@ -294,7 +338,10 @@ impl Command {
                 }
             }
             Command::ClaimWithdraw {
+                claimed_amount,
                 l2_withdrawal_tx_hash,
+                token_l1,
+                token_l2,
                 cast,
                 silent,
                 private_key,
@@ -304,20 +351,43 @@ impl Command {
             } => {
                 let from = get_address_from_secret_key(&private_key)?;
 
-                let eth_client = EthClient::new(&l1_rpc_url);
+                let eth_client = EthClient::new(&l1_rpc_url)?;
 
-                let client = EthClient::new(&rpc_url);
+                let rollup_client = EthClient::new(&rpc_url)?;
 
-                let tx_hash = claim_withdraw(
-                    l2_withdrawal_tx_hash,
-                    U256::default(), // TODO: Fix this
-                    from,
-                    private_key,
-                    &client,
-                    &eth_client,
-                    bridge_address,
-                )
-                .await?;
+                let message_proof = rollup_client
+                    .wait_for_message_proof(l2_withdrawal_tx_hash, 100)
+                    .await?;
+
+                let withdrawal_proof = message_proof.into_iter().next().ok_or(eyre::eyre!(
+                    "No withdrawal proof found for transaction {l2_withdrawal_tx_hash:#x}"
+                ))?;
+
+                let tx_hash = if let Some(token_l1) = token_l1 {
+                    let token_l2 = token_l2.expect(
+                        "Token address on L2 is required if token address on L1 is specified",
+                    );
+                    claim_erc20withdraw(
+                        token_l1,
+                        token_l2,
+                        claimed_amount,
+                        private_key,
+                        &eth_client,
+                        &withdrawal_proof,
+                        bridge_address,
+                    )
+                    .await?
+                } else {
+                    claim_withdraw(
+                        claimed_amount,
+                        from,
+                        private_key,
+                        &eth_client,
+                        &withdrawal_proof,
+                        bridge_address,
+                    )
+                    .await?
+                };
 
                 println!("Withdrawal claim sent: {tx_hash:#x}");
 
@@ -328,26 +398,30 @@ impl Command {
             Command::Withdraw {
                 amount,
                 nonce,
-                token_address,
+                token_l1,
+                token_l2,
                 cast,
                 silent,
                 explorer_url,
                 private_key,
                 rpc_url,
             } => {
+                let from = get_address_from_secret_key(&private_key)?;
+
+                let client = EthClient::new(&rpc_url)?;
+
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                if token_address.is_some() {
-                    todo!("Handle ERC20 withdrawals")
-                }
-
-                let from = get_address_from_secret_key(&private_key)?;
-
-                let client = EthClient::new(&rpc_url);
-
-                let tx_hash = withdraw(amount, from, private_key, &client, nonce).await?;
+                let tx_hash = if let Some(token_l1) = token_l1 {
+                    let token_l2 = token_l2.expect(
+                        "Token address on L2 is required if token address on L1 is specified",
+                    );
+                    withdraw_erc20(amount, from, private_key, token_l1, token_l2, &client).await?
+                } else {
+                    withdraw(amount, from, private_key, &client, nonce).await?
+                };
 
                 println!("Withdrawal sent: {tx_hash:#x}");
 
@@ -359,7 +433,7 @@ impl Command {
                 l2_withdrawal_tx_hash,
                 rpc_url,
             } => {
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
 
                 let (_index, path) =
                     get_withdraw_merkle_proof(&client, l2_withdrawal_tx_hash).await?;

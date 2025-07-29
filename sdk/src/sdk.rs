@@ -13,21 +13,26 @@ pub mod utils;
 
 pub mod l2;
 
+#[derive(Debug, thiserror::Error)]
+pub enum SdkError {
+    #[error("Failed to parse address from hex")]
+    FailedToParseAddressFromHex,
+}
+
 pub async fn transfer(
     amount: U256,
     from: Address,
     to: Address,
-    private_key: SecretKey,
+    private_key: &SecretKey,
     client: &EthClient,
     mut overrides: Overrides,
 ) -> Result<H256, EthClientError> {
     overrides.value = Some(amount);
 
     let tx = client
-        .build_eip1559_transaction(to, from, Default::default(), overrides, 10)
+        .build_eip1559_transaction(to, from, Default::default(), overrides)
         .await?;
-
-    client.send_eip1559_transaction(&tx, &private_key).await
+    client.send_eip1559_transaction(&tx, private_key).await
 }
 
 pub async fn wait_for_transaction_receipt(

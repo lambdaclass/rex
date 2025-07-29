@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\tAddress: {keystore_address:#x}");
 
     // Connect the client to a node
-    let eth_client = EthClient::new(&args.rpc_url);
+    let eth_client = EthClient::new(&args.rpc_url)?;
 
     // 4. Fund the keystore account.
     let pk = &args
@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         amount,
         rich_wallet_address,
         keystore_address,
-        rich_wallet_pk,
+        &rich_wallet_pk,
         &eth_client,
         Overrides::default(),
     )
@@ -136,7 +136,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 max_priority_fee_per_gas: Some(20000),
                 ..Default::default()
             },
-            10,
         )
         .await?;
 

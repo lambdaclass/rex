@@ -9,6 +9,7 @@ use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::{Address, Bytes, H256, H520};
 use keccak_hash::keccak;
 use rex_sdk::calldata::{Value, decode_calldata};
+use rex_sdk::client::eth::BlockByNumber;
 use rex_sdk::create::compute_create_address;
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
 use rex_sdk::{
@@ -195,7 +196,7 @@ pub(crate) enum Command {
     #[clap(about = "Encodes calldata")]
     EncodeCalldata {
         signature: String,
-        #[arg(last = true)]
+        #[clap(required = false)]
         args: Vec<String>,
     },
     #[clap(about = "Decodes calldata")]
@@ -217,17 +218,19 @@ impl Command {
                 eth,
                 rpc_url,
             } => {
-                let eth_client = EthClient::new(&rpc_url);
+                let eth_client = EthClient::new(&rpc_url)?;
                 let account_balance = if let Some(token_address) = token_address {
                     eth_client.get_token_balance(account, token_address).await?
                 } else {
-                    eth_client.get_balance(account).await?
+                    eth_client
+                        .get_balance(account, BlockByNumber::Latest)
+                        .await?
                 };
 
                 println!("{}", balance_in_eth(eth, account_balance));
             }
             Command::BlockNumber { rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url);
+                let eth_client = EthClient::new(&rpc_url)?;
 
                 let block_number = eth_client.get_block_number().await?;
 
@@ -238,12 +241,16 @@ impl Command {
                 nonce,
                 rpc_url,
             } => {
-                let nonce = nonce.unwrap_or(EthClient::new(&rpc_url).get_nonce(address).await?);
+                let nonce = nonce.unwrap_or(
+                    EthClient::new(&rpc_url)?
+                        .get_nonce(address, BlockByNumber::Latest)
+                        .await?,
+                );
 
                 println!("0x{:x}", compute_create_address(address, nonce))
             }
             Command::Transaction { tx_hash, rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url);
+                let eth_client = EthClient::new(&rpc_url)?;
 
                 let tx = eth_client
                     .get_transaction_by_hash(tx_hash)
@@ -253,7 +260,7 @@ impl Command {
                 println!("{tx}");
             }
             Command::Receipt { tx_hash, rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url);
+                let eth_client = EthClient::new(&rpc_url)?;
 
                 let receipt = eth_client
                     .get_transaction_receipt(tx_hash)
@@ -263,9 +270,9 @@ impl Command {
                 println!("{:x?}", receipt.tx_info);
             }
             Command::Nonce { account, rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url);
+                let eth_client = EthClient::new(&rpc_url)?;
 
-                let nonce = eth_client.get_nonce(account).await?;
+                let nonce = eth_client.get_nonce(account, BlockByNumber::Latest).await?;
 
                 println!("{nonce}");
             }
@@ -322,19 +329,15 @@ impl Command {
 
                 let from = get_address_from_secret_key(&args.private_key)?;
 
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
 
                 let tx_hash = transfer(
                     args.amount,
                     from,
                     args.to,
-                    args.private_key,
+                    &args.private_key,
                     &client,
-                    Overrides {
-                        value: Some(args.amount),
-                        nonce: args.nonce,
-                        ..Default::default()
-                    },
+                    Overrides::default(),
                 )
                 .await?;
 
@@ -351,7 +354,7 @@ impl Command {
 
                 let from = get_address_from_secret_key(&args.private_key)?;
 
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
 
                 let calldata = if !args.calldata.is_empty() {
                     args.calldata
@@ -374,7 +377,6 @@ impl Command {
                             from: Some(from),
                             ..Default::default()
                         },
-                        10,
                     )
                     .await?;
 
@@ -393,7 +395,7 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
 
                 let calldata = if !args.calldata.is_empty() {
                     args.calldata
@@ -424,7 +426,7 @@ impl Command {
 
                 let from = get_address_from_secret_key(&args.private_key)?;
 
-                let client = EthClient::new(&rpc_url);
+                let client = EthClient::new(&rpc_url)?;
 
                 let init_code = if !args._args.is_empty() {
                     let init_args = parse_contract_creation(args._args)?;
@@ -463,7 +465,7 @@ impl Command {
                 }
             }
             Command::ChainId { hex, rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url);
+                let eth_client = EthClient::new(&rpc_url)?;
 
                 let chain_id = eth_client.get_chain_id().await?;
 
@@ -478,11 +480,13 @@ impl Command {
                 block,
                 rpc_url,
             } => {
-                let eth_client = EthClient::new(&rpc_url);
+                let eth_client = EthClient::new(&rpc_url)?;
 
-                let code = eth_client.get_code(address, block).await?;
+                let code = eth_client
+                    .get_code(address, block.as_str().try_into()?)
+                    .await?;
 
-                println!("{}", code);
+                println!("0x{}", hex::encode(code));
             }
 
             // Signature computed as a 0x45 signature, as described in EIP-191 (https://eips.ethereum.org/EIPS/eip-191),

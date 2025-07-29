@@ -1,16 +1,17 @@
-use crate::client::eth::{
-    EthClient, RpcResponse,
-    errors::{CallError, EthClientError},
-};
-use ethrex_common::{
-    Address, Bytes, H256, U256,
-    types::{GenericTransaction, TxKind},
-};
+use ethrex_common::types::{GenericTransaction, TxKind};
+use ethrex_common::{Address, U256};
+use ethrex_common::{Bytes, H256};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::utils::{RpcRequest, RpcRequestId};
 use keccak_hash::keccak;
 use secp256k1::SecretKey;
 use serde_json::json;
+
+use crate::client::eth::RpcResponse;
+use crate::client::eth::errors::CallError;
+use crate::client::{EthClient, EthClientError};
+
+use super::BlockByNumber;
 
 #[derive(Default, Clone, Debug)]
 pub struct Overrides {
@@ -24,6 +25,7 @@ pub struct Overrides {
     pub max_priority_fee_per_gas: Option<u64>,
     pub access_list: Vec<(Address, Vec<H256>)>,
     pub gas_price_per_blob: Option<U256>,
+    pub block: Option<BlockByNumber>,
 }
 
 impl EthClient {
@@ -39,9 +41,11 @@ impl EthClient {
             value: overrides.value.unwrap_or_default(),
             from: overrides.from.unwrap_or_default(),
             gas: overrides.gas_limit,
-            gas_price: overrides
-                .max_fee_per_gas
-                .unwrap_or(self.get_gas_price().await?.as_u64()),
+            gas_price: if let Some(gas_price) = overrides.max_fee_per_gas {
+                gas_price
+            } else {
+                self.get_gas_price().await?.as_u64()
+            },
             ..Default::default()
         };
 
@@ -59,7 +63,10 @@ impl EthClient {
                     "value": format!("{:#x}", tx.value),
                     "from": format!("{:#x}", tx.from),
                 }),
-                json!("latest"),
+                overrides
+                    .block
+                    .map(Into::into)
+                    .unwrap_or(serde_json::Value::String("latest".to_string())),
             ]),
         };
 
@@ -84,13 +91,13 @@ impl EthClient {
         let mut deploy_overrides = overrides;
         deploy_overrides.to = Some(TxKind::Create);
         let deploy_tx = self
-            .build_eip1559_transaction(Address::zero(), deployer, init_code, deploy_overrides, 10)
+            .build_eip1559_transaction(Address::zero(), deployer, init_code, deploy_overrides)
             .await?;
         let deploy_tx_hash = self
             .send_eip1559_transaction(&deploy_tx, &deployer_private_key)
             .await?;
 
-        let nonce = self.get_nonce(deployer).await?;
+        let nonce = self.get_nonce(deployer, BlockByNumber::Latest).await?;
         let mut encode = vec![];
         (deployer, nonce).encode(&mut encode);
 
