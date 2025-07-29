@@ -155,11 +155,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 8. Get the log emitted by the contract call execution.
     let logs = eth_client
-        .get_logs_from_signature(
+        .get_logs(
             from_block,
             to_block,
             deployed_address,
-            "RecoveredSigner(address)",
+            keccak("RecoveredSigner(address)"),
         )
         .await?;
 
