@@ -10,7 +10,6 @@ use ethrex_rpc::{
     types::block_identifier::{BlockIdentifier, BlockTag},
 };
 use keccak_hash::keccak;
-use tracing::warn;
 
 use crate::client::eth::{EthClient, EthClientError, Overrides};
 
@@ -137,7 +136,7 @@ pub async fn send_tx_bump_gas_exponential_backoff(
                     *tx_max_priority_fee = *tx_max_fee;
                 }
 
-                warn!(
+                println!(
                     "max_fee_per_gas exceeds the allowed limit, adjusting it to {max_fee_per_gas}"
                 );
             }
@@ -148,7 +147,7 @@ pub async fn send_tx_bump_gas_exponential_backoff(
             if let Some(max_fee_per_blob_gas) = client.maximum_allowed_max_fee_per_blob_gas {
                 if tx.tx.max_fee_per_blob_gas > U256::from(max_fee_per_blob_gas) {
                     tx.tx.max_fee_per_blob_gas = U256::from(max_fee_per_blob_gas);
-                    warn!(
+                    println!(
                         "max_fee_per_blob_gas exceeds the allowed limit, adjusting it to {max_fee_per_blob_gas}"
                     );
                 }
@@ -157,7 +156,7 @@ pub async fn send_tx_bump_gas_exponential_backoff(
         let tx_hash = send_wrapped_transaction(client, wrapped_tx, signer).await?;
 
         if number_of_retries > 0 {
-            warn!(
+            println!(
                 "Resending Transaction after bumping gas, attempts [{number_of_retries}/{}]\nTxHash: {tx_hash:#x}",
                 client.max_number_of_retries
             );

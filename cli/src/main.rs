@@ -2,15 +2,8 @@ use rex::cli;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::ERROR)
-        .init();
-
-    match cli::start().await {
-        Ok(_) => {}
-        Err(err) => {
-            tracing::error!("{err:?}");
-            std::process::exit(1);
-        }
-    }
+    let _ = cli::start().await.inspect_err(|err| {
+        eprintln!("\x1b[31;1mError:\x1b[0m execution failed: {err:?}");
+        std::process::exit(1);
+    });
 }

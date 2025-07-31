@@ -198,7 +198,7 @@ pub(crate) enum Command {
     #[clap(about = "Encodes calldata")]
     EncodeCalldata {
         signature: String,
-        #[arg(last = true)]
+        #[clap(required = false)]
         args: Vec<String>,
     },
     #[clap(about = "Decodes calldata")]

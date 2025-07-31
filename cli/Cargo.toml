@@ -35,11 +35,6 @@ itertools = "0.14.0"
 toml = "0.8.19"
 dirs = "6.0.0"
 
-# Logging
-log = "0.4"
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-
 # Serde
 serde = "1.0.218"
 serde_json = "1.0.139"
