@@ -1,3 +1,4 @@
+use crate::client::eth::clients::send_eip1559_transaction;
 use crate::{
     calldata::{Value, encode_calldata},
     client::{
@@ -16,6 +17,7 @@ use ethrex_common::{
     Address, Bytes, H256, U256,
     types::{Transaction, TxKind},
 };
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::types::block::BlockBodyWrapper;
 use itertools::Itertools;
 use secp256k1::SecretKey;
@@ -43,9 +45,9 @@ pub async fn withdraw(
         )
         .await?;
 
-    proposer_client
-        .send_eip1559_transaction(&withdraw_transaction, &from_pk)
-        .await
+    let signer = Signer::Local(LocalSigner::new(from_pk));
+
+    send_eip1559_transaction(proposer_client, &withdraw_transaction, &signer).await
 }
 
 pub async fn withdraw_erc20(
@@ -73,9 +75,9 @@ pub async fn withdraw_erc20(
         )
         .await?;
 
-    l2_client
-        .send_eip1559_transaction(&withdraw_transaction, &from_pk)
-        .await
+    let signer = Signer::Local(LocalSigner::new(from_pk));
+
+    send_eip1559_transaction(l2_client, &withdraw_transaction, &signer).await
 }
 
 pub async fn claim_withdraw(
@@ -122,10 +124,9 @@ pub async fn claim_withdraw(
             },
         )
         .await?;
+    let signer = Signer::Local(LocalSigner::new(from_pk));
 
-    eth_client
-        .send_eip1559_transaction(&claim_tx, &from_pk)
-        .await
+    send_eip1559_transaction(eth_client, &claim_tx, &signer).await
 }
 
 pub async fn claim_erc20withdraw(
@@ -174,9 +175,9 @@ pub async fn claim_erc20withdraw(
         )
         .await?;
 
-    eth_client
-        .send_eip1559_transaction(&claim_tx, &from_pk)
-        .await
+    let signer = Signer::Local(LocalSigner::new(from_pk));
+
+    send_eip1559_transaction(eth_client, &claim_tx, &signer).await
 }
 
 /// Returns the formatted hash of the withdrawal transaction,

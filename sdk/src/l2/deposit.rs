@@ -1,11 +1,14 @@
 use crate::calldata::{Value, encode_calldata};
 use crate::client::Overrides;
+use crate::client::eth::clients::send_eip1559_transaction;
 use crate::{
     client::eth::get_address_from_secret_key,
     client::{EthClient, EthClientError},
     transfer,
 };
+
 use ethrex_common::{Address, H256, U256};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use secp256k1::SecretKey;
 
 const DEPOSIT_ERC20_SIGNATURE: &str = "depositERC20(address,address,address,uint256)";
@@ -44,10 +47,9 @@ pub async fn deposit_through_contract_call(
             },
         )
         .await?;
+    let signer = Signer::Local(LocalSigner::new(*depositor_private_key));
 
-    eth_client
-        .send_eip1559_transaction(&deposit_tx, depositor_private_key)
-        .await
+    send_eip1559_transaction(eth_client, &deposit_tx, &signer).await
 }
 
 pub async fn deposit_erc20(
@@ -84,7 +86,7 @@ pub async fn deposit_erc20(
         )
         .await?;
 
-    eth_client
-        .send_eip1559_transaction(&deposit_tx, &from_pk)
-        .await
+    let signer = Signer::Local(LocalSigner::new(from_pk));
+
+    send_eip1559_transaction(eth_client, &deposit_tx, &signer).await
 }
