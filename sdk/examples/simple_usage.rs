@@ -2,7 +2,10 @@ use clap::Parser;
 use ethrex_common::{Address, Bytes, U256};
 use hex::FromHexError;
 use rex_sdk::{
-    client::{EthClient, eth::BlockByNumber, eth::get_address_from_secret_key},
+    client::{
+        EthClient, Overrides,
+        eth::{BlockByNumber, get_address_from_secret_key},
+    },
     transfer, wait_for_transaction_receipt,
 };
 use secp256k1::SecretKey;
@@ -12,7 +15,7 @@ use std::str::FromStr;
 struct SimpleUsageArgs {
     #[arg(long, value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to derive the address from.")]
     private_key: SecretKey,
-    #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+    #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
     rpc_url: String,
 }
 
@@ -33,9 +36,7 @@ async fn main() {
 
     let account = get_address_from_secret_key(&args.private_key).unwrap();
 
-    let rpc_url = "http://localhost:8545";
-
-    let eth_client = EthClient::new(rpc_url).unwrap();
+    let eth_client = EthClient::new(&args.rpc_url).unwrap();
 
     let account_balance = eth_client
         .get_balance(account, BlockByNumber::Latest)
@@ -57,9 +58,16 @@ async fn main() {
     let from = account;
     let to = Address::from_str("0x4852f44fd706e34cb906b399b729798665f64a83").unwrap();
 
-    let tx_hash = transfer(amount, from, to, &args.private_key, &eth_client)
-        .await
-        .unwrap();
+    let tx_hash = transfer(
+        amount,
+        from,
+        to,
+        &args.private_key,
+        &eth_client,
+        Overrides::default(),
+    )
+    .await
+    .unwrap();
 
     // Wait for the transaction to be finalized
     wait_for_transaction_receipt(tx_hash, &eth_client, 100, false)

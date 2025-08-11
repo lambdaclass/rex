@@ -252,19 +252,20 @@ async fn main() {
 }
 ```
 
-#### Running the example
+#### Running the examples
 
 > [!WARNING]
-> Before running the example, make sure you have an Ethereum node running or override the default RPC URL with the `--rpc-url` flag to point to a public node.
+> Before running the examples, make sure you have an Ethereum node running or override the default RPC URL with the `--rpc-url` flag to point to a public node.
 > The account associated to the private key must have some funds in the network you are connecting to.
 
 ```Shell
 cd sdk
 cargo run --release --example simple_usage -- --private-key <PRIVATE_KEY> --rpc-url <RPC_URL>
+cargo run --release --example keystore -- --private-key <PRIVATE_KEY> --rpc-url <RPC_URL>
 ```
 
 > [!NOTE]
-> You can find the code for this example in `sdk/examples/simple_usage.rs`.
+> You can find the code for these examples in `sdk/examples/`.
 
 You can find the SDK documentation [here](sdk/README.md).
 

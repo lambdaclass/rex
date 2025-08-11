@@ -1,5 +1,4 @@
 use crate::client::{EthClient, EthClientError, Overrides};
-use ethrex_common::types::GenericTransaction;
 use ethrex_common::{Address, H256, U256};
 use ethrex_rpc::types::receipt::RpcReceipt;
 use secp256k1::SecretKey;
@@ -26,33 +25,13 @@ pub async fn transfer(
     to: Address,
     private_key: &SecretKey,
     client: &EthClient,
+    mut overrides: Overrides,
 ) -> Result<H256, EthClientError> {
-    let gas_price = client
-        .get_gas_price_with_extra(20)
-        .await?
-        .try_into()
-        .map_err(|_| {
-            EthClientError::InternalError("Failed to convert gas_price to a u64".to_owned())
-        })?;
+    overrides.value = Some(amount);
 
-    let mut tx = client
-        .build_eip1559_transaction(
-            to,
-            from,
-            Default::default(),
-            Overrides {
-                value: Some(amount),
-                max_fee_per_gas: Some(gas_price),
-                max_priority_fee_per_gas: Some(gas_price),
-                ..Default::default()
-            },
-        )
+    let tx = client
+        .build_eip1559_transaction(to, from, Default::default(), overrides)
         .await?;
-
-    let mut tx_generic: GenericTransaction = tx.clone().into();
-    tx_generic.from = from;
-    let gas_limit = client.estimate_gas(tx_generic).await?;
-    tx.gas_limit = gas_limit;
     client.send_eip1559_transaction(&tx, private_key).await
 }
 
