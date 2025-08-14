@@ -5602,7 +5602,7 @@ dependencies = [
  "hex",
  "itertools 0.14.0",
  "keccak-hash",
- "rand 0.9.1",
+ "rand 0.9.2",
  "rayon",
  "rex-sdk",
  "secp256k1",
