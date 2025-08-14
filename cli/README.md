@@ -45,6 +45,7 @@ Commands:
   chain-id          Get the network's chain id.
   code              Returns code at a given address
   create-address    Compute contract address given the deployer address and nonce.
+  create2-address   Compute contract address with CREATE2 opcode.
   deploy            Deploy a contract
   hash              Get either the keccak for a given input, the zero hash, the empty string, or a random hash [aliases: h]
   l2                L2 specific commands.

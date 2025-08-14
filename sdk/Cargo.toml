@@ -33,6 +33,7 @@ envy = "0.4.2"
 rustc-hex = "2.1.0"
 url = "2.5.4"
 thiserror.workspace = true
+rayon.workspace = true
 
 # Serde
 serde = "1.0.218"
