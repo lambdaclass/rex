@@ -1,15 +1,17 @@
 use ethrex_common::{Address, Bytes, H160, H256, U256, types::BlockNumber};
-use ethrex_l2::sequencer::l1_watcher::PrivilegedTransactionData;
-use ethrex_rpc::types::receipt::RpcReceipt;
+use ethrex_rpc::types::{
+    block_identifier::{BlockIdentifier, BlockTag},
+    receipt::RpcReceipt,
+};
 use keccak_hash::keccak;
 use rex_sdk::calldata::{self, Value};
 use rex_sdk::client::EthClient;
 use rex_sdk::client::Overrides;
-use rex_sdk::client::eth::BlockByNumber;
 use rex_sdk::client::eth::get_address_from_secret_key;
 use rex_sdk::l2::deposit::{deposit_through_contract_call, deposit_through_transfer};
 use rex_sdk::l2::l1_to_l2_tx_data::{L1ToL2TransactionData, send_l1_to_l2_tx};
 use rex_sdk::l2::withdraw::{claim_withdraw, withdraw};
+use rex_sdk::privileged_transaction_data::PrivilegedTransactionData;
 use rex_sdk::transfer;
 use rex_sdk::wait_for_transaction_receipt;
 use secp256k1::SecretKey;
@@ -200,7 +202,7 @@ async fn test_deposit_through_transfer(
         .unwrap_or(U256::from(1000000000000000000000u128));
 
     let depositor_l1_initial_balance = eth_client
-        .get_balance(depositor, BlockByNumber::Latest)
+        .get_balance(depositor, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert!(
@@ -209,15 +211,18 @@ async fn test_deposit_through_transfer(
     );
 
     let deposit_recipient_l2_initial_balance = proposer_client
-        .get_balance(deposit_recipient_address, BlockByNumber::Latest)
+        .get_balance(
+            deposit_recipient_address,
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     let bridge_initial_balance = eth_client
-        .get_balance(bridge_address, BlockByNumber::Latest)
+        .get_balance(bridge_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let fee_vault_balance_before_deposit = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     println!("Depositing funds from L1 to L2 through transfer");
@@ -237,7 +242,7 @@ async fn test_deposit_through_transfer(
         wait_for_transaction_receipt(deposit_tx_hash, eth_client, 5, true).await?;
 
     let depositor_l1_balance_after_deposit = eth_client
-        .get_balance(depositor, BlockByNumber::Latest)
+        .get_balance(depositor, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -249,7 +254,7 @@ async fn test_deposit_through_transfer(
     );
 
     let bridge_balance_after_deposit = eth_client
-        .get_balance(bridge_address, BlockByNumber::Latest)
+        .get_balance(bridge_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -268,7 +273,10 @@ async fn test_deposit_through_transfer(
     .await?;
 
     let deposit_recipient_l2_balance_after_deposit = proposer_client
-        .get_balance(deposit_recipient_address, BlockByNumber::Latest)
+        .get_balance(
+            deposit_recipient_address,
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     assert_eq!(
@@ -278,7 +286,7 @@ async fn test_deposit_through_transfer(
     );
 
     let fee_vault_balance_after_deposit = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -304,7 +312,7 @@ async fn test_deposit_through_contract_call(
         .unwrap_or(U256::from(1000000000000000000000u128));
 
     let depositor_l1_initial_balance = eth_client
-        .get_balance(depositor, BlockByNumber::Latest)
+        .get_balance(depositor, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert!(
@@ -313,15 +321,18 @@ async fn test_deposit_through_contract_call(
     );
 
     let deposit_recipient_l2_initial_balance = proposer_client
-        .get_balance(deposit_recipient_address, BlockByNumber::Latest)
+        .get_balance(
+            deposit_recipient_address,
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     let bridge_initial_balance = eth_client
-        .get_balance(bridge_address, BlockByNumber::Latest)
+        .get_balance(bridge_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let fee_vault_balance_before_deposit = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     println!("Depositing funds from L1 to L2 through contract call");
@@ -342,7 +353,7 @@ async fn test_deposit_through_contract_call(
         wait_for_transaction_receipt(deposit_tx_hash, eth_client, 5, true).await?;
 
     let depositor_l1_balance_after_deposit = eth_client
-        .get_balance(depositor, BlockByNumber::Latest)
+        .get_balance(depositor, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -354,7 +365,7 @@ async fn test_deposit_through_contract_call(
     );
 
     let bridge_balance_after_deposit = eth_client
-        .get_balance(bridge_address, BlockByNumber::Latest)
+        .get_balance(bridge_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -373,7 +384,10 @@ async fn test_deposit_through_contract_call(
     .await?;
 
     let deposit_recipient_l2_balance_after_deposit = proposer_client
-        .get_balance(deposit_recipient_address, BlockByNumber::Latest)
+        .get_balance(
+            deposit_recipient_address,
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     assert_eq!(
@@ -383,7 +397,7 @@ async fn test_deposit_through_contract_call(
     );
 
     let fee_vault_balance_after_deposit = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -441,7 +455,7 @@ async fn test_transfer_with_privileged_tx(
     let receiver_address = get_address_from_secret_key(receiver_private_key)?;
 
     let receiver_balance_before = proposer_client
-        .get_balance(receiver_address, BlockByNumber::Latest)
+        .get_balance(receiver_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let l1_to_l2_tx_hash = send_l1_to_l2_tx(
@@ -474,7 +488,7 @@ async fn test_transfer_with_privileged_tx(
     println!("Checking balances after transfer");
 
     let receiver_balance_after = proposer_client
-        .get_balance(receiver_address, BlockByNumber::Latest)
+        .get_balance(receiver_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
     assert_eq!(
         receiver_balance_after,
@@ -673,7 +687,7 @@ async fn perform_transfer(
     let transferer_address = get_address_from_secret_key(transferer_private_key)?;
 
     let transferer_initial_l2_balance = proposer_client
-        .get_balance(transferer_address, BlockByNumber::Latest)
+        .get_balance(transferer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert!(
@@ -682,11 +696,14 @@ async fn perform_transfer(
     );
 
     let transfer_recipient_initial_balance = proposer_client
-        .get_balance(transfer_recipient_address, BlockByNumber::Latest)
+        .get_balance(
+            transfer_recipient_address,
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     let fee_vault_balance_before_transfer = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let transfer_tx = transfer(
@@ -702,7 +719,7 @@ async fn perform_transfer(
         wait_for_transaction_receipt(transfer_tx, proposer_client, 1000, true).await?;
 
     let recoverable_fees_vault_balance = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     println!("Recoverable Fees Balance: {recoverable_fees_vault_balance}",);
@@ -710,7 +727,7 @@ async fn perform_transfer(
     println!("Checking balances on L2 after transfer");
 
     let transferer_l2_balance_after_transfer = proposer_client
-        .get_balance(transferer_address, BlockByNumber::Latest)
+        .get_balance(transferer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert!(
@@ -723,7 +740,10 @@ async fn perform_transfer(
     );
 
     let transfer_recipient_l2_balance_after_transfer = proposer_client
-        .get_balance(transfer_recipient_address, BlockByNumber::Latest)
+        .get_balance(
+            transfer_recipient_address,
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     assert_eq!(
@@ -733,7 +753,7 @@ async fn perform_transfer(
     );
 
     let fee_vault_balance_after_transfer = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let transfer_fees = get_fees_details_l2(transfer_tx_receipt, proposer_client).await;
@@ -762,7 +782,7 @@ async fn get_fees_details_l2(tx_receipt: RpcReceipt, proposer_client: &EthClient
 
     let effective_gas_price = tx_receipt.tx_info.effective_gas_price;
     let base_fee_per_gas = proposer_client
-        .get_block_by_number(BlockByNumber::Number(tx_receipt.block_info.block_number))
+        .get_block_by_number(BlockIdentifier::Number(tx_receipt.block_info.block_number))
         .await
         .unwrap()
         .header
@@ -790,11 +810,11 @@ async fn test_deploy(
     let deployer_address = get_address_from_secret_key(deployer_private_key)?;
 
     let deployer_balance_before_deploy = proposer_client
-        .get_balance(deployer_address, BlockByNumber::Latest)
+        .get_balance(deployer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let fee_vault_balance_before_deploy = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let (deploy_tx_hash, contract_address) = proposer_client
@@ -812,7 +832,7 @@ async fn test_deploy(
     let deploy_fees = get_fees_details_l2(deploy_tx_receipt, proposer_client).await;
 
     let deployer_balance_after_deploy = proposer_client
-        .get_balance(deployer_address, BlockByNumber::Latest)
+        .get_balance(deployer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -822,7 +842,7 @@ async fn test_deploy(
     );
 
     let fee_vault_balance_after_deploy = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -832,7 +852,7 @@ async fn test_deploy(
     );
 
     let deployed_contract_balance = proposer_client
-        .get_balance(contract_address, BlockByNumber::Latest)
+        .get_balance(contract_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert!(
@@ -856,15 +876,18 @@ async fn test_call_to_contract_with_deposit(
     println!("Checking balances before call");
 
     let caller_l1_balance_before_call = eth_client
-        .get_balance(caller_address, BlockByNumber::Latest)
+        .get_balance(caller_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let deployed_contract_balance_before_call = proposer_client
-        .get_balance(deployed_contract_address, BlockByNumber::Latest)
+        .get_balance(
+            deployed_contract_address,
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     let fee_vault_balance_before_call = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     println!("Calling contract on L2 with deposit");
@@ -902,7 +925,7 @@ async fn test_call_to_contract_with_deposit(
     println!("Checking balances after call");
 
     let caller_l1_balance_after_call = eth_client
-        .get_balance(caller_address, BlockByNumber::Latest)
+        .get_balance(caller_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -914,7 +937,7 @@ async fn test_call_to_contract_with_deposit(
     );
 
     let fee_vault_balance_after_call = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -923,7 +946,10 @@ async fn test_call_to_contract_with_deposit(
     );
 
     let deployed_contract_balance_after_call = proposer_client
-        .get_balance(deployed_contract_address, BlockByNumber::Latest)
+        .get_balance(
+            deployed_contract_address,
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     assert_eq!(
@@ -950,7 +976,7 @@ async fn test_n_withdraws(
     println!("Checking balances on L1 and L2 before withdrawal");
 
     let withdrawer_l2_balance_before_withdrawal = proposer_client
-        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .get_balance(withdrawer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert!(
@@ -959,7 +985,10 @@ async fn test_n_withdraws(
     );
 
     let bridge_balance_before_withdrawal = eth_client
-        .get_balance(common_bridge_address(), BlockByNumber::Latest)
+        .get_balance(
+            common_bridge_address(),
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     assert!(
@@ -968,11 +997,11 @@ async fn test_n_withdraws(
     );
 
     let withdrawer_l1_balance_before_withdrawal = eth_client
-        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .get_balance(withdrawer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let fee_vault_balance_before_withdrawal = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     println!("Withdrawing funds from L2 to L1");
@@ -1004,7 +1033,7 @@ async fn test_n_withdraws(
     println!("Checking balances on L1 and L2 after withdrawal");
 
     let withdrawer_l2_balance_after_withdrawal = proposer_client
-        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .get_balance(withdrawer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert!(
@@ -1015,7 +1044,7 @@ async fn test_n_withdraws(
     );
 
     let withdrawer_l1_balance_after_withdrawal = eth_client
-        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .get_balance(withdrawer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -1024,7 +1053,7 @@ async fn test_n_withdraws(
     );
 
     let fee_vault_balance_after_withdrawal = proposer_client
-        .get_balance(fees_vault(), BlockByNumber::Latest)
+        .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let mut withdraw_fees = U256::zero();
@@ -1091,7 +1120,7 @@ async fn test_n_withdraws(
     println!("Checking balances on L1 and L2 after claim");
 
     let withdrawer_l1_balance_after_claim = eth_client
-        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .get_balance(withdrawer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let gas_used_value: u64 = withdraw_claim_txs_receipts
@@ -1106,7 +1135,7 @@ async fn test_n_withdraws(
     );
 
     let withdrawer_l2_balance_after_claim = proposer_client
-        .get_balance(withdrawer_address, BlockByNumber::Latest)
+        .get_balance(withdrawer_address, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
@@ -1115,7 +1144,10 @@ async fn test_n_withdraws(
     );
 
     let bridge_balance_after_withdrawal = eth_client
-        .get_balance(common_bridge_address(), BlockByNumber::Latest)
+        .get_balance(
+            common_bridge_address(),
+            BlockIdentifier::Tag(BlockTag::Latest),
+        )
         .await?;
 
     assert_eq!(

@@ -1,6 +1,7 @@
 use crate::client::{EthClient, EthClientError, Overrides};
 use ethrex_common::types::GenericTransaction;
 use ethrex_common::{Address, H256, U256};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::types::receipt::RpcReceipt;
 use secp256k1::SecretKey;
 
@@ -9,6 +10,7 @@ pub mod client;
 pub mod create;
 pub mod errors;
 pub mod keystore;
+pub mod privileged_transaction_data;
 pub mod sign;
 pub mod utils;
 
@@ -18,6 +20,8 @@ pub mod l2;
 pub enum SdkError {
     #[error("Failed to parse address from hex")]
     FailedToParseAddressFromHex,
+    #[error("Failed deserializing log: {0}")]
+    FailedToDeserializeLog(String),
 }
 
 pub async fn transfer(
@@ -53,7 +57,8 @@ pub async fn transfer(
     tx_generic.from = from;
     let gas_limit = client.estimate_gas(tx_generic).await?;
     tx.gas_limit = gas_limit;
-    client.send_eip1559_transaction(&tx, private_key).await
+    let signer = Signer::Local(LocalSigner::new(*private_key));
+    client.send_eip1559_transaction(&tx, &signer).await
 }
 
 pub async fn wait_for_transaction_receipt(
