@@ -155,9 +155,9 @@ jobs:
       - name: Check if any job failed
         run: |
           if [ "${{ needs.sdk-integration-test.result }}" != "success" ]; then
-            sh .github/scripts/publish_report.sh ${{ secrets.ETHREX_L2_SLACK_WEBHOOK }} "Rex SDK is out of sync with ethrex."
+            sh .github/scripts/publish_report.sh ${{ secrets.ETHREX_L2_SLACK_WEBHOOK }} "Rex SDK is not working with the latest ethrex version."
           fi
           if [ "${{ needs.cli-integration-test.result }}" != "success" ]; then
-            sh .github/scripts/publish_report.sh ${{ secrets.ETHREX_L2_SLACK_WEBHOOK }} "Rex CLI is out of sync with ethrex."
+            sh .github/scripts/publish_report.sh ${{ secrets.ETHREX_L2_SLACK_WEBHOOK }} "Rex CLI is not working with the latest ethrex version."
           fi
           echo "Sending Results" >> $GITHUB_STEP_SUMMARY
