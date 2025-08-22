@@ -32,7 +32,7 @@ jobs:
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
           echo "ethrex installed successfully"
-      # also creates empty verification keys (as workflow runs with exec backend)  
+      # also creates empty verification keys (as workflow runs with exec backend)
       - name: Build prover
         run: |
           cd ../ethrex/crates/l2
@@ -72,7 +72,7 @@ jobs:
           cd /home/runner/work/rex/rex/sdk
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex-sdk --test tests -- --nocapture --test-threads=1
           killall ethrex_prover -s SIGINT
-  
+
   cli-integration-test:
     name: Integration Test - CLI
     runs-on: ubuntu-latest
@@ -155,10 +155,9 @@ jobs:
       - name: Check if any job failed
         run: |
           if [ "${{ needs.sdk-integration-test.result }}" != "success" ]; then
-            sh .github/scripts/publish_report.sh ${{ secrets.TEST_CHANNEL_SLACK }} "Rex SDK is out of sync with ethrex."
+            sh .github/scripts/publish_report.sh ${{ secrets.ETHREX_L2_SLACK_WEBHOOK }} "Rex SDK is out of sync with ethrex."
           fi
           if [ "${{ needs.cli-integration-test.result }}" != "success" ]; then
-            sh .github/scripts/publish_report.sh ${{ secrets.TEST_CHANNEL_SLACK }} "Rex CLI is out of sync with ethrex."
+            sh .github/scripts/publish_report.sh ${{ secrets.ETHREX_L2_SLACK_WEBHOOK }} "Rex CLI is out of sync with ethrex."
           fi
           echo "Sending Results" >> $GITHUB_STEP_SUMMARY
-          
