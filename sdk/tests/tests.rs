@@ -1,4 +1,4 @@
-use ethrex_common::{Address, Bytes, H160, H256, U256, types::BlockNumber};
+use ethrex_common::{Address, Bytes, H160, H256, U256};
 use ethrex_rpc::types::{
     block_identifier::{BlockIdentifier, BlockTag},
     receipt::RpcReceipt,
@@ -118,7 +118,7 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn read_env_file_by_config() {
-    let env_file_path = PathBuf::from("../../ethrex/crates/l2/.env");
+    let env_file_path = PathBuf::from("../../ethrex/cmd/.env");
 
     let reader = BufReader::new(File::open(env_file_path).expect("Failed to open .env file"));
 
@@ -241,6 +241,11 @@ async fn test_deposit_through_transfer(
     let deposit_tx_receipt =
         wait_for_transaction_receipt(deposit_tx_hash, eth_client, 5, true).await?;
 
+    assert!(
+        deposit_tx_receipt.receipt.status,
+        "L1 deposit transaction failed"
+    );
+
     let depositor_l1_balance_after_deposit = eth_client
         .get_balance(depositor, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
@@ -265,12 +270,7 @@ async fn test_deposit_through_transfer(
 
     println!("Waiting for L2 deposit tx receipt");
 
-    let _ = wait_for_l2_deposit_receipt(
-        deposit_tx_receipt.block_info.block_number,
-        eth_client,
-        proposer_client,
-    )
-    .await?;
+    let _ = wait_for_l2_deposit_receipt(&deposit_tx_receipt, eth_client, proposer_client).await?;
 
     let deposit_recipient_l2_balance_after_deposit = proposer_client
         .get_balance(
@@ -376,12 +376,7 @@ async fn test_deposit_through_contract_call(
 
     println!("Waiting for L2 deposit tx receipt");
 
-    let _ = wait_for_l2_deposit_receipt(
-        deposit_tx_receipt.block_info.block_number,
-        eth_client,
-        proposer_client,
-    )
-    .await?;
+    let _ = wait_for_l2_deposit_receipt(&deposit_tx_receipt, eth_client, proposer_client).await?;
 
     let deposit_recipient_l2_balance_after_deposit = proposer_client
         .get_balance(
@@ -478,12 +473,7 @@ async fn test_transfer_with_privileged_tx(
         wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
     println!("Waiting for L1 to L2 transaction receipt on L2");
 
-    let _ = wait_for_l2_deposit_receipt(
-        l1_to_l2_tx_receipt.block_info.block_number,
-        eth_client,
-        proposer_client,
-    )
-    .await?;
+    let _ = wait_for_l2_deposit_receipt(&l1_to_l2_tx_receipt, eth_client, proposer_client).await?;
 
     println!("Checking balances after transfer");
 
@@ -638,35 +628,19 @@ async fn test_privileged_tx_with_contract_call_revert(
 }
 
 async fn wait_for_l2_deposit_receipt(
-    l1_receipt_block_number: BlockNumber,
-    eth_client: &EthClient,
-    proposer_client: &EthClient,
+    rpc_receipt: &RpcReceipt,
+    l1_client: &EthClient,
+    l2_client: &EthClient,
 ) -> Result<RpcReceipt, Box<dyn std::error::Error>> {
-    let topic = keccak(b"PrivilegedTxSent(address,address,address,uint256,uint256,uint256,bytes)");
-    let logs = eth_client
-        .get_logs(
-            U256::from(l1_receipt_block_number),
-            U256::from(l1_receipt_block_number),
-            common_bridge_address(),
-            topic,
-        )
-        .await?;
-    let data = PrivilegedTransactionData::from_log(logs.first().unwrap().log.clone())?;
+    let log = rpc_receipt.logs.first().unwrap();
 
-    let l2_deposit_tx_hash = eth_client
-        .build_privileged_transaction(
-            data.to_address,
-            data.from,
-            Bytes::copy_from_slice(&data.calldata),
-            Overrides {
-                chain_id: Some(proposer_client.get_chain_id().await?.try_into().unwrap()),
-                nonce: Some(data.transaction_id.as_u64()),
-                value: Some(data.value),
-                gas_limit: Some(data.gas_limit.as_u64()),
-                max_fee_per_gas: Some(0),
-                max_priority_fee_per_gas: Some(0),
-                ..Default::default()
-            },
+    let data = PrivilegedTransactionData::from_log(log.log.clone()).unwrap();
+
+    let l2_deposit_tx_hash = data
+        .into_tx(
+            l1_client,
+            l2_client.get_chain_id().await?.try_into().unwrap(),
+            0,
         )
         .await
         .unwrap()
@@ -675,7 +649,7 @@ async fn wait_for_l2_deposit_receipt(
 
     println!("Waiting for deposit transaction receipt on L2");
 
-    Ok(wait_for_transaction_receipt(l2_deposit_tx_hash, proposer_client, 1000, true).await?)
+    Ok(wait_for_transaction_receipt(l2_deposit_tx_hash, l2_client, 1000, true).await?)
 }
 
 async fn perform_transfer(
@@ -915,12 +889,7 @@ async fn test_call_to_contract_with_deposit(
 
     println!("Waiting for L1 to L2 transaction receipt on L2");
 
-    let _ = wait_for_l2_deposit_receipt(
-        l1_to_l2_tx_receipt.block_info.block_number,
-        eth_client,
-        proposer_client,
-    )
-    .await?;
+    let _ = wait_for_l2_deposit_receipt(&l1_to_l2_tx_receipt, eth_client, proposer_client).await?;
 
     println!("Checking balances after call");
 
