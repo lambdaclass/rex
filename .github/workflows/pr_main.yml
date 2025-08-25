@@ -39,7 +39,7 @@ jobs:
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
           cd ethrex
-          git checkout 187e8c27f9b9a22948cd82b0b3f79866c16ac489
+          git checkout v0.0.4-alpha
           echo "ethrex installed successfully"
 
       # also creates empty verification keys (as workflow runs with exec backend)
@@ -87,7 +87,6 @@ jobs:
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex-sdk --test tests -- --nocapture --test-threads=1
           killall ethrex_prover -s SIGINT
 
-
   cli-integration-test:
     name: Integration Test - CLI
     runs-on: ubuntu-latest
@@ -114,7 +113,7 @@ jobs:
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
           cd ethrex
-          git checkout 187e8c27f9b9a22948cd82b0b3f79866c16ac489
+          git checkout v0.0.4-alpha
           echo "ethrex installed successfully"
 
       # also creates empty verification keys (as workflow runs with exec backend)
@@ -164,7 +163,7 @@ jobs:
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex --test tests -- --nocapture --test-threads=1
           killall ethrex_prover -s SIGINT
 
-# The purpose of this job is to add it as a required check in GitHub so that we don't have to add every individual job as a required check
+  # The purpose of this job is to add it as a required check in GitHub so that we don't have to add every individual job as a required check
   all-tests:
     # "Integration Test" is a required check, don't change the name
     name: Integration Test
