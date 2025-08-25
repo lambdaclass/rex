@@ -49,15 +49,12 @@ jobs:
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
 
-      - name: Build L1 docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ../ethrex/
-          file: ../ethrex/crates/blockchain/dev/Dockerfile
-          tags: ethrex_dev:latest
-          push: false
+      - name: Start L1 docker image
+        run: |
+          cd  ../ethrex/crates/l2
+          docker compose -f docker-compose.yaml up --detach ethrex_l1
 
-      - name: Start L1 & Deploy contracts
+      - name: Deploy contracts
         run: |
           cd  ../ethrex/crates/l2
           touch .env
@@ -67,7 +64,7 @@ jobs:
           ETHREX_DEPLOYER_SP1_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_DEPLOYER_RISC0_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_L2_VALIDIUM=false \
-          docker compose -f docker-compose-l2.yaml up contract_deployer
+          docker compose -f docker-compose.yaml up contract_deployer
 
       - name: Start Sequencer
         run: |
@@ -75,7 +72,7 @@ jobs:
           CI_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
-          docker compose -f docker-compose-l2.yaml up --detach ethrex_l2
+          docker compose -f docker-compose.yaml up --detach ethrex_l2
 
       - name: Run test
         run: |
@@ -123,15 +120,12 @@ jobs:
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
 
-      - name: Build L1 docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ../ethrex/
-          file: ../ethrex/crates/blockchain/dev/Dockerfile
-          tags: ethrex_dev:latest
-          push: false
+      - name: Start L1 docker image
+        run: |
+          cd  ../ethrex/crates/l2
+          docker compose -f docker-compose.yaml up --detach ethrex_l1
 
-      - name: Start L1 & Deploy contracts
+      - name: Deploy contracts
         run: |
           cd  ../ethrex/crates/l2
           touch .env
@@ -141,7 +135,7 @@ jobs:
           ETHREX_DEPLOYER_SP1_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_DEPLOYER_RISC0_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_L2_VALIDIUM=false \
-          docker compose -f docker-compose-l2.yaml up contract_deployer
+          docker compose -f docker-compose.yaml up contract_deployer
 
       - name: Start Sequencer
         run: |
@@ -149,7 +143,7 @@ jobs:
           CI_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
-          docker compose -f docker-compose-l2.yaml up --detach ethrex_l2
+          docker compose -f docker-compose.yaml up --detach ethrex_l2
 
       - name: Run test
         run: |
