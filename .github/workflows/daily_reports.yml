@@ -33,6 +33,7 @@ jobs:
         run: |
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
+          cd ethrex
           latest_tag=$(git describe --tags --abbrev=0)
           git checkout "$latest_tag"
           echo "Checked out latest tag: $latest_tag"
@@ -105,6 +106,7 @@ jobs:
         run: |
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
+          cd ethrex
           latest_tag=$(git describe --tags --abbrev=0)
           git checkout "$latest_tag"
           echo "Checked out latest tag: $latest_tag"
