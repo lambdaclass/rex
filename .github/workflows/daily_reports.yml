@@ -11,9 +11,41 @@ on:
     branches: ["**"]
 
 jobs:
+  build-docker:
+    name: Build ethrex docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone ethrex repo
+        run: |
+          git clone https://github.com/lambdaclass/ethrex.git
+          cd ethrex
+          latest_tag=$(git describe --tags --abbrev=0)
+          git checkout "$latest_tag"
+          echo "Checked out latest tag: $latest_tag"
+          echo "ethrex installed successfully"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ethrex:unstable docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ../ethrex
+          file: ../ethrex/Dockerfile
+          tags: ethrex:unstable
+          load: true
+          outputs: type=docker,dest=/tmp/ethrex_image.tar
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ethrex_image
+          path: /tmp/ethrex_image.tar
+
   sdk-integration-test:
     name: Integration Test - SDK
     runs-on: ubuntu-latest
+    needs: build-docker
     steps:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@v1.3.1
@@ -46,22 +78,27 @@ jobs:
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
 
-      - name: Start L1 docker image
+      - name: Download ethrex image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ethrex_image
+          path: /tmp
+
+      - name: Load ethrex image
         run: |
-          cd  ../ethrex/crates/l2
-          docker compose -f docker-compose.yaml up --detach ethrex_l1
+          docker load --input /tmp/ethrex_image.tar
 
       - name: Start L1 & Deploy contracts
         run: |
-          cd  ../ethrex/crates/l2
-          touch .env
+          touch cmd/.env
+          cd crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_DEPLOYER_DEPLOY_RICH=true \
           ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_DEPLOYER_SP1_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_DEPLOYER_RISC0_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_L2_VALIDIUM=false \
-          docker compose -f docker-compose.yaml up contract_deployer
+          docker compose up contract_deployer
 
       - name: Start Sequencer
         run: |
@@ -84,6 +121,7 @@ jobs:
   cli-integration-test:
     name: Integration Test - CLI
     runs-on: ubuntu-latest
+    needs: build-docker
 
     steps:
       - name: Free Disk Space (Ubuntu)
@@ -119,22 +157,27 @@ jobs:
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
 
-      - name: Start L1 docker image
+      - name: Download ethrex image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ethrex_image
+          path: /tmp
+
+      - name: Load ethrex image
         run: |
-          cd  ../ethrex/crates/l2
-          docker compose -f docker-compose.yaml up --detach ethrex_l1
+          docker load --input /tmp/ethrex_image.tar
 
       - name: Start L1 & Deploy contracts
         run: |
-          cd  ../ethrex/crates/l2
-          touch .env
+          touch cmd/.env
+          cd crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_DEPLOYER_DEPLOY_RICH=true \
           ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_DEPLOYER_SP1_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_DEPLOYER_RISC0_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_L2_VALIDIUM=false \
-          docker compose -f docker-compose.yaml up contract_deployer
+          docker compose up contract_deployer
 
       - name: Start Sequencer
         run: |
