@@ -1,4 +1,4 @@
-use std::fmt::{self, Display};
+use std::fmt::{self};
 
 use errors::{
     EstimateGasError, EthClientError, GetBalanceError, GetBlockByHashError, GetBlockByNumberError,
@@ -10,13 +10,15 @@ use ethrex_common::{
     Address, Bytes, H160, H256, U256,
     types::{
         BlobsBundle, EIP1559Transaction, EIP4844Transaction, GenericTransaction,
-        PrivilegedL2Transaction, Signable, TxKind, TxType, WrappedEIP4844Transaction,
+        PrivilegedL2Transaction, TxKind, TxType, WrappedEIP4844Transaction,
     },
 };
+use ethrex_l2_rpc::signer::{Signable, Signer};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::{
     types::{
         block::RpcBlock,
+        block_identifier::{BlockIdentifier, BlockTag},
         receipt::{RpcLog, RpcReceipt},
     },
     utils::{RpcErrorResponse, RpcRequest, RpcRequestId, RpcSuccessResponse},
@@ -55,58 +57,6 @@ pub enum WrappedTransaction {
     EIP4844(WrappedEIP4844Transaction),
     EIP1559(EIP1559Transaction),
     L2(PrivilegedL2Transaction),
-}
-
-#[derive(Debug, Clone)]
-pub enum BlockByNumber {
-    Number(u64),
-    Latest,
-    Earliest,
-    Pending,
-}
-
-impl From<BlockByNumber> for Value {
-    fn from(value: BlockByNumber) -> Self {
-        match value {
-            BlockByNumber::Number(n) => json!(format!("{n:#x}")),
-            BlockByNumber::Latest => json!("latest"),
-            BlockByNumber::Earliest => json!("earliest"),
-            BlockByNumber::Pending => json!("pending"),
-        }
-    }
-}
-
-impl From<u64> for BlockByNumber {
-    fn from(value: u64) -> Self {
-        BlockByNumber::Number(value)
-    }
-}
-
-impl Display for BlockByNumber {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BlockByNumber::Number(n) => write!(f, "{n:#x}"),
-            BlockByNumber::Latest => write!(f, "latest"),
-            BlockByNumber::Earliest => write!(f, "earliest"),
-            BlockByNumber::Pending => write!(f, "pending"),
-        }
-    }
-}
-
-impl TryFrom<&str> for BlockByNumber {
-    type Error = EthClientError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "latest" => Ok(BlockByNumber::Latest),
-            "earliest" => Ok(BlockByNumber::Earliest),
-            "pending" => Ok(BlockByNumber::Pending),
-            _ => value
-                .parse::<u64>()
-                .map(BlockByNumber::from)
-                .map_err(|_| EthClientError::Custom("Invalid block number".to_string())),
-        }
-    }
 }
 
 pub const MAX_NUMBER_OF_RETRIES: u64 = 10;
@@ -251,11 +201,12 @@ impl EthClient {
     pub async fn send_eip1559_transaction(
         &self,
         tx: &EIP1559Transaction,
-        private_key: &SecretKey,
+        signer: &Signer,
     ) -> Result<H256, EthClientError> {
         let signed_tx = tx
-            .sign(private_key)
-            .map_err(|error| EthClientError::FailedToSignPayload(error.to_string()))?;
+            .sign(signer)
+            .await
+            .map_err(|err| EthClientError::Custom(err.to_string()))?;
 
         let mut encoded_tx = signed_tx.encode_to_vec();
         encoded_tx.insert(0, TxType::EIP1559.into());
@@ -266,13 +217,14 @@ impl EthClient {
     pub async fn send_eip4844_transaction(
         &self,
         wrapped_tx: &WrappedEIP4844Transaction,
-        private_key: &SecretKey,
+        signer: &Signer,
     ) -> Result<H256, EthClientError> {
         let mut wrapped_tx = wrapped_tx.clone();
         wrapped_tx
             .tx
-            .sign_inplace(private_key)
-            .map_err(|error| EthClientError::FailedToSignPayload(error.to_string()))?;
+            .sign_inplace(signer)
+            .await
+            .map_err(|err| EthClientError::Custom(err.to_string()))?;
 
         let mut encoded_tx = wrapped_tx.encode_to_vec();
         encoded_tx.insert(0, TxType::EIP4844.into());
@@ -283,15 +235,15 @@ impl EthClient {
     pub async fn send_wrapped_transaction(
         &self,
         wrapped_tx: &WrappedTransaction,
-        private_key: &SecretKey,
+        signer: &Signer,
     ) -> Result<H256, EthClientError> {
         match wrapped_tx {
             WrappedTransaction::EIP4844(wrapped_eip4844_transaction) => {
-                self.send_eip4844_transaction(wrapped_eip4844_transaction, private_key)
+                self.send_eip4844_transaction(wrapped_eip4844_transaction, signer)
                     .await
             }
             WrappedTransaction::EIP1559(eip1559_transaction) => {
-                self.send_eip1559_transaction(eip1559_transaction, private_key)
+                self.send_eip1559_transaction(eip1559_transaction, signer)
                     .await
             }
             WrappedTransaction::L2(privileged_l2_transaction) => {
@@ -310,7 +262,7 @@ impl EthClient {
     pub async fn send_tx_bump_gas_exponential_backoff(
         &self,
         wrapped_tx: &mut WrappedTransaction,
-        private_key: &SecretKey,
+        signer: &Signer,
     ) -> Result<H256, EthClientError> {
         let mut number_of_retries = 0;
 
@@ -354,9 +306,7 @@ impl EthClient {
                     }
                 }
             }
-            let tx_hash = self
-                .send_wrapped_transaction(wrapped_tx, private_key)
-                .await?;
+            let tx_hash = self.send_wrapped_transaction(wrapped_tx, signer).await?;
 
             if number_of_retries > 0 {
                 println!(
@@ -590,7 +540,7 @@ impl EthClient {
     pub async fn get_nonce(
         &self,
         address: Address,
-        block: BlockByNumber,
+        block: BlockIdentifier,
     ) -> Result<u64, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
@@ -660,7 +610,7 @@ impl EthClient {
     /// If no `block_number` is provided, get the latest.
     pub async fn get_block_by_number(
         &self,
-        block: BlockByNumber,
+        block: BlockIdentifier,
     ) -> Result<RpcBlock, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
@@ -738,7 +688,7 @@ impl EthClient {
     pub async fn get_balance(
         &self,
         address: Address,
-        block: BlockByNumber,
+        block: BlockIdentifier,
     ) -> Result<U256, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
@@ -799,7 +749,7 @@ impl EthClient {
     pub async fn get_code(
         &self,
         address: Address,
-        block: BlockByNumber,
+        block: BlockIdentifier,
     ) -> Result<Bytes, EthClientError> {
         let request = RpcRequest {
             id: RpcRequestId::Number(1),
@@ -1070,7 +1020,8 @@ impl EthClient {
         if let Some(nonce) = overrides.nonce {
             return Ok(nonce);
         }
-        self.get_nonce(address, BlockByNumber::Latest).await
+        self.get_nonce(address, BlockIdentifier::Tag(BlockTag::Latest))
+            .await
     }
 
     pub async fn get_last_committed_batch(

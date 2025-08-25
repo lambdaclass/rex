@@ -1,7 +1,9 @@
 use ethrex_common::types::{GenericTransaction, TxKind};
 use ethrex_common::{Address, U256};
 use ethrex_common::{Bytes, H256};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rlp::encode::RLPEncode;
+use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_rpc::utils::{RpcRequest, RpcRequestId};
 use keccak_hash::keccak;
 use secp256k1::SecretKey;
@@ -10,8 +12,6 @@ use serde_json::json;
 use crate::client::eth::RpcResponse;
 use crate::client::eth::errors::CallError;
 use crate::client::{EthClient, EthClientError};
-
-use super::BlockByNumber;
 
 #[derive(Default, Clone, Debug)]
 pub struct Overrides {
@@ -25,7 +25,7 @@ pub struct Overrides {
     pub max_priority_fee_per_gas: Option<u64>,
     pub access_list: Vec<(Address, Vec<H256>)>,
     pub gas_price_per_blob: Option<U256>,
-    pub block: Option<BlockByNumber>,
+    pub block: Option<BlockIdentifier>,
 }
 
 impl EthClient {
@@ -93,11 +93,12 @@ impl EthClient {
         let deploy_tx = self
             .build_eip1559_transaction(Address::zero(), deployer, init_code, deploy_overrides)
             .await?;
-        let deploy_tx_hash = self
-            .send_eip1559_transaction(&deploy_tx, &deployer_private_key)
-            .await?;
+        let signer = Signer::Local(LocalSigner::new(deployer_private_key));
+        let deploy_tx_hash = self.send_eip1559_transaction(&deploy_tx, &signer).await?;
 
-        let nonce = self.get_nonce(deployer, BlockByNumber::Latest).await?;
+        let nonce = self
+            .get_nonce(deployer, BlockIdentifier::Tag(BlockTag::Latest))
+            .await?;
         let mut encode = vec![];
         (deployer, nonce).encode(&mut encode);
 

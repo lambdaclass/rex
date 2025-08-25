@@ -6,11 +6,11 @@ edition.workspace = true
 [dependencies]
 rex-sdk.workspace = true
 
-ethrex-l2.workspace = true
 ethrex-common.workspace = true
 ethrex-blockchain.workspace = true
 ethrex-rlp.workspace = true
 ethrex-rpc.workspace = true
+ethrex-l2-rpc.workspace = true
 
 # Runtime
 tokio = "1.43.0"

@@ -7,9 +7,10 @@ use crate::{
 };
 use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::{Address, Bytes, H256, H520};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use keccak_hash::keccak;
 use rex_sdk::calldata::{Value, decode_calldata};
-use rex_sdk::client::eth::BlockByNumber;
 use rex_sdk::create::{
     DETERMINISTIC_DEPLOYER, brute_force_create2, compute_create_address, compute_create2_address,
 };
@@ -287,7 +288,7 @@ impl Command {
                     eth_client.get_token_balance(account, token_address).await?
                 } else {
                     eth_client
-                        .get_balance(account, BlockByNumber::Latest)
+                        .get_balance(account, BlockIdentifier::Tag(BlockTag::Latest))
                         .await?
                 };
 
@@ -307,7 +308,7 @@ impl Command {
             } => {
                 let nonce = nonce.unwrap_or(
                     EthClient::new(&rpc_url)?
-                        .get_nonce(deployer, BlockByNumber::Latest)
+                        .get_nonce(deployer, BlockIdentifier::Tag(BlockTag::Latest))
                         .await?,
                 );
 
@@ -382,7 +383,9 @@ impl Command {
             Command::Nonce { account, rpc_url } => {
                 let eth_client = EthClient::new(&rpc_url)?;
 
-                let nonce = eth_client.get_nonce(account, BlockByNumber::Latest).await?;
+                let nonce = eth_client
+                    .get_nonce(account, BlockIdentifier::Tag(BlockTag::Latest))
+                    .await?;
 
                 println!("{nonce}");
             }
@@ -483,9 +486,9 @@ impl Command {
                     )
                     .await?;
 
-                let tx_hash = client
-                    .send_eip1559_transaction(&tx, &args.private_key)
-                    .await?;
+                let signer = Signer::Local(LocalSigner::new(args.private_key));
+
+                let tx_hash = client.send_eip1559_transaction(&tx, &signer).await?;
 
                 println!("{tx_hash:#x}",);
 
@@ -585,9 +588,9 @@ impl Command {
             } => {
                 let eth_client = EthClient::new(&rpc_url)?;
 
-                let code = eth_client
-                    .get_code(address, block.as_str().try_into()?)
-                    .await?;
+                let block_identifier = BlockIdentifier::parse(serde_json::Value::String(block), 0)?;
+
+                let code = eth_client.get_code(address, block_identifier).await?;
 
                 println!("0x{}", hex::encode(code));
             }

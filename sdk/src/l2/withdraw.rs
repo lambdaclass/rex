@@ -16,6 +16,7 @@ use ethrex_common::{
     Address, Bytes, H256, U256,
     types::{Transaction, TxKind},
 };
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::types::block::BlockBodyWrapper;
 use itertools::Itertools;
 use secp256k1::SecretKey;
@@ -43,8 +44,10 @@ pub async fn withdraw(
         )
         .await?;
 
+    let signer = Signer::Local(LocalSigner::new(from_pk));
+
     proposer_client
-        .send_eip1559_transaction(&withdraw_transaction, &from_pk)
+        .send_eip1559_transaction(&withdraw_transaction, &signer)
         .await
 }
 
@@ -72,9 +75,9 @@ pub async fn withdraw_erc20(
             Default::default(),
         )
         .await?;
-
+    let signer = Signer::Local(LocalSigner::new(from_pk));
     l2_client
-        .send_eip1559_transaction(&withdraw_transaction, &from_pk)
+        .send_eip1559_transaction(&withdraw_transaction, &signer)
         .await
 }
 
@@ -122,9 +125,10 @@ pub async fn claim_withdraw(
             },
         )
         .await?;
+    let signer = Signer::Local(LocalSigner::new(from_pk));
 
     eth_client
-        .send_eip1559_transaction(&claim_tx, &from_pk)
+        .send_eip1559_transaction(&claim_tx, &signer)
         .await
 }
 
@@ -174,8 +178,10 @@ pub async fn claim_erc20withdraw(
         )
         .await?;
 
+    let signer = Signer::Local(LocalSigner::new(from_pk));
+
     eth_client
-        .send_eip1559_transaction(&claim_tx, &from_pk)
+        .send_eip1559_transaction(&claim_tx, &signer)
         .await
 }
 
@@ -192,7 +198,7 @@ pub fn get_withdrawal_hash(tx: &Transaction) -> Option<H256> {
     let value = tx.value().to_big_endian();
 
     Some(keccak_hash::keccak(
-        [to.as_bytes(), &value, tx.compute_hash().as_bytes()].concat(),
+        [to.as_bytes(), &value, tx.hash().as_bytes()].concat(),
     ))
 }
 

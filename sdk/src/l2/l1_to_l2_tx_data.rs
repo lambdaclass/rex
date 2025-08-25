@@ -2,6 +2,7 @@ use crate::calldata::{self, Value};
 use crate::client::eth::errors::CalldataEncodeError;
 use crate::client::{EthClient, EthClientError, Overrides};
 use ethrex_common::{Address, Bytes, U256};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use keccak_hash::H256;
 use secp256k1::SecretKey;
 
@@ -74,7 +75,8 @@ pub async fn send_l1_to_l2_tx(
     let l1_to_l2_tx = eth_client
         .build_eip1559_transaction(bridge_address, l1_from, l1_calldata.into(), l1_tx_overrides)
         .await?;
+    let signer = Signer::Local(LocalSigner::new(*sender_private_key));
     eth_client
-        .send_eip1559_transaction(&l1_to_l2_tx, sender_private_key)
+        .send_eip1559_transaction(&l1_to_l2_tx, &signer)
         .await
 }
