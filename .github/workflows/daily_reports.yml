@@ -7,6 +7,8 @@ on:
     # Every day at UTC 03:00
     - cron: "0 3 * * 1,2,3,4,5"
   workflow_dispatch:
+  pull_request:
+    branches: ["**"]
 
 jobs:
   sdk-integration-test:
@@ -31,20 +33,23 @@ jobs:
         run: |
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
+          latest_tag=$(git describe --tags --abbrev=0)
+          git checkout "$latest_tag"
+          echo "Checked out latest tag: $latest_tag"
           echo "ethrex installed successfully"
+
       # also creates empty verification keys (as workflow runs with exec backend)
       - name: Build prover
         run: |
           cd ../ethrex/crates/l2
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
-      - name: Build L1 docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ../ethrex/
-          file: ../ethrex/crates/blockchain/dev/Dockerfile
-          tags: ethrex_dev:latest
-          push: false
+
+      - name: Start L1 docker image
+        run: |
+          cd  ../ethrex/crates/l2
+          docker compose -f docker-compose-l2.yaml up --detach ethrex_l1
+
       - name: Start L1 & Deploy contracts
         run: |
           cd  ../ethrex/crates/l2
@@ -56,6 +61,7 @@ jobs:
           ETHREX_DEPLOYER_RISC0_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_L2_VALIDIUM=false \
           docker compose -f docker-compose-l2.yaml up contract_deployer
+
       - name: Start Sequencer
         run: |
           cd  ../ethrex/crates/l2
@@ -63,6 +69,7 @@ jobs:
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
           docker compose -f docker-compose-l2.yaml up --detach ethrex_l2
+
       - name: Run test
         run: |
           sudo chmod -R a+rw ../ethrex/crates/l2
@@ -98,20 +105,22 @@ jobs:
         run: |
           cd ..
           git clone https://github.com/lambdaclass/ethrex.git
+          latest_tag=$(git describe --tags --abbrev=0)
+          git checkout "$latest_tag"
+          echo "Checked out latest tag: $latest_tag"
           echo "ethrex installed successfully"
+
       # also creates empty verification keys (as workflow runs with exec backend)
       - name: Build prover
         run: |
           cd ../ethrex/crates/l2
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
-      - name: Build L1 docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ../ethrex/
-          file: ../ethrex/crates/blockchain/dev/Dockerfile
-          tags: ethrex_dev:latest
-          push: false
+
+      - name: Start L1 docker image
+        run: |
+          cd  ../ethrex/crates/l2
+          docker compose -f docker-compose-l2.yaml up --detach ethrex_l1
 
       - name: Start L1 & Deploy contracts
         run: |
@@ -124,6 +133,7 @@ jobs:
           ETHREX_DEPLOYER_RISC0_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_L2_VALIDIUM=false \
           docker compose -f docker-compose-l2.yaml up contract_deployer
+
       - name: Start Sequencer
         run: |
           cd  ../ethrex/crates/l2
@@ -131,6 +141,7 @@ jobs:
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
           docker compose -f docker-compose-l2.yaml up --detach ethrex_l2
+
       - name: Run test
         run: |
           sudo chmod -R a+rw ../ethrex/crates/l2
@@ -143,27 +154,27 @@ jobs:
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex --test tests -- --nocapture --test-threads=1
           killall ethrex_prover -s SIGINT
 
-  post-daily-report:
-    name: Post report to slack
-    runs-on: ubuntu-latest
-    needs: [sdk-integration-test, cli-integration-test]
-    if: ${{ always() && needs.sdk-integration-test.result != 'skipped' && needs.cli-integration-test.result != 'skipped' }}
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
+  # post-daily-report:
+  #   name: Post report to slack
+  #   runs-on: ubuntu-latest
+  #   needs: [sdk-integration-test, cli-integration-test]
+  #   if: ${{ always() && needs.sdk-integration-test.result != 'skipped' && needs.cli-integration-test.result != 'skipped' }}
+  #   steps:
+  #     - name: Checkout sources
+  #       uses: actions/checkout@v4
 
-      - name: Check if any job failed
-        env:
-          SLACK_WEBHOOK: >
-            ${{ github.event_name == 'workflow_dispatch'
-              && secrets.TEST_CHANNEL_SLACK
-              || secrets.ETHREX_L2_SLACK_WEBHOOK
-            }}
-        run: |
-          if [ "${{ needs.sdk-integration-test.result }}" != "success" ]; then
-            sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex SDK is not working with the latest ethrex version."
-          fi
-          if [ "${{ needs.cli-integration-test.result }}" != "success" ]; then
-            sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex CLI is not working with the latest ethrex version."
-          fi
-          echo "Sending Results" >> $GITHUB_STEP_SUMMARY
+  #     - name: Check if any job failed
+  #       env:
+  #         SLACK_WEBHOOK: >
+  #           ${{ github.event_name == 'workflow_dispatch'
+  #             && secrets.TEST_CHANNEL_SLACK
+  #             || secrets.ETHREX_L2_SLACK_WEBHOOK
+  #           }}
+  #       run: |
+  #         if [ "${{ needs.sdk-integration-test.result }}" != "success" ]; then
+  #           sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex SDK is not working with the latest ethrex version."
+  #         fi
+  #         if [ "${{ needs.cli-integration-test.result }}" != "success" ]; then
+  #           sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex CLI is not working with the latest ethrex version."
+  #         fi
+  #         echo "Sending Results" >> $GITHUB_STEP_SUMMARY
