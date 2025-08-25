@@ -17,8 +17,8 @@ jobs:
     steps:
       - name: Clone ethrex repo
         run: |
-          git clone https://github.com/lambdaclass/ethrex.git  ../ethrex
-          cd  ../ethrex
+          git clone https://github.com/lambdaclass/ethrex.git ethrex
+          cd ethrex
           latest_tag=$(git describe --tags --abbrev=0)
           git checkout "$latest_tag"
           echo "Checked out latest tag: $latest_tag"
@@ -30,8 +30,8 @@ jobs:
       - name: Build ethrex:unstable docker image
         uses: docker/build-push-action@v6
         with:
-          context: ../ethrex
-          file: ../ethrex/Dockerfile
+          context: ./ethrex
+          file: ./ethrex/Dockerfile
           tags: ethrex:unstable
           load: true
           outputs: type=docker,dest=/tmp/ethrex_image.tar
@@ -63,7 +63,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN || '' }}
       - name: Install ethrex
         run: |
-          cd ..
           git clone https://github.com/lambdaclass/ethrex.git
           cd ethrex
           latest_tag=$(git describe --tags --abbrev=0)
@@ -74,7 +73,7 @@ jobs:
       # also creates empty verification keys (as workflow runs with exec backend)
       - name: Build prover
         run: |
-          cd ../ethrex/crates/l2
+          cd ethrex/crates/l2
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
 
@@ -90,8 +89,8 @@ jobs:
 
       - name: Start L1 & Deploy contracts
         run: |
-          touch cmd/.env
-          cd crates/l2
+          touch ethrex/cmd/.env
+          cd ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_DEPLOYER_DEPLOY_RICH=true \
           ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
@@ -102,7 +101,7 @@ jobs:
 
       - name: Start Sequencer
         run: |
-          cd  ../ethrex/crates/l2
+          cd  ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
@@ -110,8 +109,8 @@ jobs:
 
       - name: Run test
         run: |
-          sudo chmod -R a+rw ../ethrex/crates/l2
-          cd ../ethrex/crates/l2
+          sudo chmod -R a+rw ethrex/crates/l2
+          cd ethrex/crates/l2
           RUST_LOG=info,ethrex_prover_lib=debug make init-prover &
           docker logs --follow ethrex_l2 &
           cd /home/runner/work/rex/rex/sdk
@@ -142,7 +141,6 @@ jobs:
 
       - name: Install ethrex
         run: |
-          cd ..
           git clone https://github.com/lambdaclass/ethrex.git
           cd ethrex
           latest_tag=$(git describe --tags --abbrev=0)
@@ -153,7 +151,7 @@ jobs:
       # also creates empty verification keys (as workflow runs with exec backend)
       - name: Build prover
         run: |
-          cd ../ethrex/crates/l2
+          cd ethrex/crates/l2
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
 
@@ -169,8 +167,8 @@ jobs:
 
       - name: Start L1 & Deploy contracts
         run: |
-          touch cmd/.env
-          cd crates/l2
+          touch ethrex/cmd/.env
+          cd ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_DEPLOYER_DEPLOY_RICH=true \
           ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
@@ -181,7 +179,7 @@ jobs:
 
       - name: Start Sequencer
         run: |
-          cd  ../ethrex/crates/l2
+          cd  ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
@@ -189,8 +187,8 @@ jobs:
 
       - name: Run test
         run: |
-          sudo chmod -R a+rw ../ethrex/crates/l2
-          cd ../ethrex/crates/l2
+          sudo chmod -R a+rw ethrex/crates/l2
+          cd ethrex/crates/l2
           RUST_LOG=info,ethrex_prover_lib=debug make init-prover &
           docker logs --follow ethrex_l2 &
           cd /home/runner/work/rex/rex

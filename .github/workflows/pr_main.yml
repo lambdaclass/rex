@@ -52,8 +52,10 @@ jobs:
         with:
           tool-cache: false
           large-packages: false
+
       - name: Checkout sources
         uses: actions/checkout@v4
+
       - name: Setup Rust Environment
         uses: ./.github/actions/setup-rust
 
@@ -65,18 +67,18 @@ jobs:
 
       - name: Install ethrex
         run: |
-          cd ..
           git clone https://github.com/lambdaclass/ethrex.git
           cd ethrex
           git checkout v0.0.4-alpha
           echo "ethrex installed successfully"
 
-      # also creates empty verification keys (as workflow runs with exec backend)
+      # Build prover
       - name: Build prover
         run: |
-          cd ../ethrex/crates/l2
+          cd ethrex/crates/l2"
           make build-prover
-          mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
+          mkdir -p prover/zkvm/interface/sp1/out
+          touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
 
       - name: Download ethrex image artifact
         uses: actions/download-artifact@v4
@@ -90,8 +92,9 @@ jobs:
 
       - name: Start L1 & Deploy contracts
         run: |
-          touch cmd/.env
-          cd crates/l2
+          ETHREX_PATH="$GITHUB_WORKSPACE/../ethrex"
+          touch ethrex/cmd/.env
+          cd ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_DEPLOYER_DEPLOY_RICH=true \
           ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
@@ -102,7 +105,7 @@ jobs:
 
       - name: Start Sequencer
         run: |
-          cd  ../ethrex/crates/l2
+          cd ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
@@ -110,8 +113,8 @@ jobs:
 
       - name: Run test
         run: |
-          sudo chmod -R a+rw ../ethrex/crates/l2
-          cd ../ethrex/crates/l2
+          sudo chmod -R a+rw ethrex/crates/l2
+          cd ethrex/crates/l2
           RUST_LOG=info,ethrex_prover_lib=debug make init-prover &
           docker logs --follow ethrex_l2 &
           cd /home/runner/work/rex/rex/sdk
@@ -142,7 +145,6 @@ jobs:
 
       - name: Install ethrex
         run: |
-          cd ..
           git clone https://github.com/lambdaclass/ethrex.git
           cd ethrex
           git checkout v0.0.4-alpha
@@ -151,7 +153,7 @@ jobs:
       # also creates empty verification keys (as workflow runs with exec backend)
       - name: Build prover
         run: |
-          cd ../ethrex/crates/l2
+          cd ethrex/crates/l2
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
 
@@ -167,8 +169,8 @@ jobs:
 
       - name: Start L1 & Deploy contracts
         run: |
-          touch cmd/.env
-          cd crates/l2
+          touch ethrex/cmd/.env
+          cd ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_DEPLOYER_DEPLOY_RICH=true \
           ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
@@ -179,7 +181,7 @@ jobs:
 
       - name: Start Sequencer
         run: |
-          cd  ../ethrex/crates/l2
+          cd  ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
@@ -187,8 +189,8 @@ jobs:
 
       - name: Run test
         run: |
-          sudo chmod -R a+rw ../ethrex/crates/l2
-          cd ../ethrex/crates/l2
+          sudo chmod -R a+rw ethrex/crates/l2
+          cd ethrex/crates/l2
           RUST_LOG=info,ethrex_prover_lib=debug make init-prover &
           docker logs --follow ethrex_l2 &
           cd /home/runner/work/rex/rex
