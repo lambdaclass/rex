@@ -58,7 +58,7 @@ jobs:
         run: |
           cd  ../ethrex/crates/l2
           touch .env
-          CI_ETHREX_WORKDIR=/usr/local/bin \
+          DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_DEPLOYER_DEPLOY_RICH=true \
           ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_DEPLOYER_SP1_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
@@ -69,7 +69,7 @@ jobs:
       - name: Start Sequencer
         run: |
           cd  ../ethrex/crates/l2
-          CI_ETHREX_WORKDIR=/usr/local/bin \
+          DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
           docker compose -f docker-compose.yaml up --detach ethrex_l2
@@ -129,7 +129,7 @@ jobs:
         run: |
           cd  ../ethrex/crates/l2
           touch .env
-          CI_ETHREX_WORKDIR=/usr/local/bin \
+          DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_DEPLOYER_DEPLOY_RICH=true \
           ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
           ETHREX_DEPLOYER_SP1_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
@@ -140,7 +140,7 @@ jobs:
       - name: Start Sequencer
         run: |
           cd  ../ethrex/crates/l2
-          CI_ETHREX_WORKDIR=/usr/local/bin \
+          DOCKER_ETHREX_WORKDIR=/usr/local/bin \
           ETHREX_L2_VALIDIUM=false \
           ETHREX_WATCHER_BLOCK_DELAY=0 \
           docker compose -f docker-compose.yaml up --detach ethrex_l2
