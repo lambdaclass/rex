@@ -637,7 +637,14 @@ impl Command {
             }
             Command::Peers { rpc_url } => {
                 let eth_client = EthClient::new(&rpc_url)?;
+
                 let peers = eth_client.peers().await?;
+
+                if peers.is_empty() {
+                    println!("Node has no peers.");
+                    return Ok(());
+                }
+
                 for peer in peers {
                     println!("{peer:#?}");
                 }
