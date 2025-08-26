@@ -38,8 +38,8 @@ jobs:
 
       - name: Install ethrex
         run: |
-          curl -L https://github.com/lambdaclass/ethrex/releases/latest/download/ethrex-linux_x86_64 -o ethrex
-          chmod +x ethrex
+          curl -L https://github.com/lambdaclass/ethrex/releases/latest/download/ethrex-linux_x86_64 -o /usr/local/bin/ethrex
+          chmod +x /usr/local/bin/ethrex
           ethrex --version
           echo "ethrex installed successfully"
 
@@ -90,8 +90,8 @@ jobs:
 
       - name: Install ethrex
         run: |
-          curl -L https://github.com/lambdaclass/ethrex/releases/latest/download/ethrex-linux_x86_64 -o ethrex
-          chmod +x ethrex
+          curl -L https://github.com/lambdaclass/ethrex/releases/latest/download/ethrex-linux_x86_64 -o /usr/local/bin/ethrex
+          chmod +x /usr/local/bin/ethrex
           ethrex --version
           echo "ethrex installed successfully"
 
