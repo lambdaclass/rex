@@ -118,9 +118,13 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn read_env_file_by_config() {
-    let env_file_path = PathBuf::from("../../ethrex/cmd/.env");
+    let env_file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".env");
+    let Ok(env_file) = File::open(env_file_path) else {
+        println!(".env file not found, skipping");
+        return;
+    };
 
-    let reader = BufReader::new(File::open(env_file_path).expect("Failed to open .env file"));
+    let reader = BufReader::new(env_file);
 
     for line in reader.lines() {
         let line = line.expect("Failed to read line");

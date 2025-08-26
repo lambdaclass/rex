@@ -47,7 +47,7 @@ jobs:
       # Build prover
       - name: Build prover
         run: |
-          cd ethrex/crates/l2"
+          cd ethrex/crates/l2
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out
           touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
@@ -64,7 +64,6 @@ jobs:
 
       - name: Start L1 & Deploy contracts
         run: |
-          ETHREX_PATH="$GITHUB_WORKSPACE/../ethrex"
           touch ethrex/cmd/.env
           cd ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
