@@ -19,8 +19,8 @@ jobs:
     steps:
       - name: Clone ethrex repo
         run: |
-          git clone https://github.com/lambdaclass/ethrex.git ../ethrex
-          cd ../ethrex
+          git clone https://github.com/lambdaclass/ethrex.git ethrex
+          cd ethrex
           git checkout v0.0.4-alpha
 
       - name: Set up Docker Buildx
@@ -29,8 +29,8 @@ jobs:
       - name: Build ethrex:unstable docker image
         uses: docker/build-push-action@v6
         with:
-          context: ../ethrex
-          file: ../ethrex/Dockerfile
+          context: ./ethrex
+          file: ./ethrex/Dockerfile
           tags: ethrex:unstable
           load: true
           outputs: type=docker,dest=/tmp/ethrex_image.tar
@@ -75,7 +75,7 @@ jobs:
       # Build prover
       - name: Build prover
         run: |
-          cd ethrex/crates/l2"
+          cd ethrex/crates/l2
           make build-prover
           mkdir -p prover/zkvm/interface/sp1/out
           touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
