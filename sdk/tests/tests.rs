@@ -20,7 +20,6 @@ use std::{
     io::{BufRead, BufReader},
     ops::Mul,
     path::PathBuf,
-    str::FromStr,
     time::Duration,
 };
 
@@ -37,10 +36,15 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
-// 0x8ccf74999c496e4d27a2b02941673f41dd0dab2a
+// 0xfabedeeb49eab862a07a781deb2f6a86d26f4486
 const DEFAULT_BRIDGE_ADDRESS: Address = H160([
-    0x8c, 0xcf, 0x74, 0x99, 0x9c, 0x49, 0x6e, 0x4d, 0x27, 0xa2, 0xb0, 0x29, 0x41, 0x67, 0x3f, 0x41,
-    0xdd, 0x0d, 0xab, 0x2a,
+    0xfa, 0xbe, 0xde, 0xeb, 0x49, 0xea, 0xb8, 0x62, 0xa0, 0x7a, 0x78, 0x1d, 0xeb, 0x2f, 0x6a, 0x86,
+    0xd2, 0x6f, 0x44, 0x86,
+]);
+// 0xb06aa59e6a417d1962171d9a6b88a0ff0ec97db2
+const DEFAULT_ON_CHAIN_PROPOSER_ADDRESS: Address = H160([
+    0xb0, 0x6a, 0xa5, 0x9e, 0x6a, 0x41, 0x7d, 0x19, 0x62, 0x17, 0x1d, 0x9a, 0x6b, 0x88, 0xa0, 0xff,
+    0x0e, 0xc9, 0x7d, 0xb2,
 ]);
 // 0x0007a881CD95B1484fca47615B64803dad620C8d
 const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
@@ -175,14 +179,16 @@ fn l2_return_transfer_private_key() -> SecretKey {
 
 fn common_bridge_address() -> Address {
     std::env::var("ETHREX_WATCHER_BRIDGE_ADDRESS")
-        .expect("ETHREX_WATCHER_BRIDGE_ADDRESS env var not set")
+        .unwrap_or(format!("{DEFAULT_BRIDGE_ADDRESS:#x}"))
         .parse()
-        .unwrap_or_else(|_| {
-            println!(
-                "ETHREX_WATCHER_BRIDGE_ADDRESS env var not set, using default: {DEFAULT_BRIDGE_ADDRESS}"
-            );
-            DEFAULT_BRIDGE_ADDRESS
-        })
+        .expect("Invalid bridge address")
+}
+
+fn on_chain_proposer_address() -> Address {
+    std::env::var("ETHREX_COMMITTER_ON_CHAIN_PROPOSER_ADDRESS")
+        .unwrap_or(format!("{DEFAULT_ON_CHAIN_PROPOSER_ADDRESS:#x}"))
+        .parse()
+        .expect("Invalid OnChainProposer address")
 }
 
 fn fees_vault() -> Address {
@@ -415,7 +421,7 @@ async fn test_transfer(
     println!("Transferring funds on L2");
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
-        .unwrap_or(U256::from(10000000000u128));
+        .unwrap_or(U256::from(100000000000000000000u128));
     let transferer_address = get_address_from_secret_key(transferer_private_key)?;
     let returner_address = get_address_from_secret_key(returnerer_private_key)?;
 
@@ -426,6 +432,9 @@ async fn test_transfer(
         transfer_value,
     )
     .await?;
+
+    println!("Returning funds on L2");
+
     // Only return 99% of the transfer, other amount is for fees
     let return_amount = (transfer_value * 99) / 100;
 
@@ -449,7 +458,7 @@ async fn test_transfer_with_privileged_tx(
     println!("Transferring funds on L2 through a deposit");
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
-        .unwrap_or(U256::from(10000000000u128));
+        .unwrap_or(U256::from(100000000000000000000u128));
     let transferer_address = get_address_from_secret_key(transferer_private_key)?;
     let receiver_address = get_address_from_secret_key(receiver_private_key)?;
 
@@ -1054,14 +1063,9 @@ async fn test_n_withdraws(
         proofs.push(withdrawal_proof);
     }
 
-    let on_chain_proposer_address = Address::from_str(
-        &std::env::var("ETHREX_COMMITTER_ON_CHAIN_PROPOSER_ADDRESS")
-            .expect("ETHREX_COMMITTER_ON_CHAIN_PROPOSER_ADDRESS env var not set"),
-    )
-    .unwrap();
     for proof in &proofs {
         while eth_client
-            .get_last_verified_batch(on_chain_proposer_address)
+            .get_last_verified_batch(on_chain_proposer_address())
             .await
             .unwrap()
             < proof.batch_number
