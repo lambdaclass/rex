@@ -92,7 +92,6 @@ jobs:
 
       - name: Start L1 & Deploy contracts
         run: |
-          ETHREX_PATH="$GITHUB_WORKSPACE/../ethrex"
           touch ethrex/cmd/.env
           cd ethrex/crates/l2
           DOCKER_ETHREX_WORKDIR=/usr/local/bin \
