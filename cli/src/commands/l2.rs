@@ -323,7 +323,7 @@ impl Command {
                     deposit_through_contract_call(
                         amount,
                         to,
-                        21000 * 10,
+                        21000 * 100,
                         &private_key,
                         bridge_address,
                         &eth_client,

@@ -31,6 +31,13 @@ pub async fn deposit_through_contract_call(
 ) -> Result<H256, EthClientError> {
     let l1_from = get_address_from_secret_key(depositor_private_key)?;
     let calldata = encode_calldata("deposit(address)", &[Value::Address(to)])?;
+    let gas_price = eth_client
+        .get_gas_price_with_extra(20)
+        .await?
+        .try_into()
+        .map_err(|_| {
+            EthClientError::InternalError("Failed to convert gas_price to a u64".to_owned())
+        })?;
 
     let deposit_tx = eth_client
         .build_eip1559_transaction(
@@ -41,6 +48,8 @@ pub async fn deposit_through_contract_call(
                 from: Some(l1_from),
                 value: Some(amount),
                 gas_limit: Some(l1_gas_limit),
+                max_fee_per_gas: Some(gas_price),
+                max_priority_fee_per_gas: Some(gas_price),
                 ..Default::default()
             },
         )
