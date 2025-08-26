@@ -16,6 +16,7 @@ use ethrex_common::{
 use ethrex_l2_rpc::signer::{Signable, Signer};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::{
+    RpcPeer,
     types::{
         block::RpcBlock,
         block_identifier::{BlockIdentifier, BlockTag},
@@ -29,6 +30,8 @@ use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{ops::Div, str::FromStr};
+
+use crate::client::eth::errors::PeersError;
 
 pub mod errors;
 pub mod eth_sender;
@@ -1251,6 +1254,25 @@ impl EthClient {
         }
 
         self.get_fee_from_override_or_get_gas_price(None).await
+    }
+
+    pub async fn peers(&self) -> Result<Vec<RpcPeer>, EthClientError> {
+        let request = RpcRequest {
+            id: RpcRequestId::Number(1),
+            jsonrpc: "2.0".to_string(),
+            method: "admin_peers".to_string(),
+            params: Some(vec![]),
+        };
+
+        match self.send_request(request).await {
+            Ok(RpcResponse::Success(result)) => serde_json::from_value(result.result)
+                .map_err(PeersError::SerdeJSONError)
+                .map_err(EthClientError::from),
+            Ok(RpcResponse::Error(error_response)) => {
+                Err(PeersError::RPCError(error_response.error.message).into())
+            }
+            Err(error) => Err(error),
+        }
     }
 }
 

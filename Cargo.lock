@@ -1711,7 +1711,7 @@ dependencies = [
 [[package]]
 name = "ethrex-blockchain"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "bytes",
  "cfg-if 1.0.1",
@@ -1731,7 +1731,7 @@ dependencies = [
 [[package]]
 name = "ethrex-common"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "bytes",
  "c-kzg",
@@ -1760,12 +1760,12 @@ dependencies = [
 [[package]]
 name = "ethrex-crypto"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 
 [[package]]
 name = "ethrex-l2-common"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1776,7 +1776,6 @@ dependencies = [
  "ethrex-vm",
  "keccak-hash",
  "lambdaworks-crypto",
- "lazy_static",
  "serde",
  "sha3",
  "thiserror 2.0.12",
@@ -1785,7 +1784,7 @@ dependencies = [
 [[package]]
 name = "ethrex-l2-rpc"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "axum",
  "bytes",
@@ -1815,7 +1814,7 @@ dependencies = [
 [[package]]
 name = "ethrex-levm"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -1847,7 +1846,7 @@ dependencies = [
 [[package]]
 name = "ethrex-metrics"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "ethrex-common",
  "serde",
@@ -1859,7 +1858,7 @@ dependencies = [
 [[package]]
 name = "ethrex-p2p"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "aes",
  "bytes",
@@ -1896,7 +1895,7 @@ dependencies = [
 [[package]]
 name = "ethrex-rlp"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1910,7 +1909,7 @@ dependencies = [
 [[package]]
 name = "ethrex-rpc"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "axum",
  "axum-extra",
@@ -1946,7 +1945,7 @@ dependencies = [
 [[package]]
 name = "ethrex-storage"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1967,7 +1966,7 @@ dependencies = [
 [[package]]
 name = "ethrex-storage-rollup"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1986,7 +1985,7 @@ dependencies = [
 [[package]]
 name = "ethrex-trie"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2006,7 +2005,7 @@ dependencies = [
 [[package]]
 name = "ethrex-vm"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v0.0.4-alpha#5dfb043809bfde94b927325fe69a505d7762a1f5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=expose_rpc_admin_module#4529ff98b047e9489f17aa29fc2bdba11629b61d"
 dependencies = [
  "bincode",
  "bytes",

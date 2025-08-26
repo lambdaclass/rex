@@ -211,6 +211,8 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
     },
+    #[clap(about = "Get RPC's list of peers.", visible_aliases = ["p"])]
+    Peers,
     #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
     Receipt {
         tx_hash: H256,
@@ -628,6 +630,13 @@ impl Command {
             Command::DecodeCalldata { signature, data } => {
                 for elem in decode_calldata(&signature, data)? {
                     print_calldata(0, elem);
+                }
+            }
+            Command::Peers => {
+                let eth_client = EthClient::new("http://localhost:8545")?;
+                let peers = eth_client.peers().await?;
+                for peer in peers {
+                    println!("{peer:#?}");
                 }
             }
         };

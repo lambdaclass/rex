@@ -29,11 +29,11 @@ manual_saturating_arithmetic = "warn"
 rex-cli = { path = "cli" }
 rex-sdk = { path = "sdk" }
 
-ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common", tag = "v0.0.4-alpha" }
-ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain", tag = "v0.0.4-alpha" }
-ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", tag = "v0.0.4-alpha" }
-ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", tag = "v0.0.4-alpha" }
-ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-rpc", tag = "v0.0.4-alpha" }
+ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common", branch = "expose_rpc_admin_module" }
+ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain", branch = "expose_rpc_admin_module" }
+ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", branch = "expose_rpc_admin_module" }
+ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", branch = "expose_rpc_admin_module" }
+ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-rpc", branch = "expose_rpc_admin_module" }
 
 keccak-hash = "0.11.0"
 thiserror = "2.0.11"
