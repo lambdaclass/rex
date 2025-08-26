@@ -641,7 +641,7 @@ impl Command {
                 let peers = eth_client.peers().await?;
 
                 if peers.is_empty() {
-                    println!("Node has no peers.");
+                    println!("Node at {rpc_url} has no peers.");
                     return Ok(());
                 }
 
