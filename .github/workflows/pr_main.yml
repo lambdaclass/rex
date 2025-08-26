@@ -44,53 +44,18 @@ jobs:
           ethrex --version
           echo "ethrex installed successfully"
 
-      # Build prover
-      - name: Build prover
+      - name: Run ethrex l2 --dev
         run: |
-          cd ethrex/crates/l2
-          make build-prover
-          mkdir -p prover/zkvm/interface/sp1/out
-          touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
+          ethrex l2 --dev &
 
-      - name: Download ethrex image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ethrex_image
-          path: /tmp
-
-      - name: Load ethrex image
+      - name: Start Prover
         run: |
-          docker load --input /tmp/ethrex_image.tar
+          ethrex l2 prover --proof-coordinator http://localhost:3900 &
 
-      - name: Start L1 & Deploy contracts
+      - name: Run tests
         run: |
-          touch ethrex/cmd/.env
-          cd ethrex/crates/l2
-          DOCKER_ETHREX_WORKDIR=/usr/local/bin \
-          ETHREX_DEPLOYER_DEPLOY_RICH=true \
-          ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
-          ETHREX_DEPLOYER_SP1_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
-          ETHREX_DEPLOYER_RISC0_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
-          ETHREX_L2_VALIDIUM=false \
-          docker compose up contract_deployer
-
-      - name: Start Sequencer
-        run: |
-          cd ethrex/crates/l2
-          DOCKER_ETHREX_WORKDIR=/usr/local/bin \
-          ETHREX_L2_VALIDIUM=false \
-          ETHREX_WATCHER_BLOCK_DELAY=0 \
-          docker compose -f docker-compose.yaml up --detach ethrex_l2
-
-      - name: Run test
-        run: |
-          sudo chmod -R a+rw ethrex/crates/l2
-          cd ethrex/crates/l2
-          RUST_LOG=info,ethrex_prover_lib=debug make init-prover &
-          docker logs --follow ethrex_l2 &
           cd /home/runner/work/rex/rex/sdk
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex-sdk --test tests -- --nocapture --test-threads=1
-          killall ethrex_prover -s SIGINT
 
   cli-integration-test:
     name: Integration Test - CLI
@@ -116,54 +81,21 @@ jobs:
 
       - name: Install ethrex
         run: |
-          git clone https://github.com/lambdaclass/ethrex.git
-          cd ethrex
-          git checkout v0.0.4-alpha
+          curl -L https://github.com/lambdaclass/ethrex/releases/latest/download/ethrex-linux_x86_64 -o ethrex
+          chmod +x ethrex
+          ethrex --version
           echo "ethrex installed successfully"
 
-      # also creates empty verification keys (as workflow runs with exec backend)
-      - name: Build prover
+      - name: Run ethrex l2 --dev
         run: |
-          cd ethrex/crates/l2
-          make build-prover
-          mkdir -p prover/zkvm/interface/sp1/out && touch prover/zkvm/interface/sp1/out/riscv32im-succinct-zkvm-vk
+          ethrex l2 --dev &
 
-      - name: Download ethrex image artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ethrex_image
-          path: /tmp
-
-      - name: Load ethrex image
+      - name: Start Prover
         run: |
-          docker load --input /tmp/ethrex_image.tar
+          ethrex l2 prover --proof-coordinator http://localhost:3900
 
-      - name: Start L1 & Deploy contracts
+      - name: Run tests
         run: |
-          touch ethrex/cmd/.env
-          cd ethrex/crates/l2
-          DOCKER_ETHREX_WORKDIR=/usr/local/bin \
-          ETHREX_DEPLOYER_DEPLOY_RICH=true \
-          ETHREX_DEPLOYER_PICO_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
-          ETHREX_DEPLOYER_SP1_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
-          ETHREX_DEPLOYER_RISC0_CONTRACT_ADDRESS=0x00000000000000000000000000000000000000aa \
-          ETHREX_L2_VALIDIUM=false \
-          docker compose up contract_deployer
-
-      - name: Start Sequencer
-        run: |
-          cd  ethrex/crates/l2
-          DOCKER_ETHREX_WORKDIR=/usr/local/bin \
-          ETHREX_L2_VALIDIUM=false \
-          ETHREX_WATCHER_BLOCK_DELAY=0 \
-          docker compose -f docker-compose.yaml up --detach ethrex_l2
-
-      - name: Run test
-        run: |
-          sudo chmod -R a+rw ethrex/crates/l2
-          cd ethrex/crates/l2
-          RUST_LOG=info,ethrex_prover_lib=debug make init-prover &
-          docker logs --follow ethrex_l2 &
           cd /home/runner/work/rex/rex
           make cli
           cd cli
