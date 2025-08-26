@@ -45,7 +45,7 @@ jobs:
 
       - name: Run ethrex l2 --dev
         run: |
-          ETHREX_MONITOR=true ethrex l2 --dev
+          ethrex l2 --dev &
 
       - name: Wait for ethrex l2
         run: |
