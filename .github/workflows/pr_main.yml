@@ -45,12 +45,12 @@ jobs:
         run: |
           for i in {1..20}; do
             if nc -z localhost 3900; then
-              echo "Service ready!"
+              echo "ProofCoordinator ready!"
               exit 0
             fi
             sleep 5
           done
-          echo "Service not ready in time"
+          echo "ProofCoordinator not ready in time"
           exit 1
 
       - name: Start Prover
@@ -94,7 +94,7 @@ jobs:
               echo "Service ready!"
               exit 0
             fi
-            sleep 1
+            sleep 5
           done
           echo "Service not ready in time"
           exit 1
