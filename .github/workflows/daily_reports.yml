@@ -153,11 +153,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check if any job failed
+        env:
+          SLACK_WEBHOOK: >
+            ${{ github.event_name == 'workflow_dispatch'
+              && secrets.TEST_CHANNEL_SLACK
+              || secrets.ETHREX_L2_SLACK_WEBHOOK
+            }}
         run: |
           if [ "${{ needs.sdk-integration-test.result }}" != "success" ]; then
-            sh .github/scripts/publish_report.sh ${{ secrets.ETHREX_L2_SLACK_WEBHOOK }} "Rex SDK is not working with the latest ethrex version."
+            sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex SDK is not working with the latest ethrex version."
           fi
           if [ "${{ needs.cli-integration-test.result }}" != "success" ]; then
-            sh .github/scripts/publish_report.sh ${{ secrets.ETHREX_L2_SLACK_WEBHOOK }} "Rex CLI is not working with the latest ethrex version."
+            sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex CLI is not working with the latest ethrex version."
           fi
           echo "Sending Results" >> $GITHUB_STEP_SUMMARY
