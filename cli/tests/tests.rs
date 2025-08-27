@@ -20,10 +20,10 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
-// 0x8ccf74999c496e4d27a2b02941673f41dd0dab2a
+// 0x2f399259586dba0fe48baa63257138d0fecf9c60
 const DEFAULT_BRIDGE_ADDRESS: Address = H160([
-    0x8c, 0xcf, 0x74, 0x99, 0x9c, 0x49, 0x6e, 0x4d, 0x27, 0xa2, 0xb0, 0x29, 0x41, 0x67, 0x3f, 0x41,
-    0xdd, 0x0d, 0xab, 0x2a,
+    0x2f, 0x39, 0x92, 0x59, 0x58, 0x6d, 0xba, 0x0f, 0xe4, 0x8b, 0xaa, 0x63, 0x25, 0x71, 0x38, 0xd0,
+    0xfe, 0xcf, 0x9c, 0x60,
 ]);
 // 0x0007a881CD95B1484fca47615B64803dad620C8d
 const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
@@ -40,15 +40,8 @@ async fn cli_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     let rich_wallet_private_key = l1_rich_wallet_private_key();
     let transfer_return_private_key = l2_return_transfer_private_key();
     let bridge_address = common_bridge_address();
-    let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
-        .expect("Failed to get address from l1 rich wallet pk");
 
-    test_deposit(
-        &rich_wallet_private_key,
-        bridge_address,
-        deposit_recipient_address,
-    )
-    .await?;
+    test_deposit(&rich_wallet_private_key, bridge_address).await?;
 
     test_transfer(&rich_wallet_private_key, &transfer_return_private_key).await?;
 
@@ -62,9 +55,13 @@ async fn cli_integration_test() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn read_env_file_by_config() {
-    let env_file_path = PathBuf::from("../../ethrex/crates/l2/.env");
+    let env_file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".env");
+    let Ok(env_file) = File::open(env_file_path) else {
+        println!(".env file not found, skipping");
+        return;
+    };
 
-    let reader = BufReader::new(File::open(env_file_path).expect("Failed to open .env file"));
+    let reader = BufReader::new(env_file);
 
     for line in reader.lines() {
         let line = line.expect("Failed to read line");
@@ -101,14 +98,9 @@ fn l2_return_transfer_private_key() -> SecretKey {
 
 fn common_bridge_address() -> Address {
     std::env::var("ETHREX_WATCHER_BRIDGE_ADDRESS")
-        .expect("ETHREX_WATCHER_BRIDGE_ADDRESS env var not set")
+        .unwrap_or(format!("{DEFAULT_BRIDGE_ADDRESS:#x}"))
         .parse()
-        .unwrap_or_else(|_| {
-            println!(
-                "ETHREX_WATCHER_BRIDGE_ADDRESS env var not set, using default: {DEFAULT_BRIDGE_ADDRESS}"
-            );
-            DEFAULT_BRIDGE_ADDRESS
-        })
+        .expect("Invalid bridge address")
 }
 
 fn fees_vault() -> Address {
@@ -120,20 +112,21 @@ fn fees_vault() -> Address {
 async fn test_deposit(
     depositor_private_key: &SecretKey,
     bridge_address: Address,
-    deposit_recipient_address: Address,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let deposit_value = std::env::var("INTEGRATION_TEST_DEPOSIT_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid deposit value"))
         .unwrap_or(U256::from(1000000000000000000000u128));
 
-    let depositor_l1_initial_balance = get_l1_balance(deposit_recipient_address)?;
+    let depositor_address = get_address_from_secret_key(depositor_private_key)?;
+
+    let depositor_l1_initial_balance = get_l1_balance(depositor_address)?;
 
     assert!(
         depositor_l1_initial_balance >= deposit_value,
         "L1 depositor doesn't have enough balance to deposit"
     );
 
-    let deposit_recipient_l2_initial_balance = get_l2_balance(deposit_recipient_address)?;
+    let deposit_recipient_l2_initial_balance = get_l2_balance(depositor_address)?;
 
     let bridge_initial_balance = get_l1_balance(bridge_address)?;
 
@@ -173,7 +166,7 @@ async fn test_deposit(
     )
     .unwrap();
 
-    let depositor_l1_balance_after_deposit = get_l1_balance(deposit_recipient_address)?;
+    let depositor_l1_balance_after_deposit = get_l1_balance(depositor_address)?;
 
     assert_eq!(
         depositor_l1_balance_after_deposit,
@@ -189,7 +182,7 @@ async fn test_deposit(
         "Bridge balance didn't increase as expected after deposit"
     );
 
-    let deposit_recipient_l2_balance_after_deposit = get_l2_balance(deposit_recipient_address)?;
+    let deposit_recipient_l2_balance_after_deposit = get_l2_balance(depositor_address)?;
 
     assert_eq!(
         deposit_recipient_l2_balance_after_deposit,
@@ -214,7 +207,7 @@ async fn test_transfer(
     println!("Transferring funds on L2");
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
-        .unwrap_or(U256::from(10000000000u128));
+        .unwrap_or(U256::from(100000000000000000000u128));
     let returner_address = get_address_from_secret_key(returnerer_private_key)?;
     let transferer_address = get_address_from_secret_key(transferer_private_key)?;
 
@@ -332,9 +325,9 @@ fn deposit_l2(
         panic!("Error depositing to l2: {stderr}");
     }
 
-    let str = String::from_utf8(output.stdout).unwrap();
+    let output = String::from_utf8(output.stdout).unwrap();
 
-    let hash_line = str
+    let hash_line = output
         .lines()
         .find(|line| line.contains("Deposit sent: "))
         .unwrap();

@@ -1,4 +1,4 @@
-use ethrex_common::{Address, Bytes, H160, H256, U256, types::BlockNumber};
+use ethrex_common::{Address, Bytes, H160, H256, U256};
 use ethrex_rpc::types::{
     block_identifier::{BlockIdentifier, BlockTag},
     receipt::RpcReceipt,
@@ -20,7 +20,6 @@ use std::{
     io::{BufRead, BufReader},
     ops::Mul,
     path::PathBuf,
-    str::FromStr,
     time::Duration,
 };
 
@@ -37,10 +36,15 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
-// 0x8ccf74999c496e4d27a2b02941673f41dd0dab2a
+// 0x2f399259586dba0fe48baa63257138d0fecf9c60
 const DEFAULT_BRIDGE_ADDRESS: Address = H160([
-    0x8c, 0xcf, 0x74, 0x99, 0x9c, 0x49, 0x6e, 0x4d, 0x27, 0xa2, 0xb0, 0x29, 0x41, 0x67, 0x3f, 0x41,
-    0xdd, 0x0d, 0xab, 0x2a,
+    0x2f, 0x39, 0x92, 0x59, 0x58, 0x6d, 0xba, 0x0f, 0xe4, 0x8b, 0xaa, 0x63, 0x25, 0x71, 0x38, 0xd0,
+    0xfe, 0xcf, 0x9c, 0x60,
+]);
+// 0x1c6b4013fd21444d8184d8dc107200dd6d78fc75
+const DEFAULT_ON_CHAIN_PROPOSER_ADDRESS: Address = H160([
+    0x1c, 0x6b, 0x40, 0x13, 0xfd, 0x21, 0x44, 0x4d, 0x81, 0x84, 0xd8, 0xdc, 0x10, 0x72, 0x00, 0xdd,
+    0x6d, 0x78, 0xfc, 0x75,
 ]);
 // 0x0007a881CD95B1484fca47615B64803dad620C8d
 const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
@@ -118,9 +122,13 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn read_env_file_by_config() {
-    let env_file_path = PathBuf::from("../../ethrex/crates/l2/.env");
+    let env_file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".env");
+    let Ok(env_file) = File::open(env_file_path) else {
+        println!(".env file not found, skipping");
+        return;
+    };
 
-    let reader = BufReader::new(File::open(env_file_path).expect("Failed to open .env file"));
+    let reader = BufReader::new(env_file);
 
     for line in reader.lines() {
         let line = line.expect("Failed to read line");
@@ -171,14 +179,16 @@ fn l2_return_transfer_private_key() -> SecretKey {
 
 fn common_bridge_address() -> Address {
     std::env::var("ETHREX_WATCHER_BRIDGE_ADDRESS")
-        .expect("ETHREX_WATCHER_BRIDGE_ADDRESS env var not set")
+        .unwrap_or(format!("{DEFAULT_BRIDGE_ADDRESS:#x}"))
         .parse()
-        .unwrap_or_else(|_| {
-            println!(
-                "ETHREX_WATCHER_BRIDGE_ADDRESS env var not set, using default: {DEFAULT_BRIDGE_ADDRESS}"
-            );
-            DEFAULT_BRIDGE_ADDRESS
-        })
+        .expect("Invalid bridge address")
+}
+
+fn on_chain_proposer_address() -> Address {
+    std::env::var("ETHREX_COMMITTER_ON_CHAIN_PROPOSER_ADDRESS")
+        .unwrap_or(format!("{DEFAULT_ON_CHAIN_PROPOSER_ADDRESS:#x}"))
+        .parse()
+        .expect("Invalid OnChainProposer address")
 }
 
 fn fees_vault() -> Address {
@@ -241,6 +251,11 @@ async fn test_deposit_through_transfer(
     let deposit_tx_receipt =
         wait_for_transaction_receipt(deposit_tx_hash, eth_client, 5, true).await?;
 
+    assert!(
+        deposit_tx_receipt.receipt.status,
+        "L1 deposit transaction failed"
+    );
+
     let depositor_l1_balance_after_deposit = eth_client
         .get_balance(depositor, BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
@@ -265,12 +280,7 @@ async fn test_deposit_through_transfer(
 
     println!("Waiting for L2 deposit tx receipt");
 
-    let _ = wait_for_l2_deposit_receipt(
-        deposit_tx_receipt.block_info.block_number,
-        eth_client,
-        proposer_client,
-    )
-    .await?;
+    let _ = wait_for_l2_deposit_receipt(&deposit_tx_receipt, eth_client, proposer_client).await?;
 
     let deposit_recipient_l2_balance_after_deposit = proposer_client
         .get_balance(
@@ -340,7 +350,7 @@ async fn test_deposit_through_contract_call(
     let deposit_tx_hash = deposit_through_contract_call(
         deposit_value,
         deposit_recipient_address,
-        21000 * 10,
+        21000 * 100,
         depositor_private_key,
         bridge_address,
         eth_client,
@@ -376,12 +386,7 @@ async fn test_deposit_through_contract_call(
 
     println!("Waiting for L2 deposit tx receipt");
 
-    let _ = wait_for_l2_deposit_receipt(
-        deposit_tx_receipt.block_info.block_number,
-        eth_client,
-        proposer_client,
-    )
-    .await?;
+    let _ = wait_for_l2_deposit_receipt(&deposit_tx_receipt, eth_client, proposer_client).await?;
 
     let deposit_recipient_l2_balance_after_deposit = proposer_client
         .get_balance(
@@ -416,7 +421,7 @@ async fn test_transfer(
     println!("Transferring funds on L2");
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
-        .unwrap_or(U256::from(10000000000u128));
+        .unwrap_or(U256::from(100000000000000000000u128));
     let transferer_address = get_address_from_secret_key(transferer_private_key)?;
     let returner_address = get_address_from_secret_key(returnerer_private_key)?;
 
@@ -427,6 +432,9 @@ async fn test_transfer(
         transfer_value,
     )
     .await?;
+
+    println!("Returning funds on L2");
+
     // Only return 99% of the transfer, other amount is for fees
     let return_amount = (transfer_value * 99) / 100;
 
@@ -450,7 +458,7 @@ async fn test_transfer_with_privileged_tx(
     println!("Transferring funds on L2 through a deposit");
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
-        .unwrap_or(U256::from(10000000000u128));
+        .unwrap_or(U256::from(100000000000000000000u128));
     let transferer_address = get_address_from_secret_key(transferer_private_key)?;
     let receiver_address = get_address_from_secret_key(receiver_private_key)?;
 
@@ -478,12 +486,7 @@ async fn test_transfer_with_privileged_tx(
         wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
     println!("Waiting for L1 to L2 transaction receipt on L2");
 
-    let _ = wait_for_l2_deposit_receipt(
-        l1_to_l2_tx_receipt.block_info.block_number,
-        eth_client,
-        proposer_client,
-    )
-    .await?;
+    let _ = wait_for_l2_deposit_receipt(&l1_to_l2_tx_receipt, eth_client, proposer_client).await?;
 
     println!("Checking balances after transfer");
 
@@ -638,35 +641,19 @@ async fn test_privileged_tx_with_contract_call_revert(
 }
 
 async fn wait_for_l2_deposit_receipt(
-    l1_receipt_block_number: BlockNumber,
-    eth_client: &EthClient,
-    proposer_client: &EthClient,
+    rpc_receipt: &RpcReceipt,
+    l1_client: &EthClient,
+    l2_client: &EthClient,
 ) -> Result<RpcReceipt, Box<dyn std::error::Error>> {
-    let topic = keccak(b"PrivilegedTxSent(address,address,address,uint256,uint256,uint256,bytes)");
-    let logs = eth_client
-        .get_logs(
-            U256::from(l1_receipt_block_number),
-            U256::from(l1_receipt_block_number),
-            common_bridge_address(),
-            topic,
-        )
-        .await?;
-    let data = PrivilegedTransactionData::from_log(logs.first().unwrap().log.clone())?;
+    let log = rpc_receipt.logs.first().unwrap();
 
-    let l2_deposit_tx_hash = eth_client
-        .build_privileged_transaction(
-            data.to_address,
-            data.from,
-            Bytes::copy_from_slice(&data.calldata),
-            Overrides {
-                chain_id: Some(proposer_client.get_chain_id().await?.try_into().unwrap()),
-                nonce: Some(data.transaction_id.as_u64()),
-                value: Some(data.value),
-                gas_limit: Some(data.gas_limit.as_u64()),
-                max_fee_per_gas: Some(0),
-                max_priority_fee_per_gas: Some(0),
-                ..Default::default()
-            },
+    let data = PrivilegedTransactionData::from_log(log.log.clone()).unwrap();
+
+    let l2_deposit_tx_hash = data
+        .into_tx(
+            l1_client,
+            l2_client.get_chain_id().await?.try_into().unwrap(),
+            0,
         )
         .await
         .unwrap()
@@ -675,7 +662,7 @@ async fn wait_for_l2_deposit_receipt(
 
     println!("Waiting for deposit transaction receipt on L2");
 
-    Ok(wait_for_transaction_receipt(l2_deposit_tx_hash, proposer_client, 1000, true).await?)
+    Ok(wait_for_transaction_receipt(l2_deposit_tx_hash, l2_client, 1000, true).await?)
 }
 
 async fn perform_transfer(
@@ -895,7 +882,7 @@ async fn test_call_to_contract_with_deposit(
     let l1_to_l2_tx_hash = send_l1_to_l2_tx(
         caller_address,
         Some(0),
-        Some(21000 * 10),
+        Some(21000 * 100),
         L1ToL2TransactionData::new(
             deployed_contract_address,
             21000 * 5,
@@ -915,12 +902,7 @@ async fn test_call_to_contract_with_deposit(
 
     println!("Waiting for L1 to L2 transaction receipt on L2");
 
-    let _ = wait_for_l2_deposit_receipt(
-        l1_to_l2_tx_receipt.block_info.block_number,
-        eth_client,
-        proposer_client,
-    )
-    .await?;
+    let _ = wait_for_l2_deposit_receipt(&l1_to_l2_tx_receipt, eth_client, proposer_client).await?;
 
     println!("Checking balances after call");
 
@@ -1081,14 +1063,9 @@ async fn test_n_withdraws(
         proofs.push(withdrawal_proof);
     }
 
-    let on_chain_proposer_address = Address::from_str(
-        &std::env::var("ETHREX_COMMITTER_ON_CHAIN_PROPOSER_ADDRESS")
-            .expect("ETHREX_COMMITTER_ON_CHAIN_PROPOSER_ADDRESS env var not set"),
-    )
-    .unwrap();
     for proof in &proofs {
         while eth_client
-            .get_last_verified_batch(on_chain_proposer_address)
+            .get_last_verified_batch(on_chain_proposer_address())
             .await
             .unwrap()
             < proof.batch_number

@@ -1,7 +1,10 @@
-use ethrex_common::{Address, H160, H256, U256};
+use ethrex_common::{Address, Bytes, H160, H256, U256, types::PrivilegedL2Transaction};
 use ethrex_rpc::types::receipt::RpcLogInfo;
 
-use crate::SdkError;
+use crate::{
+    SdkError,
+    client::{EthClient, EthClientError, Overrides},
+};
 
 // Duplicated from https://github.com/lambdaclass/ethrex/blob/c673d17568fdb044dce05513ecb17ec6db431e3f/crates/l2/sequencer/l1_watcher.rs#L303
 pub struct PrivilegedTransactionData {
@@ -75,6 +78,37 @@ impl PrivilegedTransactionData {
             gas_limit,
             calldata: calldata.to_vec(),
         })
+    }
+
+    pub async fn into_tx(
+        &self,
+        eth_client: &EthClient,
+        chain_id: u64,
+        gas_price: u64,
+    ) -> Result<PrivilegedL2Transaction, EthClientError> {
+        let generic_tx = eth_client
+            .build_privileged_transaction(
+                self.to_address,
+                self.from,
+                Bytes::copy_from_slice(&self.calldata),
+                Overrides {
+                    chain_id: Some(chain_id),
+                    // Using the transaction_id as nonce.
+                    // If we make a transaction on the L2 with this address, we may break the
+                    // privileged transaction workflow.
+                    nonce: Some(self.transaction_id.as_u64()),
+                    value: Some(self.value),
+                    gas_limit: Some(self.gas_limit.as_u64()),
+                    // TODO(CHECK): Seems that when we start the L2, we need to set the gas.
+                    // Otherwise, the transaction is not included in the mempool.
+                    // We should override the blockchain to always include the transaction.
+                    max_fee_per_gas: Some(gas_price),
+                    max_priority_fee_per_gas: Some(gas_price),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        Ok(generic_tx)
     }
 }
 
