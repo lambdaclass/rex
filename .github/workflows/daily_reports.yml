@@ -20,15 +20,11 @@ jobs:
         with:
           tool-cache: false
           large-packages: false
+
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Setup Rust Environment
         uses: ./.github/actions/setup-rust
-      - name: Install solc
-        uses: pontem-network/get-solc@master
-        with:
-          version: v0.8.29
-          token: ${{ secrets.GITHUB_TOKEN || '' }}
 
       - name: Install ethrex
         run: |
@@ -71,16 +67,11 @@ jobs:
         with:
           tool-cache: false
           large-packages: false
+
       - name: Checkout sources
         uses: actions/checkout@v4
       - name: Setup Rust Environment
         uses: ./.github/actions/setup-rust
-
-      - name: Install solc
-        uses: pontem-network/get-solc@master
-        with:
-          version: v0.8.29
-          token: ${{ secrets.GITHUB_TOKEN || '' }}
 
       - name: Install ethrex
         run: |
