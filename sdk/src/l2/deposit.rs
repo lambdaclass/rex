@@ -24,7 +24,6 @@ pub async fn deposit_through_transfer(
 pub async fn deposit_through_contract_call(
     amount: U256,
     to: Address,
-    l1_gas_limit: u64,
     depositor_private_key: &SecretKey,
     bridge_address: Address,
     eth_client: &EthClient,
@@ -47,7 +46,6 @@ pub async fn deposit_through_contract_call(
             Overrides {
                 from: Some(l1_from),
                 value: Some(amount),
-                gas_limit: Some(l1_gas_limit),
                 max_fee_per_gas: Some(gas_price),
                 max_priority_fee_per_gas: Some(gas_price),
                 ..Default::default()

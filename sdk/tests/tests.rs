@@ -350,7 +350,6 @@ async fn test_deposit_through_contract_call(
     let deposit_tx_hash = deposit_through_contract_call(
         deposit_value,
         deposit_recipient_address,
-        21000 * 100,
         depositor_private_key,
         bridge_address,
         eth_client,
