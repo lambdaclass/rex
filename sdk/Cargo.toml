@@ -9,6 +9,7 @@ ethrex-blockchain.workspace = true
 ethrex-rlp.workspace = true
 ethrex-rpc.workspace = true
 ethrex-l2-rpc.workspace = true
+ethrex-sdk.workspace = true
 
 # Runtime
 tokio = "1.43.0"

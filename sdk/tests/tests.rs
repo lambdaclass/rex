@@ -1,19 +1,14 @@
 use ethrex_common::{Address, Bytes, H160, H256, U256};
-use ethrex_rpc::types::{
-    block_identifier::{BlockIdentifier, BlockTag},
-    receipt::RpcReceipt,
+use ethrex_rpc::{
+    EthClient,
+    types::{
+        block_identifier::{BlockIdentifier, BlockTag},
+        receipt::RpcReceipt,
+    },
 };
+use ethrex_sdk::deposit_through_transfer;
 use keccak_hash::keccak;
-use rex_sdk::calldata::{self, Value};
-use rex_sdk::client::EthClient;
-use rex_sdk::client::Overrides;
-use rex_sdk::client::eth::get_address_from_secret_key;
-use rex_sdk::l2::deposit::{deposit_through_contract_call, deposit_through_transfer};
-use rex_sdk::l2::l1_to_l2_tx_data::{L1ToL2TransactionData, send_l1_to_l2_tx};
-use rex_sdk::l2::withdraw::{claim_withdraw, withdraw};
-use rex_sdk::privileged_transaction_data::PrivilegedTransactionData;
-use rex_sdk::transfer;
-use rex_sdk::wait_for_transaction_receipt;
+use rex_sdk::{client::eth::get_address_from_secret_key, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::{
     fs::File,
@@ -241,7 +236,6 @@ async fn test_deposit_through_transfer(
         deposit_value,
         deposit_recipient_address,
         depositor_private_key,
-        bridge_address,
         eth_client,
     )
     .await?;
