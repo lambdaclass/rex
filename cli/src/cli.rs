@@ -16,7 +16,6 @@ use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::clients::eth::get_address_from_secret_key;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_sdk::calldata::decode_calldata;
-use ethrex_sdk::transfer;
 use keccak_hash::keccak;
 use rex_sdk::client::eth::get_token_balance;
 use rex_sdk::create::{
@@ -24,7 +23,7 @@ use rex_sdk::create::{
 };
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
 use rex_sdk::utils::to_checksum_address;
-use rex_sdk::{balance_in_eth, wait_for_transaction_receipt};
+use rex_sdk::{balance_in_eth, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::io::{self, Write};
 

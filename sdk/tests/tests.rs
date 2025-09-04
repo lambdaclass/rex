@@ -12,7 +12,7 @@ use ethrex_rpc::{
         receipt::RpcReceipt,
     },
 };
-use ethrex_sdk::{L1ToL2TransactionData, calldata::encode_calldata, send_l1_to_l2_tx, transfer};
+use ethrex_sdk::{L1ToL2TransactionData, calldata::encode_calldata, send_l1_to_l2_tx};
 use keccak_hash::keccak;
 use rex_sdk::{
     client::eth::get_address_from_secret_key,
@@ -22,7 +22,7 @@ use rex_sdk::{
         privileged_transaction_data::PrivilegedTransactionData,
         withdraw::{claim_withdraw, withdraw},
     },
-    wait_for_transaction_receipt,
+    transfer, wait_for_transaction_receipt,
 };
 use secp256k1::SecretKey;
 use std::{

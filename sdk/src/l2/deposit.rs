@@ -1,3 +1,4 @@
+use crate::transfer;
 use ethrex_common::{Address, U256, types::TxType};
 use ethrex_l2_common::calldata::Value;
 use ethrex_l2_rpc::{
@@ -8,7 +9,7 @@ use ethrex_rpc::{
     EthClient,
     clients::{EthClientError, Overrides},
 };
-use ethrex_sdk::{calldata::encode_calldata, transfer};
+use ethrex_sdk::calldata::encode_calldata;
 use keccak_hash::H256;
 use secp256k1::SecretKey;
 

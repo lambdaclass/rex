@@ -31,6 +31,40 @@ pub enum SdkError {
     FailedToDeserializeLog(String),
 }
 
+pub async fn transfer(
+    amount: U256,
+    from: Address,
+    to: Address,
+    private_key: &SecretKey,
+    client: &EthClient,
+) -> Result<H256, EthClientError> {
+    let gas_price = client
+        .get_gas_price_with_extra(20)
+        .await?
+        .try_into()
+        .map_err(|_| {
+            EthClientError::InternalError("Failed to convert gas_price to a u64".to_owned())
+        })?;
+
+    let tx = client
+        .build_generic_tx(
+            TxType::EIP1559,
+            to,
+            from,
+            Default::default(),
+            Overrides {
+                value: Some(amount),
+                max_fee_per_gas: Some(gas_price),
+                max_priority_fee_per_gas: Some(gas_price),
+                ..Default::default()
+            },
+        )
+        .await?;
+
+    let signer = LocalSigner::new(*private_key).into();
+    send_generic_transaction(client, tx, &signer).await
+}
+
 pub async fn wait_for_transaction_receipt(
     tx_hash: H256,
     client: &EthClient,
