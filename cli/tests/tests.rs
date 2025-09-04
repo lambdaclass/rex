@@ -460,21 +460,18 @@ async fn test_withdraws(
         "Withdrawer L1 balance should not change after withdrawal"
     );
 
+    println!("Waiting for the withdrawal to be included in some batch and verified");
+
+    // TODO: we should use `wait_for_verified_proof` instead
+    tokio::time::sleep(Duration::from_secs(60)).await;
+
     // We need to wait for all the txs to be included in some batch
     let mut proofs = vec![];
     for (i, tx) in withdraw_txs.clone().into_iter().enumerate() {
         println!("Getting withdrawal proof {}/{n}", i + 1);
-        let message_proof = get_l2_withdrawal_proof(tx)?;
-
-        let withdrawal_proof = message_proof
-            .into_iter()
-            .next()
-            .expect("no l1 messages in withdrawal");
-        proofs.push(withdrawal_proof);
+        let message_proof = get_l2_message_proof(tx).expect("no l1 messages in withdrawal");
+        proofs.push(message_proof);
     }
-
-    // Wait for the withdrawal to be proved
-    tokio::time::sleep(Duration::from_secs(60)).await;
 
     let mut withdraw_claim_txs_receipts = vec![];
 
@@ -574,10 +571,10 @@ fn withdraw(
     Ok(H256::from_str(hash).unwrap())
 }
 
-fn get_l2_withdrawal_proof(tx_hash: H256) -> Result<Vec<H256>, Box<dyn std::error::Error>> {
+fn get_l2_message_proof(tx_hash: H256) -> Result<Vec<H256>, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
         .arg("l2")
-        .arg("withdrawal-proof")
+        .arg("message-proof")
         .arg(format!("{:#x}", tx_hash))
         .output()
         .unwrap();
@@ -594,7 +591,11 @@ fn get_l2_withdrawal_proof(tx_hash: H256) -> Result<Vec<H256>, Box<dyn std::erro
         .trim_end_matches(']')
         .trim();
 
-    Ok(vec![H256::from_str(hash).unwrap()])
+    let Ok(path) = H256::from_str(hash) else {
+        return Ok(vec![]);
+    };
+
+    Ok(vec![path])
 }
 
 fn claim_withdraw(
