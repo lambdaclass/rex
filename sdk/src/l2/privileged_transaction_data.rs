@@ -1,10 +1,14 @@
-use ethrex_common::{Address, Bytes, H160, H256, U256, types::PrivilegedL2Transaction};
-use ethrex_rpc::types::receipt::RpcLogInfo;
-
-use crate::{
-    SdkError,
-    client::{EthClient, EthClientError, Overrides},
+use ethrex_common::{
+    Address, Bytes, H160, H256, U256,
+    types::{PrivilegedL2Transaction, TxType},
 };
+use ethrex_rpc::{
+    EthClient,
+    clients::{EthClientError, Overrides},
+    types::receipt::RpcLogInfo,
+};
+
+use crate::SdkError;
 
 // Duplicated from https://github.com/lambdaclass/ethrex/blob/c673d17568fdb044dce05513ecb17ec6db431e3f/crates/l2/sequencer/l1_watcher.rs#L303
 pub struct PrivilegedTransactionData {
@@ -87,7 +91,8 @@ impl PrivilegedTransactionData {
         gas_price: u64,
     ) -> Result<PrivilegedL2Transaction, EthClientError> {
         let generic_tx = eth_client
-            .build_privileged_transaction(
+            .build_generic_tx(
+                TxType::Privileged,
                 self.to_address,
                 self.from,
                 Bytes::copy_from_slice(&self.calldata),
@@ -108,7 +113,7 @@ impl PrivilegedTransactionData {
                 },
             )
             .await?;
-        Ok(generic_tx)
+        Ok(generic_tx.try_into()?)
     }
 }
 
