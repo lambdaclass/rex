@@ -5,14 +5,13 @@ use crate::{
 };
 use clap::Subcommand;
 use ethrex_common::{Address, H256, U256};
+use ethrex_rpc::EthClient;
+use ethrex_sdk::get_address_from_secret_key;
 use rex_sdk::{
-    client::{EthClient, eth::get_address_from_secret_key},
+    deposit_through_contract_call,
     l2::{
-        deposit::{deposit_erc20, deposit_through_contract_call},
-        withdraw::{
-            claim_erc20withdraw, claim_withdraw, get_withdraw_merkle_proof, withdraw,
-            withdraw_erc20,
-        },
+        deposit::deposit_erc20,
+        withdraw::{claim_erc20withdraw, claim_withdraw, withdraw, withdraw_erc20},
     },
     wait_for_transaction_receipt,
 };
@@ -265,9 +264,9 @@ pub(crate) enum Command {
         )]
         rpc_url: String,
     },
-    #[clap(about = "Get the withdrawal merkle proof of a transaction.")]
-    WithdrawalProof {
-        l2_withdrawal_tx_hash: H256,
+    #[clap(about = "Get the merkle proof of a L1MessageProof.")]
+    MessageProof {
+        message_tx_hash: H256,
         #[arg(
             default_value = "http://localhost:1729",
             env = "RPC_URL",
@@ -427,16 +426,21 @@ impl Command {
                     wait_for_transaction_receipt(tx_hash, &client, 100, silent).await?;
                 }
             }
-            Command::WithdrawalProof {
-                l2_withdrawal_tx_hash,
+            Command::MessageProof {
+                message_tx_hash,
                 rpc_url,
             } => {
                 let client = EthClient::new(&rpc_url)?;
 
-                let (_index, path) =
-                    get_withdraw_merkle_proof(&client, l2_withdrawal_tx_hash).await?;
+                let message_proof = client.get_message_proof(message_tx_hash).await?;
+                let Some(proof) = message_proof else {
+                    println!("No message proof found for transaction {message_tx_hash:#x}");
+                    return Ok(());
+                };
 
-                println!("{path:?}");
+                let proof = proof.into_iter().next().expect("proof not found");
+
+                println!("{:?}", proof.merkle_proof);
             }
             Command::BlockNumber { rpc_url } => {
                 Box::pin(async { EthCommand::BlockNumber { rpc_url }.run().await }).await?

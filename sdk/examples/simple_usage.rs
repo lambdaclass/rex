@@ -4,8 +4,9 @@ use ethrex_rpc::{
     EthClient,
     types::block_identifier::{BlockIdentifier, BlockTag},
 };
+use ethrex_sdk::transfer;
 use hex::FromHexError;
-use rex_sdk::client::eth::get_address_from_secret_key;
+use rex_sdk::{client::eth::get_address_from_secret_key, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::str::FromStr;
 
