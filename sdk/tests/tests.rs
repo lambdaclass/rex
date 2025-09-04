@@ -12,15 +12,13 @@ use ethrex_rpc::{
         receipt::RpcReceipt,
     },
 };
-use ethrex_sdk::{
-    L1ToL2TransactionData, calldata::encode_calldata, deposit_through_transfer, send_l1_to_l2_tx,
-    transfer,
-};
+use ethrex_sdk::{L1ToL2TransactionData, calldata::encode_calldata, send_l1_to_l2_tx, transfer};
 use keccak_hash::keccak;
 use rex_sdk::{
     client::eth::get_address_from_secret_key,
     deposit_through_contract_call,
     l2::{
+        deposit::deposit_through_transfer,
         privileged_transaction_data::PrivilegedTransactionData,
         withdraw::{claim_withdraw, withdraw},
     },
@@ -253,6 +251,7 @@ async fn test_deposit_through_transfer(
         deposit_value,
         deposit_recipient_address,
         depositor_private_key,
+        bridge_address,
         eth_client,
     )
     .await?;

@@ -8,11 +8,21 @@ use ethrex_rpc::{
     EthClient,
     clients::{EthClientError, Overrides},
 };
-use ethrex_sdk::calldata::encode_calldata;
+use ethrex_sdk::{calldata::encode_calldata, transfer};
 use keccak_hash::H256;
 use secp256k1::SecretKey;
 
 const DEPOSIT_ERC20_SIGNATURE: &str = "depositERC20(address,address,address,uint256)";
+
+pub async fn deposit_through_transfer(
+    amount: U256,
+    from: Address,
+    from_pk: &SecretKey,
+    bridge_address: Address,
+    eth_client: &EthClient,
+) -> Result<H256, EthClientError> {
+    transfer(amount, from, bridge_address, from_pk, eth_client).await
+}
 
 pub async fn deposit_erc20(
     token_l1: Address,
