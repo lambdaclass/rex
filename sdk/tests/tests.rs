@@ -16,9 +16,8 @@ use ethrex_sdk::{L1ToL2TransactionData, calldata::encode_calldata, send_l1_to_l2
 use keccak_hash::keccak;
 use rex_sdk::{
     client::eth::get_address_from_secret_key,
-    deposit_through_contract_call,
     l2::{
-        deposit::deposit_through_transfer,
+        deposit::{deposit_through_contract_call, deposit_through_transfer},
         privileged_transaction_data::PrivilegedTransactionData,
         withdraw::{claim_withdraw, withdraw},
     },

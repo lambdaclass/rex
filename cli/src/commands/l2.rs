@@ -8,9 +8,8 @@ use ethrex_common::{Address, H256, U256};
 use ethrex_rpc::EthClient;
 use ethrex_sdk::get_address_from_secret_key;
 use rex_sdk::{
-    deposit_through_contract_call,
     l2::{
-        deposit::deposit_erc20,
+        deposit::{deposit_erc20, deposit_through_contract_call},
         withdraw::{claim_erc20withdraw, claim_withdraw, withdraw, withdraw_erc20},
     },
     wait_for_transaction_receipt,
