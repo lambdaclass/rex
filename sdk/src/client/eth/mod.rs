@@ -395,23 +395,33 @@ impl EthClient {
             TxKind::Call(addr) => Some(format!("{addr:#x}")),
             TxKind::Create => None,
         };
-        let blob_versioned_hashes_str: Vec<_> = transaction
-            .blob_versioned_hashes
-            .into_iter()
-            .map(|hash| format!("{hash:#x}"))
-            .collect();
+
         let mut data = json!({
             "to": to,
             "input": format!("0x{:#x}", transaction.input),
             "from": format!("{:#x}", transaction.from),
             "value": format!("{:#x}", transaction.value),
-            "blobVersionedHashes": blob_versioned_hashes_str
         });
 
         // Add the nonce just if present, otherwise the RPC will use the latest nonce
         if let Some(nonce) = transaction.nonce {
             if let Value::Object(ref mut map) = data {
                 map.insert("nonce".to_owned(), json!(format!("{nonce:#x}")));
+            }
+        }
+
+        // Add blob versioned hashes just if present, otherwise the RPC will assume it's an EIP-4844 tx
+        if !transaction.blob_versioned_hashes.is_empty() {
+            let blob_versioned_hashes_str: Vec<_> = transaction
+                .blob_versioned_hashes
+                .into_iter()
+                .map(|hash| format!("{hash:#x}"))
+                .collect();
+            if let Value::Object(ref mut map) = data {
+                map.insert(
+                    "blobVersionedHashes".to_owned(),
+                    json!(blob_versioned_hashes_str),
+                );
             }
         }
 
