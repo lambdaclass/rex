@@ -1,11 +1,3 @@
-use crate::client::EthClientError;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error(transparent)]
-    EthClientError(#[from] EthClientError),
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum KeystoreError {
     #[error("Error creating default dir: {0}")]

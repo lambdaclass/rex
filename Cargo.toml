@@ -34,6 +34,8 @@ ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "
 ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", tag = "v0.0.4-alpha" }
 ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", tag = "v0.0.4-alpha" }
 ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-rpc", tag = "v0.0.4-alpha" }
+ethrex-sdk = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-sdk", tag = "v0.0.4-alpha" }
+ethrex-l2-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-common", tag = "v0.0.4-alpha" }
 
 keccak-hash = "0.11.0"
 thiserror = "2.0.11"

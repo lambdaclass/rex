@@ -1,12 +1,16 @@
-use crate::calldata::{Value, encode_calldata};
-use crate::client::Overrides;
-use crate::{
-    client::eth::get_address_from_secret_key,
-    client::{EthClient, EthClientError},
-    transfer,
+use crate::transfer;
+use ethrex_common::{Address, U256, types::TxType};
+use ethrex_l2_common::calldata::Value;
+use ethrex_l2_rpc::{
+    clients::send_generic_transaction,
+    signer::{LocalSigner, Signer},
 };
-use ethrex_common::{Address, H256, U256};
-use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_rpc::{
+    EthClient,
+    clients::{EthClientError, Overrides},
+};
+use ethrex_sdk::{calldata::encode_calldata, get_address_from_secret_key};
+use keccak_hash::H256;
 use secp256k1::SecretKey;
 
 const DEPOSIT_ERC20_SIGNATURE: &str = "depositERC20(address,address,address,uint256)";
@@ -39,7 +43,8 @@ pub async fn deposit_through_contract_call(
         })?;
 
     let deposit_tx = eth_client
-        .build_eip1559_transaction(
+        .build_generic_tx(
+            TxType::EIP1559,
             bridge_address,
             l1_from,
             calldata.into(),
@@ -55,9 +60,7 @@ pub async fn deposit_through_contract_call(
 
     let signer = Signer::Local(LocalSigner::new(*depositor_private_key));
 
-    eth_client
-        .send_eip1559_transaction(&deposit_tx, &signer)
-        .await
+    send_generic_transaction(eth_client, deposit_tx, &signer).await
 }
 
 pub async fn deposit_erc20(
@@ -83,7 +86,8 @@ pub async fn deposit_erc20(
     let deposit_data = encode_calldata(DEPOSIT_ERC20_SIGNATURE, &calldata_values)?;
 
     let deposit_tx = eth_client
-        .build_eip1559_transaction(
+        .build_generic_tx(
+            TxType::EIP1559,
             bridge_address,
             from,
             deposit_data.into(),
@@ -96,7 +100,5 @@ pub async fn deposit_erc20(
 
     let signer = Signer::Local(LocalSigner::new(from_pk));
 
-    eth_client
-        .send_eip1559_transaction(&deposit_tx, &signer)
-        .await
+    send_generic_transaction(eth_client, deposit_tx, &signer).await
 }

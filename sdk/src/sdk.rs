@@ -1,16 +1,18 @@
-use crate::client::{EthClient, EthClientError, Overrides};
-use ethrex_common::types::GenericTransaction;
-use ethrex_common::{Address, H256, U256};
-use ethrex_l2_rpc::signer::{LocalSigner, Signer};
-use ethrex_rpc::types::receipt::RpcReceipt;
+use ethrex_common::{Address, U256, types::TxType};
+use ethrex_l2_rpc::{clients::send_generic_transaction, signer::LocalSigner};
+
+use ethrex_rpc::{
+    EthClient,
+    clients::{EthClientError, Overrides},
+    types::receipt::RpcReceipt,
+};
+use keccak_hash::H256;
 use secp256k1::SecretKey;
 
-pub mod calldata;
 pub mod client;
 pub mod create;
 pub mod errors;
 pub mod keystore;
-pub mod privileged_transaction_data;
 pub mod sign;
 pub mod utils;
 
@@ -39,8 +41,9 @@ pub async fn transfer(
             EthClientError::InternalError("Failed to convert gas_price to a u64".to_owned())
         })?;
 
-    let mut tx = client
-        .build_eip1559_transaction(
+    let tx = client
+        .build_generic_tx(
+            TxType::EIP1559,
             to,
             from,
             Default::default(),
@@ -53,12 +56,8 @@ pub async fn transfer(
         )
         .await?;
 
-    let mut tx_generic: GenericTransaction = tx.clone().into();
-    tx_generic.from = from;
-    let gas_limit = client.estimate_gas(tx_generic).await?;
-    tx.gas_limit = gas_limit;
-    let signer = Signer::Local(LocalSigner::new(*private_key));
-    client.send_eip1559_transaction(&tx, &signer).await
+    let signer = LocalSigner::new(*private_key).into();
+    send_generic_transaction(client, tx, &signer).await
 }
 
 pub async fn wait_for_transaction_receipt(

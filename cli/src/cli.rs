@@ -6,21 +6,24 @@ use crate::{
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
+use ethrex_common::types::TxType;
 use ethrex_common::{Address, Bytes, H256, H520};
+use ethrex_l2_common::calldata::Value;
+use ethrex_l2_rpc::clients::{deploy, send_generic_transaction};
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_rpc::EthClient;
+use ethrex_rpc::clients::Overrides;
+use ethrex_rpc::clients::eth::get_address_from_secret_key;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
+use ethrex_sdk::calldata::decode_calldata;
 use keccak_hash::keccak;
-use rex_sdk::calldata::{Value, decode_calldata};
+use rex_sdk::client::eth::get_token_balance;
 use rex_sdk::create::{
     DETERMINISTIC_DEPLOYER, brute_force_create2, compute_create_address, compute_create2_address,
 };
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
 use rex_sdk::utils::to_checksum_address;
-use rex_sdk::{
-    balance_in_eth,
-    client::{EthClient, Overrides, eth::get_address_from_secret_key},
-    transfer, wait_for_transaction_receipt,
-};
+use rex_sdk::{balance_in_eth, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::io::{self, Write};
 
@@ -285,7 +288,7 @@ impl Command {
             } => {
                 let eth_client = EthClient::new(&rpc_url)?;
                 let account_balance = if let Some(token_address) = token_address {
-                    eth_client.get_token_balance(account, token_address).await?
+                    get_token_balance(&eth_client, account, token_address).await?
                 } else {
                     eth_client
                         .get_balance(account, BlockIdentifier::Tag(BlockTag::Latest))
@@ -350,7 +353,7 @@ impl Command {
                             case_sensitive,
                         );
                         let duration = start.elapsed();
-                        println!("Generated in: {:.2?}.", duration);
+                        println!("Generated in: {duration:.2?}.");
                         (salt, contract_address)
                     }
                 };
@@ -469,7 +472,8 @@ impl Command {
                 };
 
                 let tx = client
-                    .build_eip1559_transaction(
+                    .build_generic_tx(
+                        TxType::EIP1559,
                         args.to,
                         from,
                         calldata,
@@ -488,7 +492,7 @@ impl Command {
 
                 let signer = Signer::Local(LocalSigner::new(args.private_key));
 
-                let tx_hash = client.send_eip1559_transaction(&tx, &signer).await?;
+                let tx_hash = send_generic_transaction(&client, tx, &signer).await?;
 
                 println!("{tx_hash:#x}",);
 
@@ -530,7 +534,7 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                let from = get_address_from_secret_key(&args.private_key)?;
+                let deployer = Signer::Local(LocalSigner::new(args.private_key));
 
                 let client = EthClient::new(&rpc_url)?;
 
@@ -541,22 +545,21 @@ impl Command {
                     args.bytecode
                 };
 
-                let (tx_hash, deployed_contract_address) = client
-                    .deploy(
-                        from,
-                        args.private_key,
-                        init_code,
-                        Overrides {
-                            value: args.value.into(),
-                            nonce: args.nonce,
-                            chain_id: args.chain_id,
-                            gas_limit: args.gas_limit,
-                            max_fee_per_gas: args.max_fee_per_gas,
-                            max_priority_fee_per_gas: args.max_priority_fee_per_gas,
-                            ..Default::default()
-                        },
-                    )
-                    .await?;
+                let (tx_hash, deployed_contract_address) = deploy(
+                    &client,
+                    &deployer,
+                    init_code,
+                    Overrides {
+                        value: args.value.into(),
+                        nonce: args.nonce,
+                        chain_id: args.chain_id,
+                        gas_limit: args.gas_limit,
+                        max_fee_per_gas: args.max_fee_per_gas,
+                        max_priority_fee_per_gas: args.max_priority_fee_per_gas,
+                        ..Default::default()
+                    },
+                )
+                .await?;
 
                 if args.print_address {
                     println!("{deployed_contract_address:#x}");

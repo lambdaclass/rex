@@ -1,19 +1,28 @@
 use ethrex_common::{Address, Bytes, H160, H256, U256};
-use ethrex_rpc::types::{
-    block_identifier::{BlockIdentifier, BlockTag},
-    receipt::RpcReceipt,
+use ethrex_l2_common::calldata::Value;
+use ethrex_l2_rpc::{
+    clients::deploy,
+    signer::{LocalSigner, Signer},
 };
+use ethrex_rpc::{
+    EthClient,
+    clients::Overrides,
+    types::{
+        block_identifier::{BlockIdentifier, BlockTag},
+        receipt::RpcReceipt,
+    },
+};
+use ethrex_sdk::{L1ToL2TransactionData, calldata::encode_calldata, send_l1_to_l2_tx};
 use keccak_hash::keccak;
-use rex_sdk::calldata::{self, Value};
-use rex_sdk::client::EthClient;
-use rex_sdk::client::Overrides;
-use rex_sdk::client::eth::get_address_from_secret_key;
-use rex_sdk::l2::deposit::{deposit_through_contract_call, deposit_through_transfer};
-use rex_sdk::l2::l1_to_l2_tx_data::{L1ToL2TransactionData, send_l1_to_l2_tx};
-use rex_sdk::l2::withdraw::{claim_withdraw, withdraw};
-use rex_sdk::privileged_transaction_data::PrivilegedTransactionData;
-use rex_sdk::transfer;
-use rex_sdk::wait_for_transaction_receipt;
+use rex_sdk::{
+    client::eth::get_address_from_secret_key,
+    l2::{
+        deposit::{deposit_through_contract_call, deposit_through_transfer},
+        privileged_transaction_data::PrivilegedTransactionData,
+        withdraw::{claim_withdraw, withdraw},
+    },
+    transfer, wait_for_transaction_receipt,
+};
 use secp256k1::SecretKey;
 use std::{
     fs::File,
@@ -552,7 +561,7 @@ async fn test_privileged_tx_with_contract_call(
 
     let number_to_emit = U256::from(424242);
     let calldata_to_contract: Bytes =
-        calldata::encode_calldata("emitNumber(uint256)", &[Value::Uint(number_to_emit)])?.into();
+        encode_calldata("emitNumber(uint256)", &[Value::Uint(number_to_emit)])?.into();
 
     // We need to get the block number before the deposit to search for logs later.
     let first_block = proposer_client.get_block_number().await?;
@@ -573,7 +582,12 @@ async fn test_privileged_tx_with_contract_call(
     let topic = keccak(b"NumberSet(uint256)");
 
     while proposer_client
-        .get_logs(first_block, block_number, deployed_contract_address, topic)
+        .get_logs(
+            first_block,
+            block_number,
+            deployed_contract_address,
+            vec![topic],
+        )
         .await
         .is_ok_and(|logs| logs.is_empty())
     {
@@ -583,7 +597,12 @@ async fn test_privileged_tx_with_contract_call(
     }
 
     let logs = proposer_client
-        .get_logs(first_block, block_number, deployed_contract_address, topic)
+        .get_logs(
+            first_block,
+            block_number,
+            deployed_contract_address,
+            vec![topic],
+        )
         .await?;
 
     let number_emitted = U256::from_big_endian(
@@ -625,7 +644,7 @@ async fn test_privileged_tx_with_contract_call_revert(
     let deployed_contract_address =
         test_deploy(&init_code, &rich_wallet_private_key, proposer_client).await?;
 
-    let calldata_to_contract: Bytes = calldata::encode_calldata("revert_call()", &[])?.into();
+    let calldata_to_contract: Bytes = encode_calldata("revert_call()", &[])?.into();
 
     test_call_to_contract_with_deposit(
         deployed_contract_address,
@@ -793,24 +812,23 @@ async fn test_deploy(
 ) -> Result<Address, Box<dyn std::error::Error>> {
     println!("Deploying contract on L2");
 
-    let deployer_address = get_address_from_secret_key(deployer_private_key)?;
+    let deployer = Signer::Local(LocalSigner::new(*deployer_private_key));
 
     let deployer_balance_before_deploy = proposer_client
-        .get_balance(deployer_address, BlockIdentifier::Tag(BlockTag::Latest))
+        .get_balance(deployer.address(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     let fee_vault_balance_before_deploy = proposer_client
         .get_balance(fees_vault(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
-    let (deploy_tx_hash, contract_address) = proposer_client
-        .deploy(
-            deployer_address,
-            *deployer_private_key,
-            init_code.to_vec().into(),
-            Overrides::default(),
-        )
-        .await?;
+    let (deploy_tx_hash, contract_address) = deploy(
+        proposer_client,
+        &deployer,
+        init_code.to_vec().into(),
+        Overrides::default(),
+    )
+    .await?;
 
     let deploy_tx_receipt =
         wait_for_transaction_receipt(deploy_tx_hash, proposer_client, 5, true).await?;
@@ -818,7 +836,7 @@ async fn test_deploy(
     let deploy_fees = get_fees_details_l2(deploy_tx_receipt, proposer_client).await;
 
     let deployer_balance_after_deploy = proposer_client
-        .get_balance(deployer_address, BlockIdentifier::Tag(BlockTag::Latest))
+        .get_balance(deployer.address(), BlockIdentifier::Tag(BlockTag::Latest))
         .await?;
 
     assert_eq!(
