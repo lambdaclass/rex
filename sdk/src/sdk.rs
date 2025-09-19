@@ -1,12 +1,22 @@
-use ethrex_common::{Address, U256, types::TxType};
-use ethrex_l2_rpc::{clients::send_generic_transaction, signer::LocalSigner};
+use ethrex_common::{
+    Address, Bytes, U256,
+    types::{TxKind, TxType},
+};
+use ethrex_l2_rpc::{
+    clients::send_generic_transaction,
+    signer::{LocalSigner, Signer},
+};
+use ethrex_rlp::encode::RLPEncode;
 
 use ethrex_rpc::{
     EthClient,
     clients::{EthClientError, Overrides},
-    types::receipt::RpcReceipt,
+    types::{
+        block_identifier::{BlockIdentifier, BlockTag},
+        receipt::RpcReceipt,
+    },
 };
-use keccak_hash::H256;
+use keccak_hash::{H256, keccak};
 use secp256k1::SecretKey;
 
 pub mod client;
@@ -58,6 +68,43 @@ pub async fn transfer(
 
     let signer = LocalSigner::new(*private_key).into();
     send_generic_transaction(client, tx, &signer).await
+}
+
+pub async fn deploy(
+    client: &EthClient,
+    deployer: &Signer,
+    init_code: Bytes,
+    overrides: Overrides,
+    silent: bool,
+) -> Result<(H256, Address), EthClientError> {
+    let mut deploy_overrides = overrides;
+    deploy_overrides.to = Some(TxKind::Create);
+
+    let deploy_tx = client
+        .build_generic_tx(
+            TxType::EIP1559,
+            Address::zero(),
+            deployer.address(),
+            init_code,
+            deploy_overrides,
+        )
+        .await?;
+    let deploy_tx_hash = send_generic_transaction(client, deploy_tx, deployer).await?;
+
+    let nonce = client
+        .get_nonce(deployer.address(), BlockIdentifier::Tag(BlockTag::Latest))
+        .await?;
+    let mut encode = vec![];
+    (deployer.address(), nonce).encode(&mut encode);
+
+    //Taking the last 20bytes so it matches an H160 == Address length
+    let deployed_address = Address::from_slice(keccak(encode).as_fixed_bytes().get(12..).ok_or(
+        EthClientError::Custom("Failed to get deployed_address".to_owned()),
+    )?);
+
+    wait_for_transaction_receipt(deploy_tx_hash, client, 1000, silent).await?;
+
+    Ok((deploy_tx_hash, deployed_address))
 }
 
 pub async fn wait_for_transaction_receipt(

@@ -9,7 +9,7 @@ use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::types::TxType;
 use ethrex_common::{Address, Bytes, H256, H520};
 use ethrex_l2_common::calldata::Value;
-use ethrex_l2_rpc::clients::{deploy, send_generic_transaction};
+use ethrex_l2_rpc::clients::send_generic_transaction;
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
@@ -23,7 +23,7 @@ use rex_sdk::create::{
 };
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
 use rex_sdk::utils::to_checksum_address;
-use rex_sdk::{balance_in_eth, transfer, wait_for_transaction_receipt};
+use rex_sdk::{balance_in_eth, deploy, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::io::{self, Write};
 
@@ -558,6 +558,7 @@ impl Command {
                         max_priority_fee_per_gas: args.max_priority_fee_per_gas,
                         ..Default::default()
                     },
+                    true,
                 )
                 .await?;
 
