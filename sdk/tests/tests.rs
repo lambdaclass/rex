@@ -1,9 +1,6 @@
 use ethrex_common::{Address, Bytes, H160, H256, U256};
 use ethrex_l2_common::calldata::Value;
-use ethrex_l2_rpc::{
-    clients::deploy,
-    signer::{LocalSigner, Signer},
-};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::{
     EthClient,
     clients::Overrides,
@@ -16,6 +13,7 @@ use ethrex_sdk::{L1ToL2TransactionData, calldata::encode_calldata, send_l1_to_l2
 use keccak_hash::keccak;
 use rex_sdk::{
     client::eth::get_address_from_secret_key,
+    deploy,
     l2::{
         deposit::{deposit_through_contract_call, deposit_through_transfer},
         privileged_transaction_data::PrivilegedTransactionData,
@@ -827,6 +825,7 @@ async fn test_deploy(
         &deployer,
         init_code.to_vec().into(),
         Overrides::default(),
+        true,
     )
     .await?;
 
