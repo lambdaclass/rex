@@ -53,13 +53,9 @@ jobs:
           echo "ProofCoordinator not ready in time"
           exit 1
 
-      - name: See status
-        run: |
-          curl -X GET http://localhost:5555/health | jq
-
       - name: Start Prover
         run: |
-          ethrex l2 prover --proof-coordinator http://localhost:3900 &
+          ethrex l2 prover --proof-coordinators http://localhost:3900 &
 
       - name: Run tests
         run: |
@@ -103,13 +99,9 @@ jobs:
           echo "Service not ready in time"
           exit 1
 
-      - name: See status
-        run: |
-          curl -X GET http://localhost:5555/health | jq
-
       - name: Start Prover
         run: |
-          ethrex l2 prover --proof-coordinator http://localhost:3900 &
+          ethrex l2 prover --proof-coordinators http://localhost:3900 &
 
       - name: Run tests
         run: |
