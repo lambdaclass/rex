@@ -1,15 +1,12 @@
 use crate::transfer;
 use ethrex_common::{Address, U256, types::TxType};
-use ethrex_l2_common::calldata::Value;
-use ethrex_l2_rpc::{
-    clients::send_generic_transaction,
-    signer::{LocalSigner, Signer},
-};
+use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::{
     EthClient,
     clients::{EthClientError, Overrides},
 };
-use ethrex_sdk::{calldata::encode_calldata, get_address_from_secret_key};
+use ethrex_sdk::{build_generic_tx, calldata::encode_calldata, send_generic_transaction};
 use keccak_hash::H256;
 use secp256k1::SecretKey;
 
@@ -32,7 +29,8 @@ pub async fn deposit_through_contract_call(
     bridge_address: Address,
     eth_client: &EthClient,
 ) -> Result<H256, EthClientError> {
-    let l1_from = get_address_from_secret_key(depositor_private_key)?;
+    let l1_from =
+        get_address_from_secret_key(depositor_private_key).map_err(EthClientError::Custom)?;
     let calldata = encode_calldata("deposit(address)", &[Value::Address(to)])?;
     let gas_price = eth_client
         .get_gas_price_with_extra(20)
@@ -42,21 +40,21 @@ pub async fn deposit_through_contract_call(
             EthClientError::InternalError("Failed to convert gas_price to a u64".to_owned())
         })?;
 
-    let deposit_tx = eth_client
-        .build_generic_tx(
-            TxType::EIP1559,
-            bridge_address,
-            l1_from,
-            calldata.into(),
-            Overrides {
-                from: Some(l1_from),
-                value: Some(amount),
-                max_fee_per_gas: Some(gas_price),
-                max_priority_fee_per_gas: Some(gas_price),
-                ..Default::default()
-            },
-        )
-        .await?;
+    let deposit_tx = build_generic_tx(
+        eth_client,
+        TxType::EIP1559,
+        bridge_address,
+        l1_from,
+        calldata.into(),
+        Overrides {
+            from: Some(l1_from),
+            value: Some(amount),
+            max_fee_per_gas: Some(gas_price),
+            max_priority_fee_per_gas: Some(gas_price),
+            ..Default::default()
+        },
+    )
+    .await?;
 
     let signer = Signer::Local(LocalSigner::new(*depositor_private_key));
 
@@ -85,18 +83,18 @@ pub async fn deposit_erc20(
 
     let deposit_data = encode_calldata(DEPOSIT_ERC20_SIGNATURE, &calldata_values)?;
 
-    let deposit_tx = eth_client
-        .build_generic_tx(
-            TxType::EIP1559,
-            bridge_address,
-            from,
-            deposit_data.into(),
-            Overrides {
-                from: Some(from),
-                ..Default::default()
-            },
-        )
-        .await?;
+    let deposit_tx = build_generic_tx(
+        eth_client,
+        TxType::EIP1559,
+        bridge_address,
+        from,
+        deposit_data.into(),
+        Overrides {
+            from: Some(from),
+            ..Default::default()
+        },
+    )
+    .await?;
 
     let signer = Signer::Local(LocalSigner::new(from_pk));
 

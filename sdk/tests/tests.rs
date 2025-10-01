@@ -1,5 +1,5 @@
 use ethrex_common::{Address, Bytes, H160, H256, U256};
-use ethrex_l2_common::calldata::Value;
+use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::{
     EthClient,
@@ -9,10 +9,12 @@ use ethrex_rpc::{
         receipt::RpcReceipt,
     },
 };
-use ethrex_sdk::{L1ToL2TransactionData, calldata::encode_calldata, send_l1_to_l2_tx};
+use ethrex_sdk::{
+    L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
+    wait_for_message_proof,
+};
 use keccak_hash::keccak;
 use rex_sdk::{
-    client::eth::get_address_from_secret_key,
     deploy,
     l2::{
         deposit::{deposit_through_contract_call, deposit_through_transfer},
@@ -785,7 +787,10 @@ async fn get_fees_details_l2(tx_receipt: RpcReceipt, proposer_client: &EthClient
 
     let effective_gas_price = tx_receipt.tx_info.effective_gas_price;
     let base_fee_per_gas = proposer_client
-        .get_block_by_number(BlockIdentifier::Number(tx_receipt.block_info.block_number))
+        .get_block_by_number(
+            BlockIdentifier::Number(tx_receipt.block_info.block_number),
+            false,
+        )
         .await
         .unwrap()
         .header
@@ -1071,7 +1076,7 @@ async fn test_n_withdraws(
     let mut proofs = vec![];
     for (i, tx) in withdraw_txs.clone().into_iter().enumerate() {
         println!("Getting withdrawal proof {}/{n}", i + 1);
-        let message_proof = proposer_client.wait_for_message_proof(tx, 1000).await?;
+        let message_proof = wait_for_message_proof(proposer_client, tx, 1000).await?;
         let withdrawal_proof = message_proof
             .into_iter()
             .next()
@@ -1080,8 +1085,7 @@ async fn test_n_withdraws(
     }
 
     for proof in &proofs {
-        while eth_client
-            .get_last_verified_batch(on_chain_proposer_address())
+        while get_last_verified_batch(eth_client, on_chain_proposer_address())
             .await
             .unwrap()
             < proof.batch_number

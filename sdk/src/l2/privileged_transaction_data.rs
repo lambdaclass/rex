@@ -7,6 +7,7 @@ use ethrex_rpc::{
     clients::{EthClientError, Overrides},
     types::receipt::RpcLogInfo,
 };
+use ethrex_sdk::build_generic_tx;
 
 use crate::SdkError;
 
@@ -90,29 +91,29 @@ impl PrivilegedTransactionData {
         chain_id: u64,
         gas_price: u64,
     ) -> Result<PrivilegedL2Transaction, EthClientError> {
-        let generic_tx = eth_client
-            .build_generic_tx(
-                TxType::Privileged,
-                self.to_address,
-                self.from,
-                Bytes::copy_from_slice(&self.calldata),
-                Overrides {
-                    chain_id: Some(chain_id),
-                    // Using the transaction_id as nonce.
-                    // If we make a transaction on the L2 with this address, we may break the
-                    // privileged transaction workflow.
-                    nonce: Some(self.transaction_id.as_u64()),
-                    value: Some(self.value),
-                    gas_limit: Some(self.gas_limit.as_u64()),
-                    // TODO(CHECK): Seems that when we start the L2, we need to set the gas.
-                    // Otherwise, the transaction is not included in the mempool.
-                    // We should override the blockchain to always include the transaction.
-                    max_fee_per_gas: Some(gas_price),
-                    max_priority_fee_per_gas: Some(gas_price),
-                    ..Default::default()
-                },
-            )
-            .await?;
+        let generic_tx = build_generic_tx(
+            eth_client,
+            TxType::Privileged,
+            self.to_address,
+            self.from,
+            Bytes::copy_from_slice(&self.calldata),
+            Overrides {
+                chain_id: Some(chain_id),
+                // Using the transaction_id as nonce.
+                // If we make a transaction on the L2 with this address, we may break the
+                // privileged transaction workflow.
+                nonce: Some(self.transaction_id.as_u64()),
+                value: Some(self.value),
+                gas_limit: Some(self.gas_limit.as_u64()),
+                // TODO(CHECK): Seems that when we start the L2, we need to set the gas.
+                // Otherwise, the transaction is not included in the mempool.
+                // We should override the blockchain to always include the transaction.
+                max_fee_per_gas: Some(gas_price),
+                max_priority_fee_per_gas: Some(gas_price),
+                ..Default::default()
+            },
+        )
+        .await?;
         Ok(generic_tx.try_into()?)
     }
 }

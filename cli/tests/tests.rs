@@ -1,5 +1,5 @@
 use ethrex_common::{Address, H160, H256, U256};
-use rex_sdk::client::eth::get_address_from_secret_key;
+use ethrex_l2_common::utils::get_address_from_secret_key;
 use secp256k1::SecretKey;
 use std::process::Command;
 use std::str::FromStr;

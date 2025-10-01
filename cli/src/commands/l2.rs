@@ -5,8 +5,9 @@ use crate::{
 };
 use clap::Subcommand;
 use ethrex_common::{Address, H256, U256};
+use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_rpc::EthClient;
-use ethrex_sdk::get_address_from_secret_key;
+use ethrex_sdk::wait_for_message_proof;
 use rex_sdk::{
     l2::{
         deposit::{deposit_erc20, deposit_through_contract_call},
@@ -291,7 +292,9 @@ impl Command {
                 bridge_address,
             } => {
                 let eth_client = EthClient::new(&l1_rpc_url)?;
-                let to = to.unwrap_or(get_address_from_secret_key(&private_key)?);
+                let to = to.unwrap_or(
+                    get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?,
+                );
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
@@ -301,7 +304,8 @@ impl Command {
                     let token_l2 = token_l2.expect(
                         "Token address on L2 is required if token address on L1 is specified",
                     );
-                    let from = get_address_from_secret_key(&private_key)?;
+                    let from =
+                        get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
                     println!(
                         "Depositing {amount} from {from:#x} to L2 token {token_l2:#x} using L1 token {token_l1:#x}"
                     );
@@ -345,15 +349,14 @@ impl Command {
                 rpc_url,
                 bridge_address,
             } => {
-                let from = get_address_from_secret_key(&private_key)?;
+                let from = get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
 
                 let eth_client = EthClient::new(&l1_rpc_url)?;
 
                 let rollup_client = EthClient::new(&rpc_url)?;
 
-                let message_proof = rollup_client
-                    .wait_for_message_proof(l2_withdrawal_tx_hash, 100)
-                    .await?;
+                let message_proof =
+                    wait_for_message_proof(&rollup_client, l2_withdrawal_tx_hash, 100).await?;
 
                 let withdrawal_proof = message_proof.into_iter().next().ok_or(eyre::eyre!(
                     "No withdrawal proof found for transaction {l2_withdrawal_tx_hash:#x}"
@@ -402,7 +405,7 @@ impl Command {
                 private_key,
                 rpc_url,
             } => {
-                let from = get_address_from_secret_key(&private_key)?;
+                let from = get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
 
                 let client = EthClient::new(&rpc_url)?;
 
@@ -431,13 +434,13 @@ impl Command {
             } => {
                 let client = EthClient::new(&rpc_url)?;
 
-                let message_proof = client.get_message_proof(message_tx_hash).await?;
-                let Some(proof) = message_proof else {
+                let message_proof = wait_for_message_proof(&client, message_tx_hash, 100).await?;
+                if message_proof.is_empty() {
                     println!("No message proof found for transaction {message_tx_hash:#x}");
                     return Ok(());
                 };
 
-                let proof = proof.into_iter().next().expect("proof not found");
+                let proof = message_proof.into_iter().next().expect("proof not found");
 
                 println!("{:?}", proof.merkle_proof);
             }
