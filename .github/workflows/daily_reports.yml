@@ -3,11 +3,10 @@ permissions:
 
 name: Daily Reports
 on:
-  push:
-    branches: ["main"]
-  merge_group:
-  pull_request:
-    branches: ["**"]
+  schedule:
+    # Every day at UTC 03:00
+    - cron: "0 3 * * 1,2,3,4,5"
+  workflow_dispatch:
 
 jobs:
   sdk-integration-test:
@@ -106,27 +105,27 @@ jobs:
           cd cli
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex --test tests -- --nocapture --test-threads=1
 
-  # post-daily-report:
-  #   name: Post report to slack
-  #   runs-on: ubuntu-latest
-  #   needs: [sdk-integration-test, cli-integration-test]
-  #   if: ${{ always() && needs.sdk-integration-test.result != 'skipped' && needs.cli-integration-test.result != 'skipped' }}
-  #   steps:
-  #     - name: Checkout sources
-  #       uses: actions/checkout@v4
+  post-daily-report:
+    name: Post report to slack
+    runs-on: ubuntu-latest
+    needs: [sdk-integration-test, cli-integration-test]
+    if: ${{ always() && needs.sdk-integration-test.result != 'skipped' && needs.cli-integration-test.result != 'skipped' }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
 
-  #     - name: Check if any job failed
-  #       env:
-  #         SLACK_WEBHOOK: >
-  #           ${{ github.event_name == 'workflow_dispatch'
-  #             && secrets.TEST_CHANNEL_SLACK
-  #             || secrets.ETHREX_L2_SLACK_WEBHOOK
-  #           }}
-  #       run: |
-  #         if [ "${{ needs.sdk-integration-test.result }}" != "success" ]; then
-  #           sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex SDK is not working with the latest ethrex version."
-  #         fi
-  #         if [ "${{ needs.cli-integration-test.result }}" != "success" ]; then
-  #           sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex CLI is not working with the latest ethrex version."
-  #         fi
-  #         echo "Sending Results" >> $GITHUB_STEP_SUMMARY
+      - name: Check if any job failed
+        env:
+          SLACK_WEBHOOK: >
+            ${{ github.event_name == 'workflow_dispatch'
+              && secrets.TEST_CHANNEL_SLACK
+              || secrets.ETHREX_L2_SLACK_WEBHOOK
+            }}
+        run: |
+          if [ "${{ needs.sdk-integration-test.result }}" != "success" ]; then
+            sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex SDK is not working with the latest ethrex version."
+          fi
+          if [ "${{ needs.cli-integration-test.result }}" != "success" ]; then
+            sh .github/scripts/publish_report.sh "$SLACK_WEBHOOK" "Rex CLI is not working with the latest ethrex version."
+          fi
+          echo "Sending Results" >> $GITHUB_STEP_SUMMARY
