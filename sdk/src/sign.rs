@@ -11,7 +11,7 @@ pub fn sign_hash(hash: H256, private_key: SecretKey) -> Vec<u8> {
     );
     let (msg_signature_recovery_id, msg_signature) = signed_msg.serialize_compact();
 
-    let msg_signature_recovery_id = msg_signature_recovery_id.to_i32() + 27;
+    let msg_signature_recovery_id = i32::from(msg_signature_recovery_id) + 27;
 
     [&msg_signature[..], &[msg_signature_recovery_id as u8]].concat()
 }
@@ -29,7 +29,7 @@ pub fn get_address_from_message_and_signature(
         signature[64]
     };
 
-    let recovery_id = secp256k1::ecdsa::RecoveryId::from_i32(raw_recovery_id as i32)?;
+    let recovery_id = secp256k1::ecdsa::RecoveryId::try_from(raw_recovery_id as i32)?;
 
     let signature =
         secp256k1::ecdsa::RecoverableSignature::from_compact(&signature[..64], recovery_id)?;
