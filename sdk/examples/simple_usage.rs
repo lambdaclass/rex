@@ -1,13 +1,12 @@
 use clap::Parser;
 use ethrex_common::{Address, Bytes, U256};
-use hex::FromHexError;
-use rex_sdk::{
-    client::{
-        EthClient, Overrides,
-        eth::{BlockByNumber, get_address_from_secret_key},
-    },
-    transfer, wait_for_transaction_receipt,
+use ethrex_rpc::{
+    EthClient,
+    clients::Overrides,
+    types::block_identifier::{BlockIdentifier, BlockTag},
 };
+use hex::FromHexError;
+use rex_sdk::{client::eth::get_address_from_secret_key, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::str::FromStr;
 
@@ -39,12 +38,12 @@ async fn main() {
     let eth_client = EthClient::new(&args.rpc_url).unwrap();
 
     let account_balance = eth_client
-        .get_balance(account, BlockByNumber::Latest)
+        .get_balance(account, BlockIdentifier::Tag(BlockTag::Latest))
         .await
         .unwrap();
 
     let account_nonce = eth_client
-        .get_nonce(account, BlockByNumber::Latest)
+        .get_nonce(account, BlockIdentifier::Tag(BlockTag::Latest))
         .await
         .unwrap();
 

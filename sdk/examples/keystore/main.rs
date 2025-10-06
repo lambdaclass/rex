@@ -1,9 +1,15 @@
 use clap::Parser;
+use ethrex_common::types::TxType;
 use ethrex_common::{Bytes, H160, H256, U256};
+use ethrex_l2_common::calldata::Value;
+use ethrex_l2_rpc::clients::send_generic_transaction;
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_rpc::EthClient;
+use ethrex_rpc::clients::Overrides;
+use ethrex_sdk::calldata::encode_calldata;
 use keccak_hash::keccak;
-use rex_sdk::calldata::{Value, encode_calldata};
 use rex_sdk::client::eth::get_address_from_secret_key;
-use rex_sdk::client::{EthClient, Overrides};
+use rex_sdk::deploy;
 use rex_sdk::{
     keystore::{create_new_keystore, load_keystore_from_path},
     sign::sign_hash,
@@ -81,14 +87,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .join("examples/keystore/contracts/solc_out")
         .join("RecoverSigner.bin");
     let bytecode = hex::decode(read_to_string(bytecode_path)?)?;
-    let (contract_tx_hash, deployed_address) = eth_client
-        .deploy(
-            keystore_address,
-            keystore_secret_key,
-            Bytes::from(bytecode),
-            Overrides::default(),
-        )
-        .await?;
+    let signer = Signer::Local(LocalSigner::new(keystore_secret_key));
+    let (contract_tx_hash, deployed_address) = deploy(
+        &eth_client,
+        &signer,
+        Bytes::from(bytecode),
+        Overrides::default(),
+        true,
+    )
+    .await?;
 
     let contract_deploy_receipt =
         wait_for_transaction_receipt(contract_tx_hash, &eth_client, 10, true).await?;
@@ -123,7 +130,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 7. Prepare and send the transaction for calling the example contract.
     let tx = eth_client
-        .build_eip1559_transaction(
+        .build_generic_tx(
+            TxType::EIP1559,
             deployed_address,
             keystore_address,
             calldata.into(),
@@ -139,9 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
 
-    let sent_tx_hash = eth_client
-        .send_eip1559_transaction(&tx, &keystore_secret_key)
-        .await?;
+    let sent_tx_hash = send_generic_transaction(&eth_client, tx, &signer).await?;
 
     let sent_tx_receipt =
         wait_for_transaction_receipt(sent_tx_hash, &eth_client, 100, true).await?;
@@ -159,7 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             from_block,
             to_block,
             deployed_address,
-            keccak("RecoveredSigner(address)"),
+            vec![keccak("RecoveredSigner(address)")],
         )
         .await?;
 

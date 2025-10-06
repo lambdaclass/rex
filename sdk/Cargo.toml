@@ -4,11 +4,13 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-ethrex-l2.workspace = true
 ethrex-common.workspace = true
 ethrex-blockchain.workspace = true
 ethrex-rlp.workspace = true
 ethrex-rpc.workspace = true
+ethrex-l2-rpc.workspace = true
+ethrex-sdk.workspace = true
+ethrex-l2-common.workspace = true
 
 # Runtime
 tokio = "1.43.0"
@@ -30,6 +32,7 @@ toml = "0.8.19"
 dirs = "6.0.0"
 envy = "0.4.2"
 thiserror.workspace = true
+rayon.workspace = true
 
 # Serde
 serde = "1.0.218"

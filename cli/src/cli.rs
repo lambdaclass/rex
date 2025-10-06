@@ -1,24 +1,31 @@
 use crate::commands::l2;
-use crate::utils::{parse_contract_creation, parse_func_call, parse_hex};
+use crate::utils::{parse_contract_creation, parse_func_call, parse_hex, parse_hex_string};
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
+use ethrex_common::types::TxType;
 use ethrex_common::{Address, Bytes, H256, H520};
+use ethrex_l2_common::calldata::Value;
+use ethrex_l2_rpc::clients::send_generic_transaction;
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_rpc::EthClient;
+use ethrex_rpc::clients::Overrides;
+use ethrex_rpc::clients::eth::get_address_from_secret_key;
+use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
+use ethrex_sdk::calldata::decode_calldata;
 use keccak_hash::keccak;
-use rex_sdk::calldata::{Value, decode_calldata};
-use rex_sdk::client::eth::BlockByNumber;
-use rex_sdk::create::compute_create_address;
-use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
-use rex_sdk::{
-    balance_in_eth,
-    client::{EthClient, Overrides, eth::get_address_from_secret_key},
-    transfer, wait_for_transaction_receipt,
+use rex_sdk::client::eth::get_token_balance;
+use rex_sdk::create::{
+    DETERMINISTIC_DEPLOYER, brute_force_create2, compute_create_address, compute_create2_address,
 };
-
+use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
+use rex_sdk::utils::to_checksum_address;
+use rex_sdk::{balance_in_eth, deploy, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
+use std::io::{self, Write};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -111,11 +118,72 @@ pub(crate) enum Command {
     #[clap(about = "Compute contract address given the deployer address and nonce.")]
     CreateAddress {
         #[arg(help = "Deployer address.")]
-        address: Address,
+        deployer: Address,
         #[arg(short = 'n', long, help = "Deployer Nonce. Latest by default.")]
         nonce: Option<u64>,
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: String,
+    },
+    Create2Address {
+        #[arg(
+            short = 'd',
+            long,
+            help = "Deployer address. Default is Mainnet Deterministic Deployer",
+            default_value = DETERMINISTIC_DEPLOYER
+        )]
+        deployer: Address,
+        #[arg(
+            short = 'i',
+            long,
+            help = "Initcode of the contract to deploy.",
+            required_unless_present_any = ["init_code_hash"],
+            conflicts_with_all = ["init_code_hash"]
+        )]
+        init_code: Option<Bytes>,
+        #[arg(
+            long,
+            help = "Hash of the initcode (keccak256).",
+            required_unless_present_any = ["init_code"],
+            conflicts_with_all = ["init_code"]
+        )]
+        init_code_hash: Option<H256>,
+        #[arg(short = 's', long, help = "Salt for CREATE2 opcode")]
+        salt: Option<H256>,
+        #[arg(
+            long,
+            required_unless_present_any = ["salt", "ends", "contains"],
+            help = "Address must begin with this hex prefix.",
+            value_parser = parse_hex_string,
+        )]
+        begins: Option<String>,
+        #[arg(
+            long,
+            required_unless_present_any = ["salt", "begins", "contains"],
+            help = "Address must end with this hex suffix.",
+            value_parser = parse_hex_string,
+        )]
+        ends: Option<String>,
+        #[arg(
+            long,
+            required_unless_present_any = ["salt", "begins", "ends"],
+            help = "Address must contain this hex substring.",
+            value_parser = parse_hex_string,
+        )]
+        contains: Option<String>,
+        #[arg(
+            long,
+            help = "Make the address search case sensitive when using begins, ends, or contains.",
+            default_value_t = false,
+            conflicts_with_all = ["salt"],
+        )]
+        case_sensitive: bool,
+        #[arg(
+            long,
+            help = "Number of threads to use for brute-forcing. Defaults to the number of logical CPUs.",
+            default_value_t = rayon::current_num_threads(),
+            conflicts_with_all = ["salt"],
+        )]
+        threads: usize,
     },
     #[clap(about = "Deploy a contract")]
     Deploy {
@@ -220,10 +288,10 @@ impl Command {
             } => {
                 let eth_client = EthClient::new(&rpc_url)?;
                 let account_balance = if let Some(token_address) = token_address {
-                    eth_client.get_token_balance(account, token_address).await?
+                    get_token_balance(&eth_client, account, token_address).await?
                 } else {
                     eth_client
-                        .get_balance(account, BlockByNumber::Latest)
+                        .get_balance(account, BlockIdentifier::Tag(BlockTag::Latest))
                         .await?
                 };
 
@@ -237,17 +305,63 @@ impl Command {
                 println!("{block_number}");
             }
             Command::CreateAddress {
-                address,
+                deployer,
                 nonce,
                 rpc_url,
             } => {
                 let nonce = nonce.unwrap_or(
                     EthClient::new(&rpc_url)?
-                        .get_nonce(address, BlockByNumber::Latest)
+                        .get_nonce(deployer, BlockIdentifier::Tag(BlockTag::Latest))
                         .await?,
                 );
 
-                println!("0x{:x}", compute_create_address(address, nonce))
+                println!("Address: {:#x}", compute_create_address(deployer, nonce))
+            }
+            Command::Create2Address {
+                deployer,
+                init_code,
+                salt,
+                init_code_hash,
+                begins,
+                ends,
+                contains,
+                case_sensitive,
+                threads,
+            } => {
+                let init_code_hash = init_code_hash
+                    .or_else(|| init_code.as_ref().map(keccak))
+                    .ok_or_else(|| eyre::eyre!("init_code_hash and init_code are both None"))?;
+
+                let (salt, contract_address) = match salt {
+                    Some(salt) => {
+                        let contract_address =
+                            compute_create2_address(deployer, init_code_hash, salt);
+                        (salt, contract_address)
+                    }
+                    None => {
+                        // If salt is not provided, search for a salt that matches the criteria set by the user.
+                        println!("\nComputing Create2 Address with {threads} threads...");
+                        io::stdout().flush().ok();
+
+                        let start = std::time::Instant::now();
+                        let (salt, contract_address) = brute_force_create2(
+                            deployer,
+                            init_code_hash,
+                            begins,
+                            ends,
+                            contains,
+                            case_sensitive,
+                        );
+                        let duration = start.elapsed();
+                        println!("Generated in: {duration:.2?}.");
+                        (salt, contract_address)
+                    }
+                };
+
+                let contract_address = to_checksum_address(&format!("{contract_address:x}"));
+
+                println!("\nSalt: {salt:#x}");
+                println!("\nAddress: 0x{contract_address}");
             }
             Command::Transaction { tx_hash, rpc_url } => {
                 let eth_client = EthClient::new(&rpc_url)?;
@@ -272,7 +386,9 @@ impl Command {
             Command::Nonce { account, rpc_url } => {
                 let eth_client = EthClient::new(&rpc_url)?;
 
-                let nonce = eth_client.get_nonce(account, BlockByNumber::Latest).await?;
+                let nonce = eth_client
+                    .get_nonce(account, BlockIdentifier::Tag(BlockTag::Latest))
+                    .await?;
 
                 println!("{nonce}");
             }
@@ -363,7 +479,8 @@ impl Command {
                 };
 
                 let tx = client
-                    .build_eip1559_transaction(
+                    .build_generic_tx(
+                        TxType::EIP1559,
                         args.to,
                         from,
                         calldata,
@@ -380,9 +497,9 @@ impl Command {
                     )
                     .await?;
 
-                let tx_hash = client
-                    .send_eip1559_transaction(&tx, &args.private_key)
-                    .await?;
+                let signer = Signer::Local(LocalSigner::new(args.private_key));
+
+                let tx_hash = send_generic_transaction(&client, tx, &signer).await?;
 
                 println!("{tx_hash:#x}",);
 
@@ -424,7 +541,7 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                let from = get_address_from_secret_key(&args.private_key)?;
+                let deployer = Signer::Local(LocalSigner::new(args.private_key));
 
                 let client = EthClient::new(&rpc_url)?;
 
@@ -435,22 +552,22 @@ impl Command {
                     args.bytecode
                 };
 
-                let (tx_hash, deployed_contract_address) = client
-                    .deploy(
-                        from,
-                        args.private_key,
-                        init_code,
-                        Overrides {
-                            value: args.value.into(),
-                            nonce: args.nonce,
-                            chain_id: args.chain_id,
-                            gas_limit: args.gas_limit,
-                            max_fee_per_gas: args.max_fee_per_gas,
-                            max_priority_fee_per_gas: args.max_priority_fee_per_gas,
-                            ..Default::default()
-                        },
-                    )
-                    .await?;
+                let (tx_hash, deployed_contract_address) = deploy(
+                    &client,
+                    &deployer,
+                    init_code,
+                    Overrides {
+                        value: args.value.into(),
+                        nonce: args.nonce,
+                        chain_id: args.chain_id,
+                        gas_limit: args.gas_limit,
+                        max_fee_per_gas: args.max_fee_per_gas,
+                        max_priority_fee_per_gas: args.max_priority_fee_per_gas,
+                        ..Default::default()
+                    },
+                    true,
+                )
+                .await?;
 
                 if args.print_address {
                     println!("{deployed_contract_address:#x}");
@@ -482,9 +599,9 @@ impl Command {
             } => {
                 let eth_client = EthClient::new(&rpc_url)?;
 
-                let code = eth_client
-                    .get_code(address, block.as_str().try_into()?)
-                    .await?;
+                let block_identifier = BlockIdentifier::parse(serde_json::Value::String(block), 0)?;
+
+                let code = eth_client.get_code(address, block_identifier).await?;
 
                 println!("0x{}", hex::encode(code));
             }

@@ -1,6 +1,7 @@
 use ethrex_common::{Address, Bytes, U256};
+use ethrex_l2_common::calldata::Value;
+use ethrex_sdk::calldata::{encode_calldata, encode_tuple, parse_signature};
 use hex::FromHexError;
-use rex_sdk::calldata::{Value, encode_calldata, encode_tuple, parse_signature};
 use secp256k1::SecretKey;
 use std::str::FromStr;
 
@@ -21,6 +22,17 @@ pub fn parse_hex(s: &str) -> eyre::Result<Bytes, FromHexError> {
     match s.strip_prefix("0x") {
         Some(s) => hex::decode(s).map(Into::into),
         None => hex::decode(s).map(Into::into),
+    }
+}
+
+/// Parses a hex string, stripping the "0x" prefix if present.
+/// Unlike `parse_hex`, the string doesn't need to be of even length.
+pub fn parse_hex_string(s: &str) -> eyre::Result<String> {
+    let s = s.strip_prefix("0x").unwrap_or(s);
+    if s.chars().all(|c| c.is_ascii_hexdigit()) {
+        Ok(s.to_string())
+    } else {
+        Err(eyre::eyre!("Invalid hex string"))
     }
 }
 

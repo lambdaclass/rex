@@ -29,11 +29,13 @@ manual_saturating_arithmetic = "warn"
 rex-cli = { path = "cli" }
 rex-sdk = { path = "sdk" }
 
-ethrex-l2 = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2", rev = "187e8c27f9b9a22948cd82b0b3f79866c16ac489" }
-ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common", rev = "187e8c27f9b9a22948cd82b0b3f79866c16ac489" }
-ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain", rev = "187e8c27f9b9a22948cd82b0b3f79866c16ac489" }
-ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", rev = "187e8c27f9b9a22948cd82b0b3f79866c16ac489" }
-ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", rev = "187e8c27f9b9a22948cd82b0b3f79866c16ac489" }
+ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common", tag = "v0.0.4-alpha" }
+ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain", tag = "v0.0.4-alpha" }
+ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", tag = "v0.0.4-alpha" }
+ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", tag = "v0.0.4-alpha" }
+ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-rpc", tag = "v0.0.4-alpha" }
+ethrex-sdk = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-sdk", tag = "v0.0.4-alpha" }
+ethrex-l2-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-common", tag = "v0.0.4-alpha" }
 
 keccak-hash = "0.11.0"
 thiserror = "2.0.11"
@@ -43,3 +45,4 @@ secp256k1 = { version = "0.29.1", default-features = false, features = [
   "recovery",
   "rand",
 ] }
+rayon = "1.10.0"

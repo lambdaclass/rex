@@ -1,24 +1,23 @@
-use crate::{
-    calldata::{Value, encode_calldata},
-    client::{
-        EthClient, EthClientError, Overrides,
+use ethrex_common::{Address, Bytes, U256, types::TxType};
+use ethrex_l2_common::calldata::Value;
+use ethrex_l2_rpc::{
+    clients::send_generic_transaction,
+    signer::{LocalSigner, Signer},
+};
+use ethrex_rpc::{
+    EthClient,
+    clients::{
+        EthClientError, Overrides,
         eth::{L1MessageProof, get_address_from_secret_key},
     },
-    l2::{
-        constants::{
-            CLAIM_WITHDRAWAL_ERC20_SIGNATURE, COMMON_BRIDGE_L2_ADDRESS, L2_WITHDRAW_SIGNATURE,
-            L2_WITHDRAW_SIGNATURE_ERC20,
-        },
-        merkle_tree::merkle_proof,
-    },
 };
-use ethrex_common::{
-    Address, Bytes, H256, U256,
-    types::{Transaction, TxKind},
-};
-use ethrex_rpc::types::block::BlockBodyWrapper;
-use itertools::Itertools;
+use ethrex_sdk::{COMMON_BRIDGE_L2_ADDRESS, calldata::encode_calldata};
+use keccak_hash::H256;
 use secp256k1::SecretKey;
+
+use crate::l2::constants::{
+    CLAIM_WITHDRAWAL_ERC20_SIGNATURE, L2_WITHDRAW_SIGNATURE, L2_WITHDRAW_SIGNATURE_ERC20,
+};
 
 pub async fn withdraw(
     amount: U256,
@@ -28,7 +27,8 @@ pub async fn withdraw(
     nonce: Option<u64>,
 ) -> Result<H256, EthClientError> {
     let withdraw_transaction = proposer_client
-        .build_eip1559_transaction(
+        .build_generic_tx(
+            TxType::EIP1559,
             COMMON_BRIDGE_L2_ADDRESS,
             from,
             Bytes::from(
@@ -43,9 +43,9 @@ pub async fn withdraw(
         )
         .await?;
 
-    proposer_client
-        .send_eip1559_transaction(&withdraw_transaction, &from_pk)
-        .await
+    let signer = Signer::Local(LocalSigner::new(from_pk));
+
+    send_generic_transaction(proposer_client, withdraw_transaction, &signer).await
 }
 
 pub async fn withdraw_erc20(
@@ -65,17 +65,16 @@ pub async fn withdraw_erc20(
     let withdraw_data = encode_calldata(L2_WITHDRAW_SIGNATURE_ERC20, &data)
         .expect("Failed to encode calldata for withdraw ERC20");
     let withdraw_transaction = l2_client
-        .build_eip1559_transaction(
+        .build_generic_tx(
+            TxType::EIP1559,
             COMMON_BRIDGE_L2_ADDRESS,
             from,
             Bytes::from(withdraw_data),
             Default::default(),
         )
         .await?;
-
-    l2_client
-        .send_eip1559_transaction(&withdraw_transaction, &from_pk)
-        .await
+    let signer = Signer::Local(LocalSigner::new(from_pk));
+    send_generic_transaction(l2_client, withdraw_transaction, &signer).await
 }
 
 pub async fn claim_withdraw(
@@ -112,7 +111,8 @@ pub async fn claim_withdraw(
     );
 
     let claim_tx = eth_client
-        .build_eip1559_transaction(
+        .build_generic_tx(
+            TxType::EIP1559,
             bridge_address,
             from,
             claim_withdrawal_data.into(),
@@ -122,10 +122,9 @@ pub async fn claim_withdraw(
             },
         )
         .await?;
+    let signer = Signer::Local(LocalSigner::new(from_pk));
 
-    eth_client
-        .send_eip1559_transaction(&claim_tx, &from_pk)
-        .await
+    send_generic_transaction(eth_client, claim_tx, &signer).await
 }
 
 pub async fn claim_erc20withdraw(
@@ -163,7 +162,8 @@ pub async fn claim_erc20withdraw(
     );
 
     let claim_tx = eth_client
-        .build_eip1559_transaction(
+        .build_generic_tx(
+            TxType::EIP1559,
             bridge_address,
             from,
             claim_withdrawal_data.into(),
@@ -174,81 +174,7 @@ pub async fn claim_erc20withdraw(
         )
         .await?;
 
-    eth_client
-        .send_eip1559_transaction(&claim_tx, &from_pk)
-        .await
-}
+    let signer = Signer::Local(LocalSigner::new(from_pk));
 
-/// Returns the formatted hash of the withdrawal transaction,
-/// or None if the transaction is not a withdrawal.
-/// The hash is computed as keccak256(to || value || tx_hash)
-pub fn get_withdrawal_hash(tx: &Transaction) -> Option<H256> {
-    let to_bytes: [u8; 20] = match tx.data().get(16..36)?.try_into() {
-        Ok(value) => value,
-        Err(_) => return None,
-    };
-    let to = Address::from(to_bytes);
-
-    let value = tx.value().to_big_endian();
-
-    Some(keccak_hash::keccak(
-        [to.as_bytes(), &value, tx.compute_hash().as_bytes()].concat(),
-    ))
-}
-
-pub async fn get_withdraw_merkle_proof(
-    client: &EthClient,
-    tx_hash: H256,
-) -> Result<(u64, Vec<H256>), EthClientError> {
-    let tx_receipt =
-        client
-            .get_transaction_receipt(tx_hash)
-            .await?
-            .ok_or(EthClientError::Custom(
-                "Failed to get transaction receipt".to_string(),
-            ))?;
-
-    let block = client
-        .get_block_by_hash(tx_receipt.block_info.block_hash)
-        .await?;
-
-    let transactions = match block.body {
-        BlockBodyWrapper::Full(body) => body.transactions,
-        BlockBodyWrapper::OnlyHashes(_) => unreachable!(),
-    };
-    let Some(Some((index, tx_withdrawal_hash))) = transactions
-        .iter()
-        .filter(|tx| match &tx.tx.to() {
-            ethrex_common::types::TxKind::Call(to) => *to == COMMON_BRIDGE_L2_ADDRESS,
-            ethrex_common::types::TxKind::Create => false,
-        })
-        .find_position(|tx| tx.hash == tx_hash)
-        .map(|(i, tx)| get_withdrawal_hash(&tx.tx).map(|withdrawal_hash| (i, (withdrawal_hash))))
-    else {
-        return Err(EthClientError::Custom(
-            "Failed to get widthdrawal hash, transaction is not a withdrawal".to_string(),
-        ));
-    };
-
-    let path = merkle_proof(
-        transactions
-            .iter()
-            .filter_map(|tx| match tx.tx.to() {
-                TxKind::Call(to) if to == COMMON_BRIDGE_L2_ADDRESS => get_withdrawal_hash(&tx.tx),
-                _ => None,
-            })
-            .collect(),
-        tx_withdrawal_hash,
-    )
-    .map_err(|err| EthClientError::Custom(format!("Failed to generate merkle proof: {err}")))?
-    .ok_or(EthClientError::Custom(
-        "Failed to generate merkle proof, element is not on the tree".to_string(),
-    ))?;
-
-    Ok((
-        index
-            .try_into()
-            .map_err(|err| EthClientError::Custom(format!("index does not fit in u64: {err}")))?,
-        path,
-    ))
+    send_generic_transaction(eth_client, claim_tx, &signer).await
 }

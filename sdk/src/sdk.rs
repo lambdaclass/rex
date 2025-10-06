@@ -1,9 +1,24 @@
-use crate::client::{EthClient, EthClientError, Overrides};
-use ethrex_common::{Address, H256, U256};
-use ethrex_rpc::types::receipt::RpcReceipt;
+use ethrex_common::{
+    Address, Bytes, U256,
+    types::{TxKind, TxType},
+};
+use ethrex_l2_rpc::{
+    clients::send_generic_transaction,
+    signer::{LocalSigner, Signer},
+};
+use ethrex_rlp::encode::RLPEncode;
+
+use ethrex_rpc::{
+    EthClient,
+    clients::{EthClientError, Overrides},
+    types::{
+        block_identifier::{BlockIdentifier, BlockTag},
+        receipt::RpcReceipt,
+    },
+};
+use keccak_hash::{H256, keccak};
 use secp256k1::SecretKey;
 
-pub mod calldata;
 pub mod client;
 pub mod create;
 pub mod errors;
@@ -17,6 +32,8 @@ pub mod l2;
 pub enum SdkError {
     #[error("Failed to parse address from hex")]
     FailedToParseAddressFromHex,
+    #[error("Failed deserializing log: {0}")]
+    FailedToDeserializeLog(String),
 }
 
 pub async fn transfer(
@@ -27,12 +44,60 @@ pub async fn transfer(
     client: &EthClient,
     mut overrides: Overrides,
 ) -> Result<H256, EthClientError> {
+    let gas_price = client
+        .get_gas_price_with_extra(20)
+        .await?
+        .try_into()
+        .map_err(|_| {
+            EthClientError::InternalError("Failed to convert gas_price to a u64".to_owned())
+        })?;
     overrides.value = Some(amount);
+    overrides.max_fee_per_gas = Some(gas_price);
+    overrides.max_priority_fee_per_gas = Some(gas_price);
 
     let tx = client
-        .build_eip1559_transaction(to, from, Default::default(), overrides)
+        .build_generic_tx(TxType::EIP1559, to, from, Default::default(), overrides)
         .await?;
-    client.send_eip1559_transaction(&tx, private_key).await
+
+    let signer = LocalSigner::new(*private_key).into();
+    send_generic_transaction(client, tx, &signer).await
+}
+
+pub async fn deploy(
+    client: &EthClient,
+    deployer: &Signer,
+    init_code: Bytes,
+    overrides: Overrides,
+    silent: bool,
+) -> Result<(H256, Address), EthClientError> {
+    let mut deploy_overrides = overrides;
+    deploy_overrides.to = Some(TxKind::Create);
+
+    let deploy_tx = client
+        .build_generic_tx(
+            TxType::EIP1559,
+            Address::zero(),
+            deployer.address(),
+            init_code,
+            deploy_overrides,
+        )
+        .await?;
+    let deploy_tx_hash = send_generic_transaction(client, deploy_tx, deployer).await?;
+
+    let nonce = client
+        .get_nonce(deployer.address(), BlockIdentifier::Tag(BlockTag::Latest))
+        .await?;
+    let mut encode = vec![];
+    (deployer.address(), nonce).encode(&mut encode);
+
+    //Taking the last 20bytes so it matches an H160 == Address length
+    let deployed_address = Address::from_slice(keccak(encode).as_fixed_bytes().get(12..).ok_or(
+        EthClientError::Custom("Failed to get deployed_address".to_owned()),
+    )?);
+
+    wait_for_transaction_receipt(deploy_tx_hash, client, 1000, silent).await?;
+
+    Ok((deploy_tx_hash, deployed_address))
 }
 
 pub async fn wait_for_transaction_receipt(
