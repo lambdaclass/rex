@@ -206,7 +206,11 @@ pub struct DeployArgs {
         required = false
     )]
     pub keep_deps: bool,
-    #[arg(long, help = "Salt for deploying CREATE2 contracts", required_unless_present = "bytecode")]
+    #[arg(
+        long,
+        help = "Salt for deploying CREATE2 contracts",
+        required_unless_present = "bytecode"
+    )]
     pub salt: Option<Secret>,
     #[arg(last = true, hide = true)]
     pub _args: Vec<String>,
