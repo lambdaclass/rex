@@ -15,7 +15,10 @@ use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_sdk::calldata::decode_calldata;
-use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
+use ethrex_sdk::{
+    build_generic_tx, create2_deploy_from_bytecode, create2_deploy_from_path,
+    send_generic_transaction,
+};
 use ethrex_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
 use rex_sdk::client::eth::get_token_balance;
@@ -774,9 +777,7 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
             .to_string()
             + ".bin",
     );
-    let bytecode = std::fs::read(bin_path)
-        .map_err(|e| eyre::eyre!("Failed to read compiled bytecode: {e}"))?;
-
+    dbg!(&bin_path);
     let constructor_args = args
         ._args
         .iter()
@@ -787,9 +788,9 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
     let deployer = Signer::Local(LocalSigner::new(args.private_key));
     let client = EthClient::new(rpc_url)?;
 
-    let (a, b) = create2_deploy_from_bytecode(
+    let (a, b) = create2_deploy_from_path(
         &constructor_args,
-        &bytecode,
+        &bin_path,
         &deployer,
         args.salt.unwrap().as_bytes(),
         &client,
@@ -799,5 +800,5 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
     println!("Contract deployed in tx: {:#x}", a);
     println!("Contract address: {:#x}", b);
 
-    Ok(Bytes::from(bytecode))
+    Ok(Bytes::new())
 }
