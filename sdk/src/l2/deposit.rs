@@ -19,7 +19,15 @@ pub async fn deposit_through_transfer(
     bridge_address: Address,
     eth_client: &EthClient,
 ) -> Result<H256, EthClientError> {
-    transfer(amount, from, bridge_address, from_pk, eth_client).await
+    transfer(
+        amount,
+        from,
+        bridge_address,
+        from_pk,
+        eth_client,
+        Overrides::default(),
+    )
+    .await
 }
 
 pub async fn deposit_through_contract_call(

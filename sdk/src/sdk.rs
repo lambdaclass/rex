@@ -40,6 +40,7 @@ pub async fn transfer(
     to: Address,
     private_key: &SecretKey,
     client: &EthClient,
+    mut overrides: Overrides,
 ) -> Result<H256, EthClientError> {
     let gas_price = client
         .get_gas_price_with_extra(20)
@@ -48,6 +49,9 @@ pub async fn transfer(
         .map_err(|_| {
             EthClientError::InternalError("Failed to convert gas_price to a u64".to_owned())
         })?;
+    overrides.value = Some(amount);
+    overrides.max_fee_per_gas = Some(gas_price);
+    overrides.max_priority_fee_per_gas = Some(gas_price);
 
     let tx = build_generic_tx(
         client,
