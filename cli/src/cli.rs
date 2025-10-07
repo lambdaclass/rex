@@ -15,10 +15,7 @@ use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_sdk::calldata::decode_calldata;
-use ethrex_sdk::{
-    build_generic_tx, create2_deploy_from_bytecode, create2_deploy_from_path,
-    send_generic_transaction,
-};
+use ethrex_sdk::{build_generic_tx, create2_deploy_from_path, send_generic_transaction};
 use ethrex_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
 use rex_sdk::client::eth::get_token_balance;
@@ -712,14 +709,14 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
 
     if let Some(remappings) = &remappings {
         for (remap, repo_or_path) in remappings {
-            // If it's a github repo, clone it to "lib/<name>"
+            // If it's a github repo, clone it to "rex_deps/<name>"
             if repo_or_path.starts_with("http://") || repo_or_path.starts_with("https://") {
                 let repo_name = repo_or_path
                     .split('/')
                     .next_back()
                     .and_then(|s| s.strip_suffix(".git"))
                     .unwrap_or("dep");
-                let local_path = PathBuf::from(format!("lib/{}", repo_name));
+                let local_path = PathBuf::from(format!("rex_deps/{}", repo_name));
                 git_clone(repo_or_path, local_path.to_str().unwrap(), None, true)?;
                 solc_remappings.push((remap.clone(), local_path.join("contracts").clone()));
                 cloned_dirs.push(local_path);
@@ -743,11 +740,10 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
     if let Some(parent) = contract_path.parent() {
         include_paths.push(parent);
     }
-    include_paths.push(Path::new("lib"));
+    include_paths.push(Path::new("rex_deps"));
     for (_, path) in &solc_remappings {
         include_paths.push(path);
     }
-
     compile_contract(
         output_dir,
         &contract_path,
@@ -756,16 +752,6 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
         &include_paths,
     )
     .map_err(|e| eyre::eyre!("Failed to compile contract: {e}"))?;
-
-    // 3. Clean up cloned dependencies if requested
-    if clean {
-        for dir in cloned_dirs {
-            if dir.exists() {
-                std::fs::remove_dir_all(&dir)
-                    .map_err(|e| eyre::eyre!("Failed to clean up {}: {}", dir.display(), e))?;
-            }
-        }
-    }
 
     // 4. Load the compiled bytecode (example: from solc_out/ContractName.bin)
     // You may want to parameterize the output file name
@@ -799,6 +785,18 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
 
     println!("Contract deployed in tx: {:#x}", a);
     println!("Contract address: {:#x}", b);
+
+    // 3. Clean up cloned dependencies if requested
+    if clean {
+        for dir in cloned_dirs {
+            if dir.exists() {
+                std::fs::remove_dir_all(&dir)
+                    .map_err(|e| eyre::eyre!("Failed to clean up {}: {}", dir.display(), e))?;
+            }
+        }
+        std::fs::remove_dir_all("rex_deps").ok();
+        std::fs::remove_dir_all("solc_out").ok();
+    }
 
     Ok(Bytes::new())
 }
