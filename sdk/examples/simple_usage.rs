@@ -1,12 +1,13 @@
 use clap::Parser;
 use ethrex_common::{Address, Bytes, U256};
+use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_rpc::{
     EthClient,
     clients::Overrides,
     types::block_identifier::{BlockIdentifier, BlockTag},
 };
 use hex::FromHexError;
-use rex_sdk::{client::eth::get_address_from_secret_key, transfer, wait_for_transaction_receipt};
+use rex_sdk::{transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::str::FromStr;
 

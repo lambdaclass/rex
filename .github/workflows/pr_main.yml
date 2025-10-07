@@ -32,7 +32,7 @@ jobs:
 
       - name: Install ethrex
         run: |
-          curl -L https://github.com/lambdaclass/ethrex/releases/download/v0.0.4-alpha/ethrex-linux_x86_64 -o /usr/local/bin/ethrex
+          curl -L https://github.com/lambdaclass/ethrex/releases/download/v1.0.1/ethrex-linux_x86_64 -o /usr/local/bin/ethrex
           chmod +x /usr/local/bin/ethrex
           ethrex --version
           echo "ethrex installed successfully"
@@ -55,7 +55,7 @@ jobs:
 
       - name: Start Prover
         run: |
-          ethrex l2 prover --proof-coordinator http://localhost:3900 &
+          ethrex l2 prover --proof-coordinators http://localhost:3900 &
 
       - name: Run tests
         run: |
@@ -78,7 +78,7 @@ jobs:
 
       - name: Install ethrex
         run: |
-          curl -L https://github.com/lambdaclass/ethrex/releases/download/v0.0.4-alpha/ethrex-linux_x86_64 -o /usr/local/bin/ethrex
+          curl -L https://github.com/lambdaclass/ethrex/releases/download/v1.0.1/ethrex-linux_x86_64 -o /usr/local/bin/ethrex
           chmod +x /usr/local/bin/ethrex
           ethrex --version
           echo "ethrex installed successfully"
@@ -101,7 +101,7 @@ jobs:
 
       - name: Start Prover
         run: |
-          ethrex l2 prover --proof-coordinator http://localhost:3900 &
+          ethrex l2 prover --proof-coordinators http://localhost:3900 &
 
       - name: Run tests
         run: |

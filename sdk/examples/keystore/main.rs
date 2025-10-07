@@ -2,13 +2,13 @@ use clap::Parser;
 use ethrex_common::types::TxType;
 use ethrex_common::{Bytes, H160, H256, U256};
 use ethrex_l2_common::calldata::Value;
-use ethrex_l2_rpc::clients::send_generic_transaction;
+use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_sdk::calldata::encode_calldata;
+use ethrex_sdk::{build_generic_tx, send_generic_transaction};
 use keccak_hash::keccak;
-use rex_sdk::client::eth::get_address_from_secret_key;
 use rex_sdk::deploy;
 use rex_sdk::{
     keystore::{create_new_keystore, load_keystore_from_path},
@@ -129,23 +129,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let calldata = encode_calldata(raw_function_signature, &arguments).unwrap();
 
     // 7. Prepare and send the transaction for calling the example contract.
-    let tx = eth_client
-        .build_generic_tx(
-            TxType::EIP1559,
-            deployed_address,
-            keystore_address,
-            calldata.into(),
-            Overrides {
-                value: Some(U256::from_dec_str("0")?),
-                nonce: Some(1),
-                chain_id: Some(9),
-                gas_limit: Some(2000000),
-                max_fee_per_gas: Some(2000000),
-                max_priority_fee_per_gas: Some(20000),
-                ..Default::default()
-            },
-        )
-        .await?;
+    let tx = build_generic_tx(
+        &eth_client,
+        TxType::EIP1559,
+        deployed_address,
+        keystore_address,
+        calldata.into(),
+        Overrides {
+            value: Some(U256::from_dec_str("0")?),
+            nonce: Some(1),
+            chain_id: Some(9),
+            gas_limit: Some(2000000),
+            max_fee_per_gas: Some(2000000),
+            max_priority_fee_per_gas: Some(20000),
+            ..Default::default()
+        },
+    )
+    .await?;
 
     let sent_tx_hash = send_generic_transaction(&eth_client, tx, &signer).await?;
 
