@@ -15,7 +15,8 @@ use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_sdk::calldata::decode_calldata;
-use ethrex_sdk::{build_generic_tx, send_generic_transaction};
+use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
+use ethrex_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
 use rex_sdk::client::eth::get_token_balance;
 use rex_sdk::create::{
@@ -26,6 +27,7 @@ use rex_sdk::utils::to_checksum_address;
 use rex_sdk::{balance_in_eth, deploy, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -540,11 +542,16 @@ impl Command {
 
                 let client = EthClient::new(&rpc_url)?;
 
-                let init_code = if !args._args.is_empty() {
-                    let init_args = parse_contract_creation(args._args)?;
-                    [args.bytecode, init_args].concat().into()
+                let init_code = if let Some(bytecode) = args.bytecode {
+                    if !args._args.is_empty() {
+                        let init_args = parse_contract_creation(args._args)?;
+                        [bytecode, init_args].concat().into()
+                    } else {
+                        bytecode
+                    }
                 } else {
-                    args.bytecode
+                    let _a = compile_to_init_code(args, &rpc_url).await?;
+                    return Ok(());
                 };
 
                 let (tx_hash, deployed_contract_address) = deploy(
@@ -673,4 +680,124 @@ fn print_calldata(depth: usize, data: Value) {
             println!(")");
         }
     }
+}
+
+async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<Bytes> {
+    // 1. Clone any remapping repos if needed and build remapping tuples for solc
+    let mut solc_remappings: Vec<(String, PathBuf)> = Vec::new();
+    let mut cloned_dirs: Vec<PathBuf> = Vec::new();
+    let Some(contract_path) = args.contract_path else {
+        return Err(eyre::eyre!(
+            "Contract path is required when bytecode is not provided"
+        ));
+    };
+    let clean = !args.keep_deps;
+    let output_dir = Path::new(".");
+    let remappings: Option<Vec<(String, String)>> = args.remappings.map(|s| {
+        s.split(',')
+            .filter_map(|mapping| {
+                let mut parts = mapping.splitn(2, '=');
+                match (parts.next(), parts.next()) {
+                    (Some(key), Some(val)) if !key.trim().is_empty() && !val.trim().is_empty() => {
+                        Some((key.trim().to_string(), val.trim().to_string()))
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>()
+    });
+
+    if let Some(remappings) = &remappings {
+        for (remap, repo_or_path) in remappings {
+            // If it's a github repo, clone it to "lib/<name>"
+            if repo_or_path.starts_with("http://") || repo_or_path.starts_with("https://") {
+                let repo_name = repo_or_path
+                    .split('/')
+                    .next_back()
+                    .and_then(|s| s.strip_suffix(".git"))
+                    .unwrap_or("dep");
+                let local_path = PathBuf::from(format!("lib/{}", repo_name));
+                git_clone(repo_or_path, local_path.to_str().unwrap(), None, true)?;
+                solc_remappings.push((remap.clone(), local_path.join("contracts").clone()));
+                cloned_dirs.push(local_path);
+            } else {
+                // Local path remapping
+                solc_remappings.push((remap.clone(), PathBuf::from(repo_or_path)));
+            }
+        }
+    }
+
+    // 2. Compile the contract
+    // Convert Vec<(String, PathBuf)> to Vec<(&str, PathBuf)>
+    let solc_remappings_ref: Vec<(&str, PathBuf)> = solc_remappings
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
+
+    println!("Remappings: {solc_remappings:?}");
+
+    let mut include_paths = vec![output_dir, &contract_path];
+    if let Some(parent) = contract_path.parent() {
+        include_paths.push(parent);
+    }
+    include_paths.push(Path::new("lib"));
+    for (_, path) in &solc_remappings {
+        include_paths.push(path);
+    }
+
+    compile_contract(
+        output_dir,
+        &contract_path,
+        false,
+        Some(&solc_remappings_ref),
+        &include_paths,
+    )
+    .map_err(|e| eyre::eyre!("Failed to compile contract: {e}"))?;
+
+    // 3. Clean up cloned dependencies if requested
+    if clean {
+        for dir in cloned_dirs {
+            if dir.exists() {
+                std::fs::remove_dir_all(&dir)
+                    .map_err(|e| eyre::eyre!("Failed to clean up {}: {}", dir.display(), e))?;
+            }
+        }
+    }
+
+    // 4. Load the compiled bytecode (example: from solc_out/ContractName.bin)
+    // You may want to parameterize the output file name
+    let bin_path = output_dir.join("solc_out").join(
+        contract_path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string()
+            + ".bin",
+    );
+    let bytecode = std::fs::read(bin_path)
+        .map_err(|e| eyre::eyre!("Failed to read compiled bytecode: {e}"))?;
+
+    let constructor_args = args
+        ._args
+        .iter()
+        .flat_map(|arg| hex::decode(arg).unwrap())
+        .collect::<Vec<u8>>();
+
+    dbg!(hex::encode(&constructor_args));
+    let deployer = Signer::Local(LocalSigner::new(args.private_key));
+    let client = EthClient::new(rpc_url)?;
+
+    let (a, b) = create2_deploy_from_bytecode(
+        &constructor_args,
+        &bytecode,
+        &deployer,
+        args.salt.unwrap().as_bytes(),
+        &client,
+    )
+    .await?;
+
+    println!("Contract deployed in tx: {:#x}", a);
+    println!("Contract address: {:#x}", b);
+
+    Ok(Bytes::from(bytecode))
 }
