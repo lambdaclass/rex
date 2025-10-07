@@ -9,13 +9,13 @@ use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::types::TxType;
 use ethrex_common::{Address, Bytes, H256, H520};
 use ethrex_l2_common::calldata::Value;
-use ethrex_l2_rpc::clients::send_generic_transaction;
+use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
-use ethrex_rpc::clients::eth::get_address_from_secret_key;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_sdk::calldata::decode_calldata;
+use ethrex_sdk::{build_generic_tx, send_generic_transaction};
 use keccak_hash::keccak;
 use rex_sdk::client::eth::get_token_balance;
 use rex_sdk::create::{
@@ -398,7 +398,7 @@ impl Command {
                 random,
             } => {
                 let address = if let Some(private_key) = from_private_key {
-                    get_address_from_secret_key(&private_key)?
+                    get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?
                 } else if zero {
                     Address::zero()
                 } else if random {
@@ -443,7 +443,8 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                let from = get_address_from_secret_key(&args.private_key)?;
+                let from =
+                    get_address_from_secret_key(&args.private_key).map_err(|e| eyre::eyre!(e))?;
 
                 let client = EthClient::new(&rpc_url)?;
 
@@ -461,7 +462,8 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                let from = get_address_from_secret_key(&args.private_key)?;
+                let from =
+                    get_address_from_secret_key(&args.private_key).map_err(|e| eyre::eyre!(e))?;
 
                 let client = EthClient::new(&rpc_url)?;
 
@@ -471,30 +473,30 @@ impl Command {
                     parse_func_call(args._args)?
                 };
 
-                let tx = client
-                    .build_generic_tx(
-                        TxType::EIP1559,
-                        args.to,
-                        from,
-                        calldata,
-                        Overrides {
-                            value: Some(args.value),
-                            chain_id: args.chain_id,
-                            nonce: args.nonce,
-                            gas_limit: args.gas_limit,
-                            max_fee_per_gas: args.max_fee_per_gas,
-                            max_priority_fee_per_gas: args.max_priority_fee_per_gas,
-                            from: Some(from),
-                            ..Default::default()
-                        },
-                    )
-                    .await?;
+                let tx = build_generic_tx(
+                    &client,
+                    TxType::EIP1559,
+                    args.to,
+                    from,
+                    calldata,
+                    Overrides {
+                        value: Some(args.value),
+                        chain_id: args.chain_id,
+                        nonce: args.nonce,
+                        gas_limit: args.gas_limit,
+                        max_fee_per_gas: args.max_fee_per_gas,
+                        max_priority_fee_per_gas: args.max_priority_fee_per_gas,
+                        from: Some(from),
+                        ..Default::default()
+                    },
+                )
+                .await?;
 
                 let signer = Signer::Local(LocalSigner::new(args.private_key));
 
                 let tx_hash = send_generic_transaction(&client, tx, &signer).await?;
 
-                println!("{tx_hash:#x}",);
+                println!("{tx_hash:#x}");
 
                 if !args.cast {
                     wait_for_transaction_receipt(tx_hash, &client, 100, args.silent).await?;

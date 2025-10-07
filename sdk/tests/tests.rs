@@ -1,5 +1,5 @@
 use ethrex_common::{Address, Bytes, H160, H256, U256};
-use ethrex_l2_common::calldata::Value;
+use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::{
     EthClient,
@@ -9,10 +9,12 @@ use ethrex_rpc::{
         receipt::RpcReceipt,
     },
 };
-use ethrex_sdk::{L1ToL2TransactionData, calldata::encode_calldata, send_l1_to_l2_tx};
+use ethrex_sdk::{
+    L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
+    wait_for_message_proof,
+};
 use keccak_hash::keccak;
 use rex_sdk::{
-    client::eth::get_address_from_secret_key,
     deploy,
     l2::{
         deposit::{deposit_through_contract_call, deposit_through_transfer},
@@ -43,15 +45,15 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
-// 0x2f399259586dba0fe48baa63257138d0fecf9c60
+// 0xaf81cf7ffd13e0e53833e54e715b482a4cf78881
 const DEFAULT_BRIDGE_ADDRESS: Address = H160([
-    0x2f, 0x39, 0x92, 0x59, 0x58, 0x6d, 0xba, 0x0f, 0xe4, 0x8b, 0xaa, 0x63, 0x25, 0x71, 0x38, 0xd0,
-    0xfe, 0xcf, 0x9c, 0x60,
+    0xaf, 0x81, 0xcf, 0x7f, 0xfd, 0x13, 0xe0, 0xe5, 0x38, 0x33, 0xe5, 0x4e, 0x71, 0x5b, 0x48, 0x2a,
+    0x4c, 0xf7, 0x88, 0x81,
 ]);
-// 0x1c6b4013fd21444d8184d8dc107200dd6d78fc75
+// 0xd46e719cdd01e40ff60eff01f289c3ccb667ebb6
 const DEFAULT_ON_CHAIN_PROPOSER_ADDRESS: Address = H160([
-    0x1c, 0x6b, 0x40, 0x13, 0xfd, 0x21, 0x44, 0x4d, 0x81, 0x84, 0xd8, 0xdc, 0x10, 0x72, 0x00, 0xdd,
-    0x6d, 0x78, 0xfc, 0x75,
+    0xd4, 0x6e, 0x71, 0x9c, 0xdd, 0x01, 0xe4, 0x0f, 0xf6, 0x0e, 0xff, 0x01, 0xf2, 0x89, 0xc3, 0xcc,
+    0xb6, 0x67, 0xeb, 0xb6,
 ]);
 // 0x0007a881CD95B1484fca47615B64803dad620C8d
 const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
@@ -785,7 +787,10 @@ async fn get_fees_details_l2(tx_receipt: RpcReceipt, proposer_client: &EthClient
 
     let effective_gas_price = tx_receipt.tx_info.effective_gas_price;
     let base_fee_per_gas = proposer_client
-        .get_block_by_number(BlockIdentifier::Number(tx_receipt.block_info.block_number))
+        .get_block_by_number(
+            BlockIdentifier::Number(tx_receipt.block_info.block_number),
+            false,
+        )
         .await
         .unwrap()
         .header
@@ -1071,7 +1076,7 @@ async fn test_n_withdraws(
     let mut proofs = vec![];
     for (i, tx) in withdraw_txs.clone().into_iter().enumerate() {
         println!("Getting withdrawal proof {}/{n}", i + 1);
-        let message_proof = proposer_client.wait_for_message_proof(tx, 1000).await?;
+        let message_proof = wait_for_message_proof(proposer_client, tx, 1000).await?;
         let withdrawal_proof = message_proof
             .into_iter()
             .next()
@@ -1080,8 +1085,7 @@ async fn test_n_withdraws(
     }
 
     for proof in &proofs {
-        while eth_client
-            .get_last_verified_batch(on_chain_proposer_address())
+        while get_last_verified_batch(eth_client, on_chain_proposer_address())
             .await
             .unwrap()
             < proof.batch_number

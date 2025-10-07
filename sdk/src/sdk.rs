@@ -2,10 +2,7 @@ use ethrex_common::{
     Address, Bytes, U256,
     types::{TxKind, TxType},
 };
-use ethrex_l2_rpc::{
-    clients::send_generic_transaction,
-    signer::{LocalSigner, Signer},
-};
+use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rlp::encode::RLPEncode;
 
 use ethrex_rpc::{
@@ -16,6 +13,7 @@ use ethrex_rpc::{
         receipt::RpcReceipt,
     },
 };
+use ethrex_sdk::{build_generic_tx, send_generic_transaction};
 use keccak_hash::{H256, keccak};
 use secp256k1::SecretKey;
 
@@ -51,20 +49,20 @@ pub async fn transfer(
             EthClientError::InternalError("Failed to convert gas_price to a u64".to_owned())
         })?;
 
-    let tx = client
-        .build_generic_tx(
-            TxType::EIP1559,
-            to,
-            from,
-            Default::default(),
-            Overrides {
-                value: Some(amount),
-                max_fee_per_gas: Some(gas_price),
-                max_priority_fee_per_gas: Some(gas_price),
-                ..Default::default()
-            },
-        )
-        .await?;
+    let tx = build_generic_tx(
+        client,
+        TxType::EIP1559,
+        to,
+        from,
+        Default::default(),
+        Overrides {
+            value: Some(amount),
+            max_fee_per_gas: Some(gas_price),
+            max_priority_fee_per_gas: Some(gas_price),
+            ..Default::default()
+        },
+    )
+    .await?;
 
     let signer = LocalSigner::new(*private_key).into();
     send_generic_transaction(client, tx, &signer).await
@@ -80,15 +78,15 @@ pub async fn deploy(
     let mut deploy_overrides = overrides;
     deploy_overrides.to = Some(TxKind::Create);
 
-    let deploy_tx = client
-        .build_generic_tx(
-            TxType::EIP1559,
-            Address::zero(),
-            deployer.address(),
-            init_code,
-            deploy_overrides,
-        )
-        .await?;
+    let deploy_tx = build_generic_tx(
+        client,
+        TxType::EIP1559,
+        Address::zero(),
+        deployer.address(),
+        init_code,
+        deploy_overrides,
+    )
+    .await?;
     let deploy_tx_hash = send_generic_transaction(client, deploy_tx, deployer).await?;
 
     let nonce = client
