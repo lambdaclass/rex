@@ -550,8 +550,7 @@ impl Command {
                         bytecode
                     }
                 } else {
-                    let _a = compile_to_init_code(args, &rpc_url).await?;
-                    return Ok(());
+                    return deploy_contract_from_path(args, &rpc_url).await;
                 };
 
                 let (tx_hash, deployed_contract_address) = deploy(
@@ -682,19 +681,23 @@ fn print_calldata(depth: usize, data: Value) {
     }
 }
 
-async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<Bytes> {
-    // 1. Clone any remapping repos if needed and build remapping tuples for solc
-    let mut solc_remappings: Vec<(String, PathBuf)> = Vec::new();
-    let mut cloned_dirs: Vec<PathBuf> = Vec::new();
-    let Some(contract_path) = args.contract_path else {
-        return Err(eyre::eyre!(
-            "Contract path is required when bytecode is not provided"
-        ));
-    };
+async fn deploy_contract_from_path(args: DeployArgs, rpc_url: &str) -> eyre::Result<()> {
+    let contract_path = args
+        .contract_path
+        .as_ref()
+        .ok_or_else(|| eyre::eyre!("Contract path is required when bytecode is not provided"))?;
+
     let clean = !args.keep_deps;
     let output_dir = Path::new(".");
-    let remappings: Option<Vec<(String, String)>> = args.remappings.map(|s| {
-        s.split(',')
+    let deps_dir = Path::new("rex_deps");
+    let mut solc_remappings = Vec::new();
+    let mut cloned_dirs = Vec::new();
+
+    std::fs::create_dir_all(deps_dir).ok();
+
+    if let Some(remappings_str) = &args.remappings {
+        let remappings = remappings_str
+            .split(',')
             .filter_map(|mapping| {
                 let mut parts = mapping.splitn(2, '=');
                 match (parts.next(), parts.next()) {
@@ -704,77 +707,66 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
                     _ => None,
                 }
             })
-            .collect::<Vec<_>>()
-    });
+            .collect::<Vec<_>>();
 
-    if let Some(remappings) = &remappings {
-        for (remap, repo_or_path) in remappings {
-            // If it's a github repo, clone it to "rex_deps/<name>"
-            if repo_or_path.starts_with("http://") || repo_or_path.starts_with("https://") {
-                let repo_name = repo_or_path
-                    .split('/')
-                    .next_back()
-                    .and_then(|s| s.strip_suffix(".git"))
-                    .unwrap_or("dep");
-                let local_path = PathBuf::from(format!("rex_deps/{}", repo_name));
-                git_clone(repo_or_path, local_path.to_str().unwrap(), None, true)?;
-                solc_remappings.push((remap.clone(), local_path.join("contracts").clone()));
-                cloned_dirs.push(local_path);
-            } else {
-                // Local path remapping
-                solc_remappings.push((remap.clone(), PathBuf::from(repo_or_path)));
-            }
+        for (remap, repo_url) in remappings {
+            let repo_name = repo_url
+                .split('/')
+                .next_back()
+                .and_then(|s| s.strip_suffix(".git"))
+                .unwrap_or("dep");
+
+            let local_path = deps_dir.join(repo_name);
+            git_clone(&repo_url, local_path.to_str().unwrap(), None, true)?;
+
+            solc_remappings.push((remap, local_path.join("contracts").clone()));
+            cloned_dirs.push(local_path);
         }
     }
 
-    // 2. Compile the contract
-    // Convert Vec<(String, PathBuf)> to Vec<(&str, PathBuf)>
+    let mut include_paths = vec![output_dir];
+
+    if let Some(parent) = contract_path.parent() {
+        include_paths.push(parent);
+    }
+
+    include_paths.push(deps_dir);
+
+    for (_, path) in &solc_remappings {
+        include_paths.push(path);
+    }
+
     let solc_remappings_ref: Vec<(&str, PathBuf)> = solc_remappings
         .iter()
         .map(|(k, v)| (k.as_str(), v.clone()))
         .collect();
 
-    println!("Remappings: {solc_remappings:?}");
-
-    let mut include_paths = vec![output_dir, &contract_path];
-    if let Some(parent) = contract_path.parent() {
-        include_paths.push(parent);
-    }
-    include_paths.push(Path::new("rex_deps"));
-    for (_, path) in &solc_remappings {
-        include_paths.push(path);
-    }
     compile_contract(
         output_dir,
-        &contract_path,
+        contract_path,
         false,
         Some(&solc_remappings_ref),
         &include_paths,
     )
-    .map_err(|e| eyre::eyre!("Failed to compile contract: {e}"))?;
+    .map_err(|e| eyre::eyre!("Failed to compile contract: {}", e))?;
 
-    // 4. Load the compiled bytecode (example: from solc_out/ContractName.bin)
-    // You may want to parameterize the output file name
-    let bin_path = output_dir.join("solc_out").join(
+    let bin_path = output_dir.join("solc_out").join(format!(
+        "{}.bin",
         contract_path
             .file_stem()
             .unwrap_or_default()
             .to_string_lossy()
-            .to_string()
-            + ".bin",
-    );
-    dbg!(&bin_path);
+    ));
+
     let constructor_args = args
         ._args
         .iter()
         .flat_map(|arg| hex::decode(arg).unwrap())
         .collect::<Vec<u8>>();
-
-    dbg!(hex::encode(&constructor_args));
     let deployer = Signer::Local(LocalSigner::new(args.private_key));
     let client = EthClient::new(rpc_url)?;
 
-    let (a, b) = create2_deploy_from_path(
+    let (deployment_tx_hash, contract_address) = create2_deploy_from_path(
         &constructor_args,
         &bin_path,
         &deployer,
@@ -783,10 +775,9 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
     )
     .await?;
 
-    println!("Contract deployed in tx: {:#x}", a);
-    println!("Contract address: {:#x}", b);
+    println!("\nContract deployed in tx: {:#x}", deployment_tx_hash);
+    println!("Contract address: {:#x}", contract_address);
 
-    // 3. Clean up cloned dependencies if requested
     if clean {
         for dir in cloned_dirs {
             if dir.exists() {
@@ -798,5 +789,5 @@ async fn compile_to_init_code(args: DeployArgs, rpc_url: &str) -> eyre::Result<B
         std::fs::remove_dir_all("solc_out").ok();
     }
 
-    Ok(Bytes::new())
+    Ok(())
 }
