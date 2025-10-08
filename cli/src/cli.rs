@@ -552,10 +552,7 @@ impl Command {
                     Bytes::new()
                 };
 
-                let (tx_hash, deployed_contract_address) = if args.create2 {
-                    let Some(salt) = args.salt else {
-                        return Err(eyre::eyre!("Salt is required when using CREATE2"));
-                    };
+                let (tx_hash, deployed_contract_address) = if let Some(salt) = args.salt {
                     create2_deploy_from_bytecode(
                         &init_args,
                         &bytecode,

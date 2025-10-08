@@ -207,17 +207,10 @@ pub struct DeployArgs {
     pub keep_deps: bool,
     #[arg(
         long,
-        help = "Salt for deploying CREATE2 contracts",
+        help = "Salt for deploying CREATE2 contracts. If it is provided, the contract will be deployed using CREATE2.",
         required_if_eq("create2", "true")
     )]
     pub salt: Option<Secret>,
-    #[arg(
-        long,
-        help = "Deploy contract using CREATE2",
-        default_value_t = false,
-        required = false
-    )]
-    pub create2: bool,
     #[arg(last = true, hide = true)]
     pub _args: Vec<String>,
 }
