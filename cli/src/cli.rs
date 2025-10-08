@@ -758,11 +758,7 @@ async fn deploy_contract_from_path(args: DeployArgs, rpc_url: &str) -> eyre::Res
             .to_string_lossy()
     ));
 
-    let constructor_args = args
-        ._args
-        .iter()
-        .flat_map(|arg| hex::decode(arg).unwrap())
-        .collect::<Vec<u8>>();
+    let constructor_args = parse_contract_creation(args._args)?;
     let deployer = Signer::Local(LocalSigner::new(args.private_key));
     let client = EthClient::new(rpc_url)?;
 
