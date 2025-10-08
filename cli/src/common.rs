@@ -140,7 +140,7 @@ pub struct CallArgs {
     pub _args: Vec<String>,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 #[clap(group = clap::ArgGroup::new("source").required(true))]
 pub struct DeployArgs {
     #[clap(long, group = "source", value_parser = parse_hex, required = false)]
@@ -208,9 +208,16 @@ pub struct DeployArgs {
     #[arg(
         long,
         help = "Salt for deploying CREATE2 contracts",
-        required_unless_present = "bytecode"
+        required_if_eq("create2", "true")
     )]
     pub salt: Option<Secret>,
+    #[arg(
+        long,
+        help = "Deploy contract using CREATE2",
+        default_value_t = false,
+        required = false
+    )]
+    pub create2: bool,
     #[arg(last = true, hide = true)]
     pub _args: Vec<String>,
 }

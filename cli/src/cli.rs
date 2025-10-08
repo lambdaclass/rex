@@ -15,7 +15,7 @@ use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_sdk::calldata::decode_calldata;
-use ethrex_sdk::{build_generic_tx, create2_deploy_from_path, send_generic_transaction};
+use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
 use ethrex_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
 use rex_sdk::client::eth::get_token_balance;
@@ -539,36 +539,50 @@ impl Command {
                 }
 
                 let deployer = Signer::Local(LocalSigner::new(args.private_key));
-
                 let client = EthClient::new(&rpc_url)?;
 
-                let init_code = if let Some(bytecode) = args.bytecode {
-                    if !args._args.is_empty() {
-                        let init_args = parse_contract_creation(args._args)?;
-                        [bytecode, init_args].concat().into()
-                    } else {
-                        bytecode
-                    }
+                let bytecode = if let Some(bytecode) = args.bytecode {
+                    bytecode
                 } else {
-                    return deploy_contract_from_path(args, &rpc_url).await;
+                    deploy_contract_from_path(args.clone()).await?
+                };
+                let init_args = if !args._args.is_empty() {
+                    parse_contract_creation(args._args)?
+                } else {
+                    Bytes::new()
                 };
 
-                let (tx_hash, deployed_contract_address) = deploy(
-                    &client,
-                    &deployer,
-                    init_code,
-                    Overrides {
-                        value: args.value.into(),
-                        nonce: args.nonce,
-                        chain_id: args.chain_id,
-                        gas_limit: args.gas_limit,
-                        max_fee_per_gas: args.max_fee_per_gas,
-                        max_priority_fee_per_gas: args.max_priority_fee_per_gas,
-                        ..Default::default()
-                    },
-                    true,
-                )
-                .await?;
+                let (tx_hash, deployed_contract_address) = if args.create2 {
+                    let Some(salt) = args.salt else {
+                        return Err(eyre::eyre!("Salt is required when using CREATE2"));
+                    };
+                    create2_deploy_from_bytecode(
+                        &init_args,
+                        &bytecode,
+                        &deployer,
+                        salt.as_bytes(),
+                        &client,
+                    )
+                    .await?
+                } else {
+                    let init_code = [bytecode, init_args].concat().into();
+                    deploy(
+                        &client,
+                        &deployer,
+                        init_code,
+                        Overrides {
+                            value: args.value.into(),
+                            nonce: args.nonce,
+                            chain_id: args.chain_id,
+                            gas_limit: args.gas_limit,
+                            max_fee_per_gas: args.max_fee_per_gas,
+                            max_priority_fee_per_gas: args.max_priority_fee_per_gas,
+                            ..Default::default()
+                        },
+                        true,
+                    )
+                    .await?
+                };
 
                 if args.print_address {
                     println!("{deployed_contract_address:#x}");
@@ -681,7 +695,7 @@ fn print_calldata(depth: usize, data: Value) {
     }
 }
 
-async fn deploy_contract_from_path(args: DeployArgs, rpc_url: &str) -> eyre::Result<()> {
+async fn deploy_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
     let contract_path = args
         .contract_path
         .as_ref()
@@ -758,21 +772,22 @@ async fn deploy_contract_from_path(args: DeployArgs, rpc_url: &str) -> eyre::Res
             .to_string_lossy()
     ));
 
-    let constructor_args = parse_contract_creation(args._args)?;
-    let deployer = Signer::Local(LocalSigner::new(args.private_key));
-    let client = EthClient::new(rpc_url)?;
-
-    let (deployment_tx_hash, contract_address) = create2_deploy_from_path(
-        &constructor_args,
-        &bin_path,
-        &deployer,
-        args.salt.unwrap().as_bytes(),
-        &client,
-    )
-    .await?;
-
-    println!("\nContract deployed in tx: {:#x}", deployment_tx_hash);
-    println!("Contract address: {:#x}", contract_address);
+    let bin_content = std::fs::read_to_string(&bin_path).map_err(|e| {
+        eyre::eyre!(
+            "Failed to read compiled bytecode from {}: {}",
+            bin_path.display(),
+            e
+        )
+    })?;
+    let bytecode = hex::decode(bin_content)
+        .map_err(|e| {
+            eyre::eyre!(
+                "Failed to decode bytecode from hex in {}: {}",
+                bin_path.display(),
+                e
+            )
+        })?
+        .into();
 
     if clean {
         for dir in cloned_dirs {
@@ -785,5 +800,5 @@ async fn deploy_contract_from_path(args: DeployArgs, rpc_url: &str) -> eyre::Res
         std::fs::remove_dir_all("solc_out").ok();
     }
 
-    Ok(())
+    Ok(bytecode)
 }
