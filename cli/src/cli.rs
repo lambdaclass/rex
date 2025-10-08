@@ -544,7 +544,7 @@ impl Command {
                 let bytecode = if let Some(bytecode) = args.bytecode {
                     bytecode
                 } else {
-                    deploy_contract_from_path(args.clone()).await?
+                    compile_contract_from_path(args.clone()).await?
                 };
                 let init_args = if !args._args.is_empty() {
                     parse_contract_creation(args._args)?
@@ -695,7 +695,7 @@ fn print_calldata(depth: usize, data: Value) {
     }
 }
 
-async fn deploy_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
+async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
     let contract_path = args
         .contract_path
         .as_ref()
