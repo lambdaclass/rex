@@ -208,7 +208,7 @@ pub struct DeployArgs {
     #[arg(
         long,
         help = "Salt for deploying CREATE2 contracts. If it is provided, the contract will be deployed using CREATE2.",
-        required_if_eq("create2", "true")
+        required = false
     )]
     pub salt: Option<Secret>,
     #[arg(last = true, hide = true)]
