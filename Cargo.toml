@@ -29,13 +29,13 @@ manual_saturating_arithmetic = "warn"
 rex-cli = { path = "cli" }
 rex-sdk = { path = "sdk" }
 
-ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common", tag = "v1.0.1" }
-ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain", tag = "v1.0.1" }
-ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", tag = "v1.0.1" }
-ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", tag = "v1.0.1" }
-ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-rpc", tag = "v1.0.1" }
-ethrex-sdk = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-sdk", tag = "v1.0.1" }
-ethrex-l2-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-common", tag = "v1.0.1" }
+ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common", tag = "v2.0.0" }
+ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain", tag = "v2.0.0" }
+ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", tag = "v2.0.0" }
+ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", tag = "v2.0.0" }
+ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-rpc", tag = "v2.0.0" }
+ethrex-sdk = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-sdk", tag = "v2.0.0" }
+ethrex-l2-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-common", tag = "v2.0.0" }
 
 keccak-hash = "0.11.0"
 thiserror = "2.0.11"
