@@ -727,18 +727,24 @@ async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
             })
             .collect::<Vec<_>>();
 
-        for (remap, repo_url) in remappings {
-            let repo_name = repo_url
-                .split('/')
-                .next_back()
-                .and_then(|s| s.strip_suffix(".git"))
-                .unwrap_or("dep");
+        for (remap, repo_or_path) in remappings {
+            let existing_path = Path::new(&repo_or_path);
+            let base_path = if existing_path.exists() {
+                existing_path.to_path_buf()
+            } else {
+                let repo_name = repo_or_path
+                    .split('/')
+                    .next_back()
+                    .and_then(|s| s.strip_suffix(".git"))
+                    .unwrap_or("dep");
 
-            let local_path = deps_dir.join(repo_name);
-            git_clone(&repo_url, local_path.to_str().unwrap(), None, true)?;
+                let local_path = deps_dir.join(repo_name);
+                git_clone(&repo_or_path, local_path.to_str().unwrap(), None, true)?;
+                cloned_dirs.push(local_path.clone());
+                local_path
+            };
 
-            solc_remappings.push((remap, local_path.join("contracts").clone()));
-            cloned_dirs.push(local_path);
+            solc_remappings.push((remap, base_path));
         }
     }
 
