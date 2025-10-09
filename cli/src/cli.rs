@@ -15,7 +15,8 @@ use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_sdk::calldata::decode_calldata;
-use ethrex_sdk::{build_generic_tx, send_generic_transaction};
+use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
+use ethrex_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
 use rex_sdk::client::eth::get_token_balance;
 use rex_sdk::create::{
@@ -26,6 +27,7 @@ use rex_sdk::utils::to_checksum_address;
 use rex_sdk::{balance_in_eth, deploy, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -544,32 +546,47 @@ impl Command {
                 }
 
                 let deployer = Signer::Local(LocalSigner::new(args.private_key));
-
                 let client = EthClient::new(&rpc_url)?;
 
-                let init_code = if !args._args.is_empty() {
-                    let init_args = parse_contract_creation(args._args)?;
-                    [args.bytecode, init_args].concat().into()
+                let bytecode = if let Some(bytecode) = args.bytecode {
+                    bytecode
                 } else {
-                    args.bytecode
+                    compile_contract_from_path(args.clone()).await?
+                };
+                let init_args = if !args._args.is_empty() {
+                    parse_contract_creation(args._args)?
+                } else {
+                    Bytes::new()
                 };
 
-                let (tx_hash, deployed_contract_address) = deploy(
-                    &client,
-                    &deployer,
-                    init_code,
-                    Overrides {
-                        value: args.value.into(),
-                        nonce: args.nonce,
-                        chain_id: args.chain_id,
-                        gas_limit: args.gas_limit,
-                        max_fee_per_gas: args.max_fee_per_gas,
-                        max_priority_fee_per_gas: args.max_priority_fee_per_gas,
-                        ..Default::default()
-                    },
-                    true,
-                )
-                .await?;
+                let (tx_hash, deployed_contract_address) = if let Some(salt) = args.salt {
+                    create2_deploy_from_bytecode(
+                        &init_args,
+                        &bytecode,
+                        &deployer,
+                        salt.as_bytes(),
+                        &client,
+                    )
+                    .await?
+                } else {
+                    let init_code = [bytecode, init_args].concat().into();
+                    deploy(
+                        &client,
+                        &deployer,
+                        init_code,
+                        Overrides {
+                            value: args.value.into(),
+                            nonce: args.nonce,
+                            chain_id: args.chain_id,
+                            gas_limit: args.gas_limit,
+                            max_fee_per_gas: args.max_fee_per_gas,
+                            max_priority_fee_per_gas: args.max_priority_fee_per_gas,
+                            ..Default::default()
+                        },
+                        true,
+                    )
+                    .await?
+                };
 
                 if args.print_address {
                     println!("{deployed_contract_address:#x}");
@@ -680,4 +697,112 @@ fn print_calldata(depth: usize, data: Value) {
             println!(")");
         }
     }
+}
+
+async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
+    let contract_path = args
+        .contract_path
+        .as_ref()
+        .ok_or_else(|| eyre::eyre!("Contract path is required when bytecode is not provided"))?;
+
+    let clean = !args.keep_deps;
+    let output_dir = Path::new(".");
+    let deps_dir = Path::new("rex_deps");
+    let mut solc_remappings = Vec::new();
+    let mut cloned_dirs = Vec::new();
+
+    std::fs::create_dir_all(deps_dir).ok();
+
+    if let Some(remappings_str) = &args.remappings {
+        let remappings = remappings_str
+            .split(',')
+            .filter_map(|mapping| {
+                let mut parts = mapping.splitn(2, '=');
+                match (parts.next(), parts.next()) {
+                    (Some(key), Some(val)) if !key.trim().is_empty() && !val.trim().is_empty() => {
+                        Some((key.trim().to_string(), val.trim().to_string()))
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        for (remap, repo_url) in remappings {
+            let repo_name = repo_url
+                .split('/')
+                .next_back()
+                .and_then(|s| s.strip_suffix(".git"))
+                .unwrap_or("dep");
+
+            let local_path = deps_dir.join(repo_name);
+            git_clone(&repo_url, local_path.to_str().unwrap(), None, true)?;
+
+            solc_remappings.push((remap, local_path.join("contracts").clone()));
+            cloned_dirs.push(local_path);
+        }
+    }
+
+    let mut include_paths = vec![output_dir];
+
+    if let Some(parent) = contract_path.parent() {
+        include_paths.push(parent);
+    }
+
+    include_paths.push(deps_dir);
+
+    for (_, path) in &solc_remappings {
+        include_paths.push(path);
+    }
+
+    let solc_remappings_ref: Vec<(&str, PathBuf)> = solc_remappings
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.clone()))
+        .collect();
+
+    compile_contract(
+        output_dir,
+        contract_path,
+        false,
+        Some(&solc_remappings_ref),
+        &include_paths,
+    )
+    .map_err(|e| eyre::eyre!("Failed to compile contract: {}", e))?;
+
+    let bin_path = output_dir.join("solc_out").join(format!(
+        "{}.bin",
+        contract_path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+    ));
+
+    let bin_content = std::fs::read_to_string(&bin_path).map_err(|e| {
+        eyre::eyre!(
+            "Failed to read compiled bytecode from {}: {}",
+            bin_path.display(),
+            e
+        )
+    })?;
+    let bytecode = hex::decode(bin_content)
+        .map_err(|e| {
+            eyre::eyre!(
+                "Failed to decode bytecode from hex in {}: {}",
+                bin_path.display(),
+                e
+            )
+        })?
+        .into();
+
+    if clean {
+        for dir in cloned_dirs {
+            if dir.exists() {
+                std::fs::remove_dir_all(&dir)
+                    .map_err(|e| eyre::eyre!("Failed to clean up {}: {}", dir.display(), e))?;
+            }
+        }
+        std::fs::remove_dir_all("rex_deps").ok();
+        std::fs::remove_dir_all("solc_out").ok();
+    }
+
+    Ok(bytecode)
 }

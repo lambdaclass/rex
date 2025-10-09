@@ -1,6 +1,8 @@
+use std::path::PathBuf;
+
 use crate::utils::{parse_hex, parse_private_key, parse_u256};
 use clap::Parser;
-use ethrex_common::{Address, Bytes, U256};
+use ethrex_common::{Address, Bytes, Secret, U256};
 use secp256k1::SecretKey;
 
 #[derive(Parser)]
@@ -138,10 +140,11 @@ pub struct CallArgs {
     pub _args: Vec<String>,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
+#[clap(group = clap::ArgGroup::new("source").required(true))]
 pub struct DeployArgs {
-    #[clap(value_parser = parse_hex)]
-    pub bytecode: Bytes,
+    #[clap(long, group = "source", value_parser = parse_hex, required = false)]
+    pub bytecode: Option<Bytes>,
     #[clap(
         value_parser = parse_u256,
         default_value = "0",
@@ -183,6 +186,31 @@ pub struct DeployArgs {
     pub explorer_url: bool,
     #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", required = false)]
     pub private_key: SecretKey,
+    #[arg(
+        long,
+        help = "Path to the Solidity file to compile and deploy",
+        group = "source"
+    )]
+    pub contract_path: Option<PathBuf>,
+    #[arg(
+        long,
+        required_unless_present = "bytecode",
+        help = "Comma-separated remappings (e.g. '@openzeppelin/contracts=https://github.com/OpenZeppelin/openzeppelin-contracts.git,@custom=path/to/custom')"
+    )]
+    pub remappings: Option<String>,
+    #[arg(
+        long,
+        help = "Remove downloaded dependencies after compilation",
+        default_value_t = false,
+        required = false
+    )]
+    pub keep_deps: bool,
+    #[arg(
+        long,
+        help = "Salt for deploying CREATE2 contracts. If it is provided, the contract will be deployed using CREATE2.",
+        required = false
+    )]
+    pub salt: Option<Secret>,
     #[arg(last = true, hide = true)]
     pub _args: Vec<String>,
 }
