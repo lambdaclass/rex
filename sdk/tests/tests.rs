@@ -10,10 +10,11 @@ use ethrex_rpc::{
     },
 };
 use ethrex_sdk::{
-    L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
-    wait_for_message_proof,
+    DEFAULT_BRIDGE_ADDRESS, L1ToL2TransactionData, calldata::encode_calldata,
+    get_last_verified_batch, send_l1_to_l2_tx, wait_for_message_proof,
 };
 use keccak_hash::keccak;
+use reqwest::Url;
 use rex_sdk::{
     deploy,
     l2::{
@@ -44,11 +45,6 @@ const DEFAULT_L1_RICH_WALLET_PRIVATE_KEY: H256 = H256([
 const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
-]);
-// 0xcb968a1441ffcfb88194912923c5353f8da0210b
-const DEFAULT_BRIDGE_ADDRESS: Address = H160([
-    0xcb, 0x96, 0x8a, 0x14, 0x41, 0xff, 0xcf, 0xb8, 0x81, 0x94, 0x91, 0x29, 0x23, 0xc5, 0x35, 0x3f,
-    0x8d, 0xa0, 0x21, 0x0b,
 ]);
 // 0x44e09413ab37c3dae5663f2fd408e60ac2dbc7e2
 const DEFAULT_ON_CHAIN_PROPOSER_ADDRESS: Address = H160([
@@ -159,14 +155,24 @@ pub fn read_env_file_by_config() {
 
 fn eth_client() -> EthClient {
     EthClient::new(
-        &std::env::var("INTEGRATION_TEST_ETH_URL").unwrap_or(DEFAULT_ETH_URL.to_string()),
+        Url::parse(
+            std::env::var("INTEGRATION_TEST_ETH_URL")
+                .unwrap_or(DEFAULT_ETH_URL.to_string())
+                .as_str(),
+        )
+        .expect("Invalid ETH URL"),
     )
     .unwrap()
 }
 
 fn proposer_client() -> EthClient {
     EthClient::new(
-        &std::env::var("INTEGRATION_TEST_PROPOSER_URL").unwrap_or(DEFAULT_PROPOSER_URL.to_string()),
+        Url::parse(
+            std::env::var("INTEGRATION_TEST_PROPOSER_URL")
+                .unwrap_or(DEFAULT_PROPOSER_URL.to_string())
+                .as_str(),
+        )
+        .expect("Invalid proposer URL"),
     )
     .unwrap()
 }
