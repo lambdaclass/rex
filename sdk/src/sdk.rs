@@ -82,7 +82,7 @@ pub async fn deploy(
     let mut deploy_overrides = overrides;
     deploy_overrides.to = Some(TxKind::Create);
 
-    let deploy_tx = build_generic_tx(
+    let mut deploy_tx = build_generic_tx(
         client,
         TxType::EIP1559,
         Address::zero(),
@@ -91,6 +91,14 @@ pub async fn deploy(
         deploy_overrides,
     )
     .await?;
+
+    // deploy_tx.max_priority_fee_per_gas = deploy_tx.max_fee_per_gas;
+
+    println!(
+        "Built tx with max_fee_per_gas: {:?} and max_priority_fee_per_gas: {:?}",
+        deploy_tx.max_fee_per_gas, deploy_tx.max_priority_fee_per_gas
+    );
+
     let deploy_tx_hash = send_generic_transaction(client, deploy_tx, deployer).await?;
 
     let nonce = client
