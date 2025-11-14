@@ -60,6 +60,7 @@ jobs:
       - name: Run tests
         run: |
           cd /home/runner/work/rex/rex/sdk
+          sleep 200
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex-sdk --test tests -- --nocapture --test-threads=1
 
   cli-integration-test:
@@ -107,6 +108,7 @@ jobs:
         run: |
           cd /home/runner/work/rex/rex
           make cli
+          sleep 200
           cd cli
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex --test tests -- --nocapture --test-threads=1
 
