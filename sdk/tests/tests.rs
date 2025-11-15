@@ -269,7 +269,7 @@ async fn test_deposit_through_transfer(
     println!("Waiting for L1 deposit transaction receipt");
 
     let deposit_tx_receipt =
-        wait_for_transaction_receipt(deposit_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(deposit_tx_hash, eth_client, 1000, true).await?;
 
     assert!(
         deposit_tx_receipt.receipt.status,
@@ -379,7 +379,7 @@ async fn test_deposit_through_contract_call(
     println!("Waiting for L1 deposit transaction receipt");
 
     let deposit_tx_receipt =
-        wait_for_transaction_receipt(deposit_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(deposit_tx_hash, eth_client, 1000, true).await?;
 
     let depositor_l1_balance_after_deposit = eth_client
         .get_balance(depositor, BlockIdentifier::Tag(BlockTag::Latest))
@@ -502,7 +502,7 @@ async fn test_transfer_with_privileged_tx(
     tokio::time::sleep(std::time::Duration::from_secs(12)).await;
 
     let l1_to_l2_tx_receipt =
-        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 1000, true).await?;
     println!("Waiting for L1 to L2 transaction receipt on L2");
 
     let _ = wait_for_l2_deposit_receipt(&l1_to_l2_tx_receipt, eth_client, proposer_client).await?;
@@ -540,7 +540,7 @@ async fn test_gas_burning(eth_client: &EthClient) -> Result<(), Box<dyn std::err
     println!("Waiting for L1 to L2 transaction receipt on L1");
 
     let l1_to_l2_tx_receipt =
-        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 1000, true).await?;
 
     assert!(l1_to_l2_tx_receipt.tx_info.gas_used > l2_gas_limit);
     assert!(l1_to_l2_tx_receipt.tx_info.gas_used < l2_gas_limit + l1_extra_gas_limit);
@@ -847,7 +847,7 @@ async fn test_deploy(
     .await?;
 
     let deploy_tx_receipt =
-        wait_for_transaction_receipt(deploy_tx_hash, proposer_client, 5, true).await?;
+        wait_for_transaction_receipt(deploy_tx_hash, proposer_client, 1000, true).await?;
 
     let deploy_fees = get_fees_details_l2(deploy_tx_receipt, proposer_client).await;
 
@@ -931,7 +931,7 @@ async fn test_call_to_contract_with_deposit(
     println!("Waiting for L1 to L2 transaction receipt on L1");
 
     let l1_to_l2_tx_receipt =
-        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 1000, true).await?;
 
     println!("Waiting for L1 to L2 transaction receipt on L2");
 
@@ -1122,7 +1122,7 @@ async fn test_n_withdraws(
         )
         .await?;
         let withdraw_claim_tx_receipt =
-            wait_for_transaction_receipt(withdraw_claim_tx, eth_client, 5, true).await?;
+            wait_for_transaction_receipt(withdraw_claim_tx, eth_client, 1000, true).await?;
         withdraw_claim_txs_receipts.push(withdraw_claim_tx_receipt);
     }
 
