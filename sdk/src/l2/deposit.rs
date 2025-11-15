@@ -10,7 +10,7 @@ use ethrex_sdk::{build_generic_tx, calldata::encode_calldata, send_generic_trans
 use keccak_hash::H256;
 use secp256k1::SecretKey;
 
-const DEPOSIT_SIGNATURE: &str = "deposit(uint256,address)";
+const DEPOSIT_SIGNATURE: &str = "deposit(address)";
 const DEPOSIT_ERC20_SIGNATURE: &str = "depositERC20(address,address,address,uint256)";
 
 pub async fn deposit_through_transfer(
@@ -40,10 +40,7 @@ pub async fn deposit_through_contract_call(
 ) -> Result<H256, EthClientError> {
     let l1_from =
         get_address_from_secret_key(depositor_private_key).map_err(EthClientError::Custom)?;
-    let calldata = encode_calldata(
-        DEPOSIT_SIGNATURE,
-        &[Value::Uint(U256::zero()), Value::Address(to)],
-    )?;
+    let calldata = encode_calldata(DEPOSIT_SIGNATURE, &[Value::Address(to)])?;
     let gas_price = eth_client
         .get_gas_price_with_extra(20)
         .await?
