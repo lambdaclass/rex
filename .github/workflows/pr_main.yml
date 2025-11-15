@@ -39,16 +39,16 @@ jobs:
 
       - name: Run ethrex l2 --dev
         run: |
-          ethrex l2 --dev &
+          ethrex l2 --dev --no-monitor &
 
       - name: Wait for ethrex l2
         run: |
-          for i in {1..20}; do
+          for i in {1..100}; do
             if nc -z localhost 3900; then
               echo "ProofCoordinator ready!"
               exit 0
             fi
-            sleep 5
+            sleep 10
           done
           echo "ProofCoordinator not ready in time"
           exit 1
@@ -86,16 +86,16 @@ jobs:
 
       - name: Run ethrex l2 --dev
         run: |
-          ethrex l2 --dev &
+          ethrex l2 --dev --no-monitor &
 
       - name: Wait for ethrex l2
         run: |
-          for i in {1..20}; do
+          for i in {1..100}; do
             if nc -z localhost 3900; then
               echo "Service ready!"
               exit 0
             fi
-            sleep 5
+            sleep 10
           done
           echo "Service not ready in time"
           exit 1
