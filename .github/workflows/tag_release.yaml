@@ -2,14 +2,23 @@ name: Rex Release
 
 on:
   push:
+    # On tags, this generates a release and pushes docker images with the tag name
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+-*"
-      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v*.*.*-*"
+    # On pushes to main, this silently builds and pushes docker images tagged as 'main'
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
   packages: write
+  actions: write
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PROVER_REPRODUCIBLE_BUILD: true
 
 jobs:
   build-rex:
@@ -34,25 +43,71 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Rustup toolchain install
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ vars.RUST_VERSION }}
+      - name: Free Disk Space
+        if: ${{ matrix.os == 'linux' }}
+        uses: ./.github/actions/free-disk
+
+      - name: Setup Rust Environment
+        uses: ./.github/actions/setup-rust
 
       - name: Build rex
         run: |
           cargo build --release --bin rex
-          mv target/release/rex rex-${{ matrix.os }}_${{ matrix.arch }}
+          chmod +x target/release/rex
+          mv target/release/rex rex-${{ matrix.os }}-${{ matrix.arch }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rex-${{ matrix.os }}_${{ matrix.arch }}
-          path: rex-${{ matrix.os }}_${{ matrix.arch }}
+          name: rex-${{ matrix.os }}-${{ matrix.arch }}
+          path: rex-${{ matrix.os }}-${{ matrix.arch }}
 
+  build-docker:
+    name: "Build and publish rex docker image"
+    runs-on: ubuntu-latest
+
+    # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+      actions: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        uses: ./.github/actions/free-disk
+
+      - name: Format name
+        run: |
+          # For branch builds (main) we want docker images tagged as 'main'. For tag pushes
+          # use the tag name (stripped of a leading 'v').
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            echo "TAG_VERSION=main" >> $GITHUB_ENV
+          else
+            echo "TAG_VERSION=$(echo ${{ github.ref_name }} | tr -d v)" >> $GITHUB_ENV
+          fi
+
+      # Pushes to ghcr.io/lambdaclass/rex
+      - name: Build and push L1 Docker image
+        id: push_l1
+        uses: ./.github/actions/build-docker
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          push: ${{ github.event_name != 'workflow_dispatch'}}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG_VERSION }}
+
+  # Creates a release on GitHub with the binaries
   finalize-release:
+    if: github.ref_type == 'tag' && github.event_name != 'workflow_dispatch'
     needs:
       - build-rex
+      - build-docker
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -68,9 +123,11 @@ jobs:
 
       - name: Get previous tag
         run: |
-          name=$(git --no-pager tag --sort=creatordate --merged ${{ github.ref_name }} | tail -2 | head -1)
-          echo "PREVIOUS_TAG: $name"
-          echo "PREVIOUS_TAG=$name" >> $GITHUB_ENV
+          last_tag=$(git --no-pager tag --sort=creatordate | grep -v -E '^v[0-9]+\.[0-9]+\.[0-9]+-' | grep -v '${{ github.ref_name }}' | tail -1)
+          echo "Last tag: $last_tag"
+          common_parent=$(git merge-base ${{ github.ref_name }} $last_tag)
+          echo "PREVIOUS_TAG: $common_parent"
+          echo "PREVIOUS_TAG=$common_parent" >> $GITHUB_ENV
 
       - name: Update CHANGELOG
         id: changelog
@@ -88,7 +145,10 @@ jobs:
         with:
           files: ./bin/**/*
           draft: false
-          prerelease: false
+          prerelease: true
           tag_name: ${{ github.ref_name }}
           name: "rex: ${{ github.ref_name }}"
-          body: ${{ steps.changelog.outputs.changes }}
+          body: >
+            Installation and running instructions can be found in [our docs](https://github.com/lambdaclass/rex/blob/main/README.md).
+
+            ${{ steps.changelog.outputs.changes }}
