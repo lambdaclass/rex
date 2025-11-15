@@ -26,7 +26,7 @@ jobs:
 
       - name: Install ethrex
         run: |
-          curl -L https://github.com/lambdaclass/ethrex/releases/latest/download/ethrex-linux_x86_64 -o /usr/local/bin/ethrex
+          curl -L https://github.com/lambdaclass/ethrex/releases/latest/download/ethrex-l2-linux-x86_64 -o /usr/local/bin/ethrex
           chmod +x /usr/local/bin/ethrex
           ethrex --version
           echo "ethrex installed successfully"
@@ -53,6 +53,7 @@ jobs:
       - name: Run tests
         run: |
           cd /home/runner/work/rex/rex/sdk
+          sleep 200
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex-sdk --test tests -- --nocapture --test-threads=1
 
   cli-integration-test:
@@ -73,7 +74,7 @@ jobs:
 
       - name: Install ethrex
         run: |
-          curl -L https://github.com/lambdaclass/ethrex/releases/latest/download/ethrex-linux_x86_64 -o /usr/local/bin/ethrex
+          curl -L https://github.com/lambdaclass/ethrex/releases/latest/download/ethrex-l2-linux-x86_64 -o /usr/local/bin/ethrex
           chmod +x /usr/local/bin/ethrex
           ethrex --version
           echo "ethrex installed successfully"
@@ -103,6 +104,7 @@ jobs:
           cd /home/runner/work/rex/rex
           make cli
           cd cli
+          sleep 200
           PROPOSER_COINBASE_ADDRESS=0x0007a881CD95B1484fca47615B64803dad620C8d cargo test --package rex --test tests -- --nocapture --test-threads=1
 
   post-daily-report:

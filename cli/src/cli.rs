@@ -28,6 +28,7 @@ use rex_sdk::{balance_in_eth, deploy, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use url::Url;
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 
@@ -78,19 +79,19 @@ pub(crate) enum Command {
         )]
         eth: bool,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Get the current block_number.", visible_alias = "bl")]
     BlockNumber {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Make a call to a contract")]
     Call {
         #[clap(flatten)]
         args: CallArgs,
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Get the network's chain id.")]
     ChainId {
@@ -101,7 +102,7 @@ pub(crate) enum Command {
         )]
         hex: bool,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Returns code at a given address")]
     Code {
@@ -115,7 +116,7 @@ pub(crate) enum Command {
         )]
         block: String,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Compute contract address given the deployer address and nonce.")]
     CreateAddress {
@@ -124,7 +125,7 @@ pub(crate) enum Command {
         #[arg(short = 'n', long, help = "Deployer Nonce. Latest by default.")]
         nonce: Option<u64>,
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     Create2Address {
         #[arg(
@@ -192,7 +193,7 @@ pub(crate) enum Command {
         #[clap(flatten)]
         args: DeployArgs,
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(
         about = "Get either the keccak for a given input, the zero hash, the empty string, or a random hash",
@@ -214,20 +215,20 @@ pub(crate) enum Command {
     Nonce {
         account: Address,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
     Receipt {
         tx_hash: H256,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Send a transaction")]
     Send {
         #[clap(flatten)]
         args: SendArgs,
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Sign a message with a private key")]
     Sign {
@@ -246,14 +247,14 @@ pub(crate) enum Command {
     Transaction {
         tx_hash: H256,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Transfer funds to another wallet.")]
     Transfer {
         #[clap(flatten)]
         args: TransferArgs,
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Verify if the signature of a message was made by an account")]
     VerifySignature {
@@ -288,7 +289,7 @@ impl Command {
                 eth,
                 rpc_url,
             } => {
-                let eth_client = EthClient::new(&rpc_url)?;
+                let eth_client = EthClient::new(rpc_url)?;
                 let account_balance = if let Some(token_address) = token_address {
                     get_token_balance(&eth_client, account, token_address).await?
                 } else {
@@ -300,7 +301,7 @@ impl Command {
                 println!("{}", balance_in_eth(eth, account_balance));
             }
             Command::BlockNumber { rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url)?;
+                let eth_client = EthClient::new(rpc_url)?;
 
                 let block_number = eth_client.get_block_number().await?;
 
@@ -312,7 +313,7 @@ impl Command {
                 rpc_url,
             } => {
                 let nonce = nonce.unwrap_or(
-                    EthClient::new(&rpc_url)?
+                    EthClient::new(rpc_url)?
                         .get_nonce(deployer, BlockIdentifier::Tag(BlockTag::Latest))
                         .await?,
                 );
@@ -366,17 +367,17 @@ impl Command {
                 println!("\nAddress: 0x{contract_address}");
             }
             Command::Transaction { tx_hash, rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url)?;
+                let eth_client = EthClient::new(rpc_url)?;
 
                 let tx = eth_client
                     .get_transaction_by_hash(tx_hash)
                     .await?
                     .ok_or(eyre::Error::msg("Not found"))?;
 
-                println!("{tx}");
+                println!("{tx:?}");
             }
             Command::Receipt { tx_hash, rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url)?;
+                let eth_client = EthClient::new(rpc_url)?;
 
                 let receipt = eth_client
                     .get_transaction_receipt(tx_hash)
@@ -386,7 +387,7 @@ impl Command {
                 println!("{:x?}", receipt.tx_info);
             }
             Command::Nonce { account, rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url)?;
+                let eth_client = EthClient::new(rpc_url)?;
 
                 let nonce = eth_client
                     .get_nonce(account, BlockIdentifier::Tag(BlockTag::Latest))
@@ -448,7 +449,7 @@ impl Command {
                 let from =
                     get_address_from_secret_key(&args.private_key).map_err(|e| eyre::eyre!(e))?;
 
-                let client = EthClient::new(&rpc_url)?;
+                let client = EthClient::new(rpc_url)?;
 
                 let tx_hash = transfer(
                     args.amount,
@@ -474,7 +475,7 @@ impl Command {
                 let from =
                     get_address_from_secret_key(&args.private_key).map_err(|e| eyre::eyre!(e))?;
 
-                let client = EthClient::new(&rpc_url)?;
+                let client = EthClient::new(rpc_url)?;
 
                 let calldata = if !args.calldata.is_empty() {
                     args.calldata
@@ -516,7 +517,7 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                let client = EthClient::new(&rpc_url)?;
+                let client = EthClient::new(rpc_url)?;
 
                 let calldata = if !args.calldata.is_empty() {
                     args.calldata
@@ -546,7 +547,7 @@ impl Command {
                 }
 
                 let deployer = Signer::Local(LocalSigner::new(args.private_key));
-                let client = EthClient::new(&rpc_url)?;
+                let client = EthClient::new(rpc_url)?;
 
                 let bytecode = if let Some(bytecode) = args.bytecode {
                     bytecode
@@ -601,7 +602,7 @@ impl Command {
                 }
             }
             Command::ChainId { hex, rpc_url } => {
-                let eth_client = EthClient::new(&rpc_url)?;
+                let eth_client = EthClient::new(rpc_url)?;
 
                 let chain_id = eth_client.get_chain_id().await?;
 
@@ -616,7 +617,7 @@ impl Command {
                 block,
                 rpc_url,
             } => {
-                let eth_client = EthClient::new(&rpc_url)?;
+                let eth_client = EthClient::new(rpc_url)?;
 
                 let block_identifier = BlockIdentifier::parse(serde_json::Value::String(block), 0)?;
 

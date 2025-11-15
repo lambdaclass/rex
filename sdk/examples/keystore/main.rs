@@ -9,6 +9,7 @@ use ethrex_rpc::clients::Overrides;
 use ethrex_sdk::calldata::encode_calldata;
 use ethrex_sdk::{build_generic_tx, send_generic_transaction};
 use keccak_hash::keccak;
+use reqwest::Url;
 use rex_sdk::deploy;
 use rex_sdk::{
     keystore::{create_new_keystore, load_keystore_from_path},
@@ -30,7 +31,7 @@ struct ExampleArgs {
     )]
     private_key: String,
     #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
-    rpc_url: String,
+    rpc_url: Url,
 }
 
 #[tokio::main]
@@ -55,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\tAddress: {keystore_address:#x}");
 
     // Connect the client to a node
-    let eth_client = EthClient::new(&args.rpc_url)?;
+    let eth_client = EthClient::new(args.rpc_url)?;
 
     // 4. Fund the keystore account.
     let pk = &args

@@ -10,10 +10,11 @@ use ethrex_rpc::{
     },
 };
 use ethrex_sdk::{
-    L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
-    wait_for_message_proof,
+    DEFAULT_BRIDGE_ADDRESS, L1ToL2TransactionData, calldata::encode_calldata,
+    get_last_verified_batch, send_l1_to_l2_tx, wait_for_message_proof,
 };
 use keccak_hash::keccak;
+use reqwest::Url;
 use rex_sdk::{
     deploy,
     l2::{
@@ -45,15 +46,10 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
-// 0xcb968a1441ffcfb88194912923c5353f8da0210b
-const DEFAULT_BRIDGE_ADDRESS: Address = H160([
-    0xcb, 0x96, 0x8a, 0x14, 0x41, 0xff, 0xcf, 0xb8, 0x81, 0x94, 0x91, 0x29, 0x23, 0xc5, 0x35, 0x3f,
-    0x8d, 0xa0, 0x21, 0x0b,
-]);
-// 0x44e09413ab37c3dae5663f2fd408e60ac2dbc7e2
+// 0x3e141f8f9f083024c6e1ec3de2509de5da47c354
 const DEFAULT_ON_CHAIN_PROPOSER_ADDRESS: Address = H160([
-    0x44, 0xe0, 0x94, 0x13, 0xab, 0x37, 0xc3, 0xda, 0xe5, 0x66, 0x3f, 0x2f, 0xd4, 0x08, 0xe6, 0x0a,
-    0xc2, 0xdb, 0xc7, 0xe2,
+    0x3e, 0x14, 0x1f, 0x8f, 0x9f, 0x08, 0x30, 0x24, 0xc6, 0xe1, 0xec, 0x3d, 0xe2, 0x50, 0x9d, 0xe5,
+    0xda, 0x47, 0xc3, 0x54,
 ]);
 // 0x0007a881CD95B1484fca47615B64803dad620C8d
 const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
@@ -159,14 +155,24 @@ pub fn read_env_file_by_config() {
 
 fn eth_client() -> EthClient {
     EthClient::new(
-        &std::env::var("INTEGRATION_TEST_ETH_URL").unwrap_or(DEFAULT_ETH_URL.to_string()),
+        Url::parse(
+            std::env::var("INTEGRATION_TEST_ETH_URL")
+                .unwrap_or(DEFAULT_ETH_URL.to_string())
+                .as_str(),
+        )
+        .expect("Invalid ETH URL"),
     )
     .unwrap()
 }
 
 fn proposer_client() -> EthClient {
     EthClient::new(
-        &std::env::var("INTEGRATION_TEST_PROPOSER_URL").unwrap_or(DEFAULT_PROPOSER_URL.to_string()),
+        Url::parse(
+            std::env::var("INTEGRATION_TEST_PROPOSER_URL")
+                .unwrap_or(DEFAULT_PROPOSER_URL.to_string())
+                .as_str(),
+        )
+        .expect("Invalid proposer URL"),
     )
     .unwrap()
 }

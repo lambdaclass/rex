@@ -16,6 +16,8 @@ use rex_sdk::{
     wait_for_transaction_receipt,
 };
 use secp256k1::SecretKey;
+use url::Url;
+
 #[derive(Subcommand)]
 pub(crate) enum Command {
     #[clap(about = "Get the account's balance on L2.", visible_aliases = ["bal", "b"])]
@@ -27,7 +29,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Get the current block_number.", visible_alias = "bl")]
     BlockNumber {
@@ -36,7 +38,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Make a call to a contract")]
     Call {
@@ -47,7 +49,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Get the network's chain id.")]
     ChainId {
@@ -59,7 +61,7 @@ pub(crate) enum Command {
         )]
         hex: bool,
         #[arg(default_value = "http://localhost:1729", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Finalize a pending withdrawal.")]
     ClaimWithdraw {
@@ -98,9 +100,9 @@ pub(crate) enum Command {
         #[arg(env = "BRIDGE_ADDRESS")]
         bridge_address: Address,
         #[arg(env = "L1_RPC_URL", default_value = "http://localhost:8545")]
-        l1_rpc_url: String,
+        l1_rpc_url: Url,
         #[arg(env = "RPC_URL", default_value = "http://localhost:1729")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Deploy a contract")]
     Deploy {
@@ -111,7 +113,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Deposit funds into some wallet.")]
     Deposit {
@@ -165,13 +167,13 @@ pub(crate) enum Command {
         )]
         bridge_address: Address,
         #[arg(default_value = "http://localhost:8545", env = "L1_RPC_URL")]
-        l1_rpc_url: String,
+        l1_rpc_url: Url,
     },
     #[clap(about = "Get the account's nonce.", visible_aliases = ["n"])]
     Nonce {
         account: Address,
         #[arg(default_value = "http://localhost:1729", env = "RPC_URL")]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
     Receipt {
@@ -181,7 +183,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Send a transaction")]
     Send {
@@ -192,7 +194,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Get the transaction's info.", visible_aliases = ["tx", "t"])]
     Transaction {
@@ -202,7 +204,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Transfer funds to another wallet.")]
     Transfer {
@@ -213,7 +215,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Withdraw funds from the wallet.")]
     Withdraw {
@@ -262,7 +264,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
     #[clap(about = "Get the merkle proof of a L1MessageProof.")]
     MessageProof {
@@ -272,7 +274,7 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
-        rpc_url: String,
+        rpc_url: Url,
     },
 }
 
@@ -291,7 +293,7 @@ impl Command {
                 l1_rpc_url,
                 bridge_address,
             } => {
-                let eth_client = EthClient::new(&l1_rpc_url)?;
+                let eth_client = EthClient::new(l1_rpc_url)?;
                 let to = to.unwrap_or(
                     get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?,
                 );
@@ -351,9 +353,9 @@ impl Command {
             } => {
                 let from = get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
 
-                let eth_client = EthClient::new(&l1_rpc_url)?;
+                let eth_client = EthClient::new(l1_rpc_url)?;
 
-                let rollup_client = EthClient::new(&rpc_url)?;
+                let rollup_client = EthClient::new(rpc_url)?;
 
                 let message_proof =
                     wait_for_message_proof(&rollup_client, l2_withdrawal_tx_hash, 100).await?;
@@ -407,7 +409,7 @@ impl Command {
             } => {
                 let from = get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
 
-                let client = EthClient::new(&rpc_url)?;
+                let client = EthClient::new(rpc_url)?;
 
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
@@ -432,7 +434,7 @@ impl Command {
                 message_tx_hash,
                 rpc_url,
             } => {
-                let client = EthClient::new(&rpc_url)?;
+                let client = EthClient::new(rpc_url)?;
 
                 let message_proof = wait_for_message_proof(&client, message_tx_hash, 100).await?;
                 if message_proof.is_empty() {

@@ -7,6 +7,7 @@ use ethrex_rpc::{
     types::block_identifier::{BlockIdentifier, BlockTag},
 };
 use hex::FromHexError;
+use reqwest::Url;
 use rex_sdk::{transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::str::FromStr;
@@ -16,7 +17,7 @@ struct SimpleUsageArgs {
     #[arg(long, value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to derive the address from.")]
     private_key: SecretKey,
     #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
-    rpc_url: String,
+    rpc_url: Url,
 }
 
 fn parse_private_key(s: &str) -> eyre::Result<SecretKey> {
@@ -36,7 +37,7 @@ async fn main() {
 
     let account = get_address_from_secret_key(&args.private_key).unwrap();
 
-    let eth_client = EthClient::new(&args.rpc_url).unwrap();
+    let eth_client = EthClient::new(args.rpc_url).unwrap();
 
     let account_balance = eth_client
         .get_balance(account, BlockIdentifier::Tag(BlockTag::Latest))
