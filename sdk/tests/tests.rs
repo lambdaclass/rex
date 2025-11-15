@@ -10,8 +10,8 @@ use ethrex_rpc::{
     },
 };
 use ethrex_sdk::{
-    DEFAULT_BRIDGE_ADDRESS, L1ToL2TransactionData, calldata::encode_calldata,
-    get_last_verified_batch, send_l1_to_l2_tx, wait_for_message_proof,
+    L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
+    wait_for_message_proof,
 };
 use keccak_hash::keccak;
 use reqwest::Url;
