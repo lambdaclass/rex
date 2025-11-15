@@ -10,8 +10,8 @@ use ethrex_rpc::{
     },
 };
 use ethrex_sdk::{
-    DEFAULT_BRIDGE_ADDRESS, L1ToL2TransactionData, calldata::encode_calldata,
-    get_last_verified_batch, send_l1_to_l2_tx, wait_for_message_proof,
+    L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
+    wait_for_message_proof,
 };
 use keccak_hash::keccak;
 use reqwest::Url;
@@ -46,6 +46,7 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
+const DEFAULT_BRIDGE_ADDRESS: Address = ethrex_sdk::DEFAULT_BRIDGE_ADDRESS;
 // 0x3e141f8f9f083024c6e1ec3de2509de5da47c354
 const DEFAULT_ON_CHAIN_PROPOSER_ADDRESS: Address = H160([
     0x3e, 0x14, 0x1f, 0x8f, 0x9f, 0x08, 0x30, 0x24, 0xc6, 0xe1, 0xec, 0x3d, 0xe2, 0x50, 0x9d, 0xe5,
@@ -264,7 +265,7 @@ async fn test_deposit_through_transfer(
     println!("Waiting for L1 deposit transaction receipt");
 
     let deposit_tx_receipt =
-        wait_for_transaction_receipt(deposit_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(deposit_tx_hash, eth_client, 1000, true).await?;
 
     assert!(
         deposit_tx_receipt.receipt.status,
@@ -374,7 +375,7 @@ async fn test_deposit_through_contract_call(
     println!("Waiting for L1 deposit transaction receipt");
 
     let deposit_tx_receipt =
-        wait_for_transaction_receipt(deposit_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(deposit_tx_hash, eth_client, 1000, true).await?;
 
     let depositor_l1_balance_after_deposit = eth_client
         .get_balance(depositor, BlockIdentifier::Tag(BlockTag::Latest))
@@ -497,7 +498,7 @@ async fn test_transfer_with_privileged_tx(
     tokio::time::sleep(std::time::Duration::from_secs(12)).await;
 
     let l1_to_l2_tx_receipt =
-        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 1000, true).await?;
     println!("Waiting for L1 to L2 transaction receipt on L2");
 
     let _ = wait_for_l2_deposit_receipt(&l1_to_l2_tx_receipt, eth_client, proposer_client).await?;
@@ -535,7 +536,7 @@ async fn test_gas_burning(eth_client: &EthClient) -> Result<(), Box<dyn std::err
     println!("Waiting for L1 to L2 transaction receipt on L1");
 
     let l1_to_l2_tx_receipt =
-        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 1000, true).await?;
 
     assert!(l1_to_l2_tx_receipt.tx_info.gas_used > l2_gas_limit);
     assert!(l1_to_l2_tx_receipt.tx_info.gas_used < l2_gas_limit + l1_extra_gas_limit);
@@ -842,7 +843,7 @@ async fn test_deploy(
     .await?;
 
     let deploy_tx_receipt =
-        wait_for_transaction_receipt(deploy_tx_hash, proposer_client, 5, true).await?;
+        wait_for_transaction_receipt(deploy_tx_hash, proposer_client, 1000, true).await?;
 
     let deploy_fees = get_fees_details_l2(deploy_tx_receipt, proposer_client).await;
 
@@ -926,7 +927,7 @@ async fn test_call_to_contract_with_deposit(
     println!("Waiting for L1 to L2 transaction receipt on L1");
 
     let l1_to_l2_tx_receipt =
-        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 5, true).await?;
+        wait_for_transaction_receipt(l1_to_l2_tx_hash, eth_client, 1000, true).await?;
 
     println!("Waiting for L1 to L2 transaction receipt on L2");
 
@@ -1117,7 +1118,7 @@ async fn test_n_withdraws(
         )
         .await?;
         let withdraw_claim_tx_receipt =
-            wait_for_transaction_receipt(withdraw_claim_tx, eth_client, 5, true).await?;
+            wait_for_transaction_receipt(withdraw_claim_tx, eth_client, 1000, true).await?;
         withdraw_claim_txs_receipts.push(withdraw_claim_tx_receipt);
     }
 
