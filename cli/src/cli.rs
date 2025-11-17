@@ -118,6 +118,17 @@ pub(crate) enum Command {
         #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
+    #[clap(about = "Compile a contract")]
+    Compile {
+        #[arg(long, help = "Path to the Solidity file to compile")]
+        contract_path: PathBuf,
+        #[arg(
+            long,
+            required = false,
+            help = "Comma-separated remappings (e.g. '@openzeppelin/contracts=https://github.com/OpenZeppelin/openzeppelin-contracts.git,@custom=path/to/custom')"
+        )]
+        remappings: Option<String>,
+    },
     #[clap(about = "Compute contract address given the deployer address and nonce.")]
     CreateAddress {
         #[arg(help = "Deployer address.")]
@@ -552,7 +563,12 @@ impl Command {
                 let bytecode = if let Some(bytecode) = args.bytecode {
                     bytecode
                 } else {
-                    compile_contract_from_path(args.clone()).await?
+                    compile_contract_from_path(
+                        args.contract_path.clone(),
+                        args.remappings.clone(),
+                        args.keep_deps,
+                    )
+                    .await?
                 };
                 let init_args = if !args._args.is_empty() {
                     parse_contract_creation(args._args)?
@@ -661,6 +677,13 @@ impl Command {
                     print_calldata(0, elem);
                 }
             }
+            Command::Compile {
+                contract_path,
+                remappings,
+            } => {
+                let _bytecode =
+                    compile_contract_from_path(Some(contract_path), remappings, true).await?;
+            }
         };
         Ok(())
     }
@@ -700,13 +723,16 @@ fn print_calldata(depth: usize, data: Value) {
     }
 }
 
-async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
-    let contract_path = args
-        .contract_path
+async fn compile_contract_from_path(
+    contract_path: Option<PathBuf>,
+    remappings: Option<String>,
+    keep_deps: bool,
+) -> eyre::Result<Bytes> {
+    let contract_path = contract_path
         .as_ref()
         .ok_or_else(|| eyre::eyre!("Contract path is required when bytecode is not provided"))?;
 
-    let clean = !args.keep_deps;
+    let clean = !keep_deps;
     let output_dir = Path::new(".");
     let deps_dir = Path::new("rex_deps");
     let mut solc_remappings = Vec::new();
@@ -714,7 +740,7 @@ async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
 
     std::fs::create_dir_all(deps_dir).ok();
 
-    if let Some(remappings_str) = &args.remappings {
+    if let Some(remappings_str) = &remappings {
         let remappings = remappings_str
             .split(',')
             .filter_map(|mapping| {
@@ -770,6 +796,7 @@ async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
         output_dir,
         contract_path,
         false,
+        true,
         Some(&solc_remappings_ref),
         &include_paths,
     )
