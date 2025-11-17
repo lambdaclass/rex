@@ -770,6 +770,7 @@ async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
         output_dir,
         contract_path,
         false,
+        true,
         Some(&solc_remappings_ref),
         &include_paths,
     )
