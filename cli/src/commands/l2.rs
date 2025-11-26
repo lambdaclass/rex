@@ -559,10 +559,12 @@ impl Command {
             }
             Command::GetFeeInfo { block, rpc_url } => {
                 let client: EthClient = EthClient::new(rpc_url)?;
-                let block_identifier = if let Some(block_number) = block {
-                    BlockIdentifier::Number(block_number)
-                } else {
-                    BlockIdentifier::Tag(BlockTag::Latest)
+                let (block_identifier, block_number) = match block {
+                    Some(block_number) => (BlockIdentifier::Number(block_number), block_number),
+                    None => {
+                        let latest_block = client.get_block_number().await?.as_u64();
+                        (BlockIdentifier::Tag(BlockTag::Latest), latest_block)
+                    }
                 };
 
                 let base_fee_vault_address =
@@ -573,13 +575,35 @@ impl Command {
                     get_l1_fee_vault_address(&client, block_identifier.clone()).await?;
 
                 let operator_fee = get_operator_fee(&client, block_identifier.clone()).await?;
-
-                let block_number = if let Some(block) = block {
-                    block
-                } else {
-                    client.get_block_number().await?.as_u64()
-                };
                 let blob_base_fee = get_l1_blob_base_fee_per_gas(&client, block_number).await?;
+
+                let base_fee_vault_address = base_fee_vault_address
+                    .map(|addr| format!("{addr:#x}"))
+                    .unwrap_or_else(String::new);
+                let operator_fee_vault_address = operator_fee_vault_address
+                    .map(|addr| format!("{addr:#x}"))
+                    .unwrap_or_else(String::new);
+                let l1_fee_vault_address = l1_fee_vault_address
+                    .map(|addr| format!("{addr:#x}"))
+                    .unwrap_or_else(String::new);
+
+                let operator_fee = if operator_fee.is_zero() {
+                    String::new()
+                } else {
+                    operator_fee.to_string()
+                };
+                let blob_base_fee = if blob_base_fee == 0 {
+                    String::new()
+                } else {
+                    blob_base_fee.to_string()
+                };
+
+                println!("L2 fee info for block {block_number}:");
+                println!("  Base fee vault:                     {base_fee_vault_address}");
+                println!("  Operator fee vault:                 {operator_fee_vault_address}");
+                println!("  L1 fee vault:                       {l1_fee_vault_address}");
+                println!("  Operator fee (wei/gas):             {operator_fee}");
+                println!("  L1 blob base fee (wei/blob-gas):    {blob_base_fee}");
             }
         };
         Ok(())
