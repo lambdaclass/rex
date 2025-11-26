@@ -7,6 +7,7 @@ use clap::Subcommand;
 use ethrex_common::types::TxType;
 use ethrex_common::{Address, H256, U256};
 use ethrex_l2_common::utils::get_address_from_secret_key;
+use ethrex_l2_rpc::clients::get_batch_by_number;
 use ethrex_l2_rpc::clients::{
     get_base_fee_vault_address, get_l1_blob_base_fee_per_gas, get_l1_fee_vault_address,
     get_operator_fee, get_operator_fee_vault_address,
@@ -300,6 +301,31 @@ pub(crate) enum Command {
             help = "Block number to query the fees info for"
         )]
         block: Option<u64>,
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: Url,
+    },
+    #[clap(about = "Get the latest batch number")]
+    BatchNumber {
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: Url,
+    },
+    #[clap(about = "Get the latest batch or a batch by its number")]
+    BatchByNumber {
+        #[arg(
+            long,
+            short = 'b',
+            required = false,
+            help = "Batch number to retrieve information"
+        )]
+        batch_number: Option<u64>,
         #[arg(
             default_value = "http://localhost:1729",
             env = "RPC_URL",
@@ -604,6 +630,45 @@ impl Command {
                 println!("  L1 fee vault:                       {l1_fee_vault_address}");
                 println!("  Operator fee (wei/gas):             {operator_fee}");
                 println!("  L1 blob base fee (wei/blob-gas):    {blob_base_fee}");
+            }
+            Command::BatchNumber { rpc_url } => {
+                let _client = EthClient::new(rpc_url)?;
+            }
+            Command::BatchByNumber {
+                batch_number,
+                rpc_url,
+            } => {
+                let batch_number = batch_number.unwrap(); // left this until i can get the latest batch
+                let client = EthClient::new(rpc_url)?;
+
+                let batch = match get_batch_by_number(&client, batch_number).await {
+                    Ok(batch) => batch.batch,
+                    Err(err) => {
+                        println!("Batch {batch_number} not available yet: {err}");
+                        return Ok(());
+                    }
+                };
+
+                let commit_tx = batch
+                    .commit_tx
+                    .map(|tx| format!("{tx:#x}"))
+                    .unwrap_or_else(String::new);
+                let verify_tx = batch
+                    .verify_tx
+                    .map(|tx| format!("{tx:#x}"))
+                    .unwrap_or_else(String::new);
+
+                println!("Batch info for batch {}", batch.number);
+                println!("  Number:                         {}", batch.number);
+                println!("  First block:                    {}", batch.first_block);
+                println!("  Last block:                     {}", batch.last_block);
+                println!("  State root:                     {:#x}", batch.state_root);
+                println!(
+                    "  Privileged transactions hash:   {:#x}",
+                    batch.privileged_transactions_hash
+                );
+                println!("  Commit tx:                      {commit_tx}");
+                println!("  Verify tx:                      {verify_tx}");
             }
         };
         Ok(())
