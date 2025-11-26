@@ -4,10 +4,13 @@ use crate::{
     utils::{parse_private_key, parse_u256},
 };
 use clap::Subcommand;
+use ethrex_common::types::TxType;
 use ethrex_common::{Address, H256, U256};
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_rpc::EthClient;
+use ethrex_rpc::clients::Overrides;
 use ethrex_sdk::wait_for_message_proof;
+use rex_sdk::transfer;
 use rex_sdk::{
     l2::{
         deposit::{deposit_erc20, deposit_through_contract_call},
@@ -210,6 +213,12 @@ pub(crate) enum Command {
     Transfer {
         #[clap(flatten)]
         args: TransferArgs,
+        #[arg(
+            long,
+            required = false,
+            help = "The L2 address of a Fee Token to pay the gas fees"
+        )]
+        fee_token: Option<Address>,
         #[arg(
             default_value = "http://localhost:1729",
             env = "RPC_URL",
@@ -471,8 +480,48 @@ impl Command {
             Command::Nonce { account, rpc_url } => {
                 Box::pin(async { EthCommand::Nonce { account, rpc_url }.run().await }).await?
             }
-            Command::Transfer { args, rpc_url } => {
-                Box::pin(async { EthCommand::Transfer { args, rpc_url }.run().await }).await?
+            Command::Transfer {
+                args,
+                fee_token,
+                rpc_url,
+            } => {
+                if args.token_address.is_some() {
+                    todo!("Handle ERC20 transfers")
+                }
+
+                if args.explorer_url {
+                    todo!("Display transaction URL in the explorer")
+                }
+
+                let from =
+                    get_address_from_secret_key(&args.private_key).map_err(|e| eyre::eyre!(e))?;
+
+                let client = EthClient::new(rpc_url)?;
+                let tx_type = if fee_token.is_some() {
+                    TxType::FeeToken
+                } else {
+                    TxType::EIP1559
+                };
+
+                let tx_hash = transfer(
+                    args.amount,
+                    from,
+                    args.to,
+                    tx_type,
+                    &args.private_key,
+                    &client,
+                    Overrides {
+                        fee_token,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+
+                println!("{tx_hash:#x}");
+
+                if !args.cast {
+                    wait_for_transaction_receipt(tx_hash, &client, 100, args.silent).await?;
+                }
             }
             Command::Send { args, rpc_url } => {
                 Box::pin(async { EthCommand::Send { args, rpc_url }.run().await }).await?

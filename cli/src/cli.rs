@@ -455,6 +455,7 @@ impl Command {
                     args.amount,
                     from,
                     args.to,
+                    TxType::EIP1559,
                     &args.private_key,
                     &client,
                     Overrides::default(),
