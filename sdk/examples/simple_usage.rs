@@ -1,4 +1,5 @@
 use clap::Parser;
+use ethrex_common::types::TxType;
 use ethrex_common::{Address, Bytes, U256};
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_rpc::{
@@ -63,6 +64,7 @@ async fn main() {
         amount,
         from,
         to,
+        TxType::EIP15529,
         &args.private_key,
         &eth_client,
         Overrides::default(),
