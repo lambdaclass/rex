@@ -7,8 +7,15 @@ use clap::Subcommand;
 use ethrex_common::types::TxType;
 use ethrex_common::{Address, H256, U256};
 use ethrex_l2_common::utils::get_address_from_secret_key;
-use ethrex_rpc::EthClient;
+use ethrex_l2_rpc::clients::{
+    get_base_fee_vault_address, get_l1_blob_base_fee_per_gas, get_l1_fee_vault_address,
+    get_operator_fee, get_operator_fee_vault_address,
+};
 use ethrex_rpc::clients::Overrides;
+use ethrex_rpc::{
+    EthClient,
+    types::block_identifier::{BlockIdentifier, BlockTag},
+};
 use ethrex_sdk::wait_for_message_proof;
 use rex_sdk::transfer;
 use rex_sdk::{
@@ -285,6 +292,21 @@ pub(crate) enum Command {
         )]
         rpc_url: Url,
     },
+    #[clap(about = "Get L2 fees info for a block")]
+    GetFeeInfo {
+        #[arg(
+            long,
+            required = false,
+            help = "Block number to query the fees info for"
+        )]
+        block: Option<u64>,
+        #[arg(
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: Url,
+    },
 }
 
 impl Command {
@@ -534,6 +556,30 @@ impl Command {
             }
             Command::ChainId { hex, rpc_url } => {
                 Box::pin(async { EthCommand::ChainId { hex, rpc_url }.run().await }).await?
+            }
+            Command::GetFeeInfo { block, rpc_url } => {
+                let client: EthClient = EthClient::new(rpc_url)?;
+                let block_identifier = if let Some(block_number) = block {
+                    BlockIdentifier::Number(block_number)
+                } else {
+                    BlockIdentifier::Tag(BlockTag::Latest)
+                };
+
+                let base_fee_vault_address =
+                    get_base_fee_vault_address(&client, block_identifier.clone()).await?;
+                let operator_fee_vault_address =
+                    get_operator_fee_vault_address(&client, block_identifier.clone()).await?;
+                let l1_fee_vault_address =
+                    get_l1_fee_vault_address(&client, block_identifier.clone()).await?;
+
+                let operator_fee = get_operator_fee(&client, block_identifier.clone()).await?;
+
+                let block_number = if let Some(block) = block {
+                    block
+                } else {
+                    client.get_block_number().await?.as_u64()
+                };
+                let blob_base_fee = get_l1_blob_base_fee_per_gas(&client, block_number).await?;
             }
         };
         Ok(())
