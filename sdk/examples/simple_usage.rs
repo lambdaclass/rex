@@ -64,7 +64,7 @@ async fn main() {
         amount,
         from,
         to,
-        TxType::EIP15529,
+        TxType::EIP1559,
         &args.private_key,
         &eth_client,
         Overrides::default(),
