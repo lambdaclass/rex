@@ -1,3 +1,4 @@
+use ethrex_common::types::TxType;
 use ethrex_common::{Address, Bytes, H160, H256, U256};
 use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
@@ -722,6 +723,7 @@ async fn perform_transfer(
         transfer_value,
         transferer_address,
         transfer_recipient_address,
+        TxType::EIP1559,
         transferer_private_key,
         proposer_client,
         Overrides::default(),
