@@ -4,23 +4,17 @@ use crate::{
     utils::{parse_hex, parse_private_key, parse_u256},
 };
 use clap::Subcommand;
-use ethrex_common::{Address, H256, U256, types::AuthorizationTuple};
+use ethrex_common::{Address, H256, U256};
 use ethrex_common::{Bytes, types::TxType};
 use ethrex_l2_common::utils::get_address_from_secret_key;
-use ethrex_l2_rpc::clients::{
-    get_base_fee_vault_address, get_l1_blob_base_fee_per_gas, get_l1_fee_vault_address,
-    get_operator_fee, get_operator_fee_vault_address, send_ethrex_transaction,
-};
 use ethrex_l2_rpc::clients::{get_batch_by_number, get_batch_number};
-use ethrex_rlp::decode::RLPDecode;
+use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
-use ethrex_rpc::{
-    EthClient,
-    types::block_identifier::{BlockIdentifier, BlockTag},
-};
 use ethrex_sdk::wait_for_message_proof;
 use rex_sdk::transfer;
 use rex_sdk::{
+    l2::authorize::send_authorized_transaction,
+    l2::fees::fetch_fee_info,
     l2::{
         deposit::{deposit_erc20, deposit_through_contract_call},
         withdraw::{claim_erc20withdraw, claim_withdraw, withdraw, withdraw_erc20},
@@ -615,46 +609,33 @@ impl Command {
             }
             Command::GetFeeInfo { block, rpc_url } => {
                 let client: EthClient = EthClient::new(rpc_url)?;
-                let (block_identifier, block_number) = match block {
-                    Some(block_number) => (BlockIdentifier::Number(block_number), block_number),
-                    None => {
-                        let latest_block = client.get_block_number().await?.as_u64();
-                        (BlockIdentifier::Tag(BlockTag::Latest), latest_block)
-                    }
-                };
+                let fee_info = fetch_fee_info(&client, block).await?;
 
-                let base_fee_vault_address =
-                    get_base_fee_vault_address(&client, block_identifier.clone()).await?;
-                let operator_fee_vault_address =
-                    get_operator_fee_vault_address(&client, block_identifier.clone()).await?;
-                let l1_fee_vault_address =
-                    get_l1_fee_vault_address(&client, block_identifier.clone()).await?;
-
-                let operator_fee = get_operator_fee(&client, block_identifier.clone()).await?;
-                let blob_base_fee = get_l1_blob_base_fee_per_gas(&client, block_number).await?;
-
-                let base_fee_vault_address = base_fee_vault_address
+                let base_fee_vault_address = fee_info
+                    .base_fee_vault_address
                     .map(|addr| format!("{addr:#x}"))
                     .unwrap_or_else(String::new);
-                let operator_fee_vault_address = operator_fee_vault_address
+                let operator_fee_vault_address = fee_info
+                    .operator_fee_vault_address
                     .map(|addr| format!("{addr:#x}"))
                     .unwrap_or_else(String::new);
-                let l1_fee_vault_address = l1_fee_vault_address
+                let l1_fee_vault_address = fee_info
+                    .l1_fee_vault_address
                     .map(|addr| format!("{addr:#x}"))
                     .unwrap_or_else(String::new);
 
-                let operator_fee = if operator_fee.is_zero() {
+                let operator_fee = if fee_info.operator_fee.is_zero() {
                     String::new()
                 } else {
-                    operator_fee.to_string()
+                    fee_info.operator_fee.to_string()
                 };
-                let blob_base_fee = if blob_base_fee == 0 {
+                let blob_base_fee = if fee_info.blob_base_fee == 0 {
                     String::new()
                 } else {
-                    blob_base_fee.to_string()
+                    fee_info.blob_base_fee.to_string()
                 };
 
-                println!("L2 fee info for block {block_number}:");
+                println!("L2 fee info for block {}:", fee_info.block_number);
                 println!("  Base fee vault:                     {base_fee_vault_address}");
                 println!("  Operator fee vault:                 {operator_fee_vault_address}");
                 println!("  L1 fee vault:                       {l1_fee_vault_address}");
@@ -713,22 +694,10 @@ impl Command {
                 auth_list,
             } => {
                 let client = EthClient::new(rpc_url)?;
-
-                let mut auth_list_parsed = Vec::new();
-                for auth_tuple_raw in &auth_list {
-                    let auth_tuple = parse_hex(auth_tuple_raw)?;
-                    let auth_tuple = AuthorizationTuple::decode(&auth_tuple)?;
-                    auth_list_parsed.push(auth_tuple);
-                }
-
-                let auth_list = if auth_list_parsed.is_empty() {
-                    None
-                } else {
-                    Some(auth_list_parsed)
-                };
                 let calldata = calldata.unwrap_or_else(Bytes::new);
 
-                let tx_hash = send_ethrex_transaction(&client, to, calldata, auth_list).await?;
+                let tx_hash =
+                    send_authorized_transaction(&client, to, calldata, &auth_list).await?;
 
                 println!("{tx_hash:#x}");
             }
