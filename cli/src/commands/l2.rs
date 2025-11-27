@@ -1,6 +1,6 @@
 use crate::{
     cli::Command as EthCommand,
-    common::{BalanceArgs, CallArgs, DeployArgs, SendArgs, TransferArgs},
+    common::{AuthorizeArgs, BalanceArgs, CallArgs, DeployArgs, SendArgs, TransferArgs},
     utils::{parse_hex, parse_private_key, parse_u256},
 };
 use clap::Subcommand;
@@ -351,6 +351,13 @@ pub(crate) enum Command {
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
+        rpc_url: Url,
+    },
+    #[clap(about = "Authorize a delegated account")]
+    Authorize {
+        #[clap(flatten)]
+        args: AuthorizeArgs,
+        #[arg(long, default_value = "http://localhost:1729", env = "RPC_URL")]
         rpc_url: Url,
     },
 }
@@ -724,6 +731,9 @@ impl Command {
                 let tx_hash = send_ethrex_transaction(&client, to, calldata, auth_list).await?;
 
                 println!("{tx_hash:#x}");
+            }
+            Command::Authorize { args, rpc_url } => {
+                Box::pin(async { EthCommand::Authorize { args, rpc_url }.run().await }).await?
             }
         };
         Ok(())

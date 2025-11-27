@@ -1,4 +1,5 @@
 use crate::commands::l2;
+use crate::common::AuthorizeArgs;
 use crate::utils::{parse_contract_creation, parse_func_call, parse_hex, parse_hex_string};
 use crate::{
     commands::autocomplete,
@@ -278,15 +279,9 @@ pub(crate) enum Command {
         data: Bytes,
     },
     #[clap(about = "Authorize a delegated account")]
-    Auth {
-        #[arg(help = "Delegated address")]
-        delegated_address: Address,
-        #[arg(long, value_parser = parse_private_key, help = "Private key to sign the auth")]
-        private_key: SecretKey,
-        #[arg(long, required = false, help = "Nonce of the signer")]
-        nonce: Option<u64>,
-        #[arg(long, required = false, help = "Chain id of the network")]
-        chain_id: Option<u64>,
+    Authorize {
+        #[clap(flatten)]
+        args: AuthorizeArgs,
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
@@ -677,34 +672,29 @@ impl Command {
                     print_calldata(0, elem);
                 }
             }
-            Command::Auth {
-                delegated_address,
-                private_key,
-                nonce,
-                chain_id,
-                rpc_url,
-            } => {
+            Command::Authorize { args, rpc_url } => {
                 let client = EthClient::new(rpc_url)?;
 
-                let chain_id = if let Some(chain_id) = chain_id {
+                let chain_id = if let Some(chain_id) = args.chain_id {
                     chain_id
                 } else {
                     client.get_chain_id().await?.as_u64()
                 };
 
-                let nonce = if let Some(nonce) = nonce {
+                let nonce = if let Some(nonce) = args.nonce {
                     nonce
                 } else {
                     client
                         .get_nonce(
-                            get_address_from_secret_key(&private_key.secret_bytes())
+                            get_address_from_secret_key(&args.private_key.secret_bytes())
                                 .map_err(|e| eyre::eyre!(e))?,
                             BlockIdentifier::Tag(BlockTag::Latest),
                         )
                         .await?
                 };
 
-                let auth_tuple = make_auth_tuple(&private_key, chain_id, delegated_address, nonce);
+                let auth_tuple =
+                    make_auth_tuple(&args.private_key, chain_id, args.delegated_address, nonce);
                 let mut buf = Vec::new();
                 auth_tuple.encode(&mut buf);
                 println!("0x{:x}", Bytes::from(buf));
