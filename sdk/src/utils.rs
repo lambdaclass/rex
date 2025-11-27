@@ -5,6 +5,7 @@ use keccak_hash::keccak;
 use secp256k1::ecdsa::RecoverableSignature;
 use secp256k1::{Message, Secp256k1, SecretKey};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+const MAGIC: u8 = 0x05;
 
 pub fn secret_key_deserializer<'de, D>(deserializer: D) -> Result<SecretKey, D::Error>
 where
@@ -52,9 +53,6 @@ pub fn to_checksum_address(address: &str) -> String {
     checksummed
 }
 
-// MAGIC is 0x05 (crates/vm/levm/src/constants.rs)
-const MAGIC: u8 = 0x05;
-
 pub fn make_auth_tuple(
     signing_key: &SecretKey,
     chain_id: u64,
@@ -72,7 +70,6 @@ pub fn make_auth_tuple(
     let sig: RecoverableSignature = secp.sign_ecdsa_recoverable(&msg, signing_key);
     let (rec_id, sig_bytes) = sig.serialize_compact();
 
-    // Split r,s and y_parity
     let r_signature = U256::from_big_endian(&sig_bytes[0..32]);
     let s_signature = U256::from_big_endian(&sig_bytes[32..64]);
     let y_parity = U256::from(Into::<i32>::into(rec_id));

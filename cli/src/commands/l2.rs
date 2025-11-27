@@ -664,8 +664,11 @@ impl Command {
                 batch_number,
                 rpc_url,
             } => {
-                let batch_number = batch_number.unwrap(); // left this until i can get the latest batch
                 let client = EthClient::new(rpc_url)?;
+                let batch_number = match batch_number {
+                    Some(number) => number,
+                    None => get_batch_number(&client).await?,
+                };
 
                 let batch = match get_batch_by_number(&client, batch_number).await {
                     Ok(batch) => batch.batch,
