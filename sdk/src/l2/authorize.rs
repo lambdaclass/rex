@@ -1,5 +1,4 @@
-use bytes::Bytes;
-use ethrex_common::{Address, H256, types::AuthorizationTuple};
+use ethrex_common::{Address, Bytes, H256, types::AuthorizationTuple};
 use ethrex_l2_rpc::clients::send_ethrex_transaction;
 use ethrex_rlp::decode::RLPDecode;
 use ethrex_rpc::{EthClient, clients::EthClientError};
