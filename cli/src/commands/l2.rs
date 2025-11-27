@@ -342,9 +342,9 @@ pub(crate) enum Command {
         #[arg(help = "Destination address of the transaction")]
         to: Address,
         #[arg(long, value_parser = parse_hex, help = "Calldata of the transaction")]
-        calldata: Bytes,
+        calldata: Option<Bytes>,
         #[arg(long, help = "Authorization list")]
-        auth_list: Vec<Bytes>,
+        auth_list: Vec<String>,
         #[arg(
             long,
             default_value = "http://localhost:1729",
@@ -706,7 +706,8 @@ impl Command {
 
                 let mut auth_list_parsed = Vec::new();
                 for auth_tuple_raw in &auth_list {
-                    let auth_tuple = AuthorizationTuple::decode(auth_tuple_raw)?;
+                    let auth_tuple = parse_hex(auth_tuple_raw)?;
+                    let auth_tuple = AuthorizationTuple::decode(&auth_tuple)?;
                     auth_list_parsed.push(auth_tuple);
                 }
 
@@ -715,8 +716,11 @@ impl Command {
                 } else {
                     Some(auth_list_parsed)
                 };
+                let calldata = calldata.unwrap_or_else(Bytes::new);
 
-                send_ethrex_transaction(&client, to, calldata, auth_list).await?;
+                let tx_hash = send_ethrex_transaction(&client, to, calldata, auth_list).await?;
+
+                println!("{tx_hash:#x}");
             }
         };
         Ok(())
