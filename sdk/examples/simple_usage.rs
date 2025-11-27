@@ -36,7 +36,7 @@ fn parse_hex(s: &str) -> eyre::Result<Bytes, FromHexError> {
 async fn main() {
     let args = SimpleUsageArgs::parse();
 
-    let account = get_address_from_secret_key(&args.private_key).unwrap();
+    let account = get_address_from_secret_key(&args.private_key.secret_bytes()).unwrap();
 
     let eth_client = EthClient::new(args.rpc_url).unwrap();
 

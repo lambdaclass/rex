@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 3. Load the keystore with the password.
     let keystore_secret_key = load_keystore_from_path(None, "RexTest", "LambdaClass")?;
-    let keystore_address = get_address_from_secret_key(&keystore_secret_key)?;
+    let keystore_address = get_address_from_secret_key(&keystore_secret_key.secret_bytes())?;
 
     println!("\nKeystore loaded successfully:");
     println!(
@@ -64,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .strip_prefix("0x")
         .unwrap_or(&args.private_key);
     let rich_wallet_pk = SecretKey::from_str(pk)?;
-    let rich_wallet_address = get_address_from_secret_key(&rich_wallet_pk)?;
+    let rich_wallet_address = get_address_from_secret_key(&rich_wallet_pk.secret_bytes())?;
     let amount = U256::from_dec_str("1000000000000000000").expect("Failed to parse amount");
     let transfer_tx_hash = transfer(
         amount,

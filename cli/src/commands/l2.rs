@@ -7,11 +7,11 @@ use clap::Subcommand;
 use ethrex_common::types::TxType;
 use ethrex_common::{Address, H256, U256};
 use ethrex_l2_common::utils::get_address_from_secret_key;
-use ethrex_l2_rpc::clients::get_batch_by_number;
 use ethrex_l2_rpc::clients::{
     get_base_fee_vault_address, get_l1_blob_base_fee_per_gas, get_l1_fee_vault_address,
     get_operator_fee, get_operator_fee_vault_address,
 };
+use ethrex_l2_rpc::clients::{get_batch_by_number, get_batch_number};
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::{
     EthClient,
@@ -367,7 +367,8 @@ impl Command {
             } => {
                 let eth_client = EthClient::new(l1_rpc_url)?;
                 let to = to.unwrap_or(
-                    get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?,
+                    get_address_from_secret_key(&private_key.secret_bytes())
+                        .map_err(|e| eyre::eyre!(e))?,
                 );
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
@@ -378,8 +379,8 @@ impl Command {
                     let token_l2 = token_l2.expect(
                         "Token address on L2 is required if token address on L1 is specified",
                     );
-                    let from =
-                        get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
+                    let from = get_address_from_secret_key(&private_key.secret_bytes())
+                        .map_err(|e| eyre::eyre!(e))?;
                     println!(
                         "Depositing {amount} from {from:#x} to L2 token {token_l2:#x} using L1 token {token_l1:#x}"
                     );
@@ -423,7 +424,8 @@ impl Command {
                 rpc_url,
                 bridge_address,
             } => {
-                let from = get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
+                let from = get_address_from_secret_key(&private_key.secret_bytes())
+                    .map_err(|e| eyre::eyre!(e))?;
 
                 let eth_client = EthClient::new(l1_rpc_url)?;
 
@@ -479,7 +481,8 @@ impl Command {
                 private_key,
                 rpc_url,
             } => {
-                let from = get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
+                let from = get_address_from_secret_key(&private_key.secret_bytes())
+                    .map_err(|e| eyre::eyre!(e))?;
 
                 let client = EthClient::new(rpc_url)?;
 
@@ -556,8 +559,8 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                let from =
-                    get_address_from_secret_key(&args.private_key).map_err(|e| eyre::eyre!(e))?;
+                let from = get_address_from_secret_key(&args.private_key.secret_bytes())
+                    .map_err(|e| eyre::eyre!(e))?;
 
                 let client = EthClient::new(rpc_url)?;
                 let tx_type = if fee_token.is_some() {
@@ -647,7 +650,10 @@ impl Command {
                 println!("  L1 blob base fee (wei/blob-gas):    {blob_base_fee}");
             }
             Command::BatchNumber { rpc_url } => {
-                let _client = EthClient::new(rpc_url)?;
+                let client = EthClient::new(rpc_url)?;
+
+                let batch_number = get_batch_number(&client).await?;
+                println!("{batch_number}");
             }
             Command::BatchByNumber {
                 batch_number,

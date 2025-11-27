@@ -29,13 +29,13 @@ manual_saturating_arithmetic = "warn"
 rex-cli = { path = "cli" }
 rex-sdk = { path = "sdk" }
 
-ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common", tag = "v7.0.0" }
-ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain", tag = "v7.0.0" }
-ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", tag = "v7.0.0" }
-ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", tag = "v7.0.0" }
-ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-rpc", tag = "v7.0.0" }
-ethrex-sdk = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-sdk", tag = "v7.0.0" }
-ethrex-l2-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-common", tag = "v7.0.0" }
+ethrex-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-common", branch = "batch_number_function" }
+ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-blockchain", branch = "batch_number_function" }
+ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rlp", branch = "batch_number_function" }
+ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-rpc", branch = "batch_number_function" }
+ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-rpc", branch = "batch_number_function" }
+ethrex-sdk = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-sdk", branch = "batch_number_function" }
+ethrex-l2-common = { git = "https://github.com/lambdaclass/ethrex", package = "ethrex-l2-common", branch = "batch_number_function" }
 
 keccak-hash = "0.11.0"
 thiserror = "2.0.11"

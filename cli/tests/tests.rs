@@ -117,7 +117,7 @@ async fn test_deposit(
         .map(|value| U256::from_dec_str(&value).expect("Invalid deposit value"))
         .unwrap_or(U256::from(1000000000000000000000u128));
 
-    let depositor_address = get_address_from_secret_key(depositor_private_key)?;
+    let depositor_address = get_address_from_secret_key(&depositor_private_key.secret_bytes())?;
 
     let depositor_l1_initial_balance = get_l1_balance(depositor_address)?;
 
@@ -208,8 +208,8 @@ async fn test_transfer(
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
         .unwrap_or(U256::from(100000000000000000000u128));
-    let returner_address = get_address_from_secret_key(returnerer_private_key)?;
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let returner_address = get_address_from_secret_key(&returnerer_private_key.secret_bytes())?;
+    let transferer_address = get_address_from_secret_key(&transferer_private_key.secret_bytes())?;
 
     perform_transfer(transferer_private_key, returner_address, transfer_value).await?;
 
@@ -226,7 +226,7 @@ async fn perform_transfer(
     transfer_recipient_address: Address,
     transfer_value: U256,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let transferer_address = get_address_from_secret_key(&transferer_private_key.secret_bytes())?;
 
     let transferer_initial_l2_balance = get_l2_balance(transferer_address)?;
 
@@ -404,7 +404,7 @@ async fn test_withdraws(
     n: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Withdraw funds from L2 to L1
-    let withdrawer_address = get_address_from_secret_key(withdrawer_private_key)?;
+    let withdrawer_address = get_address_from_secret_key(&withdrawer_private_key.secret_bytes())?;
     let withdraw_value = std::env::var("INTEGRATION_TEST_WITHDRAW_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid withdraw value"))
         .unwrap_or(U256::from(100000000000000000000u128));
