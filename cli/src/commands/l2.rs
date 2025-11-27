@@ -302,6 +302,7 @@ pub(crate) enum Command {
         )]
         block: Option<u64>,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -311,6 +312,7 @@ pub(crate) enum Command {
     #[clap(about = "Get the latest batch number")]
     BatchNumber {
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -327,12 +329,25 @@ pub(crate) enum Command {
         )]
         batch_number: Option<u64>,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
         )]
         rpc_url: Url,
     },
+    // #[clap(about = "Send an ethrex sponsored transaction")]
+    // SponsorTx {
+    //     #[clap(flatten)]
+    //     args: SendArgs,
+    //     #[arg(
+    //         long,
+    //         default_value = "http://localhost:1729",
+    //         env = "RPC_URL",
+    //         help = "L2 RPC URL"
+    //     )]
+    //     rpc_url: Url,
+    // },
 }
 
 impl Command {
@@ -669,7 +684,7 @@ impl Command {
                 );
                 println!("  Commit tx:                      {commit_tx}");
                 println!("  Verify tx:                      {verify_tx}");
-            }
+            } // Command::SponsorTx { rpc_url } => {}
         };
         Ok(())
     }

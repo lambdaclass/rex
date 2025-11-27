@@ -11,6 +11,7 @@ use ethrex_common::{Address, Bytes, H256, H520};
 use ethrex_l2_common::calldata::Value;
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
@@ -23,7 +24,7 @@ use rex_sdk::create::{
     DETERMINISTIC_DEPLOYER, brute_force_create2, compute_create_address, compute_create2_address,
 };
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
-use rex_sdk::utils::to_checksum_address;
+use rex_sdk::utils::{make_auth_tuple, to_checksum_address};
 use rex_sdk::{balance_in_eth, deploy, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::io::{self, Write};
@@ -275,6 +276,19 @@ pub(crate) enum Command {
         signature: String,
         #[arg(value_parser = parse_hex)]
         data: Bytes,
+    },
+    #[clap(about = "Authorize a delegated account")]
+    Auth {
+        #[arg(help = "Delegated address")]
+        delegated_address: Address,
+        #[arg(long, value_parser = parse_private_key, help = "Private key to sign the auth")]
+        private_key: SecretKey,
+        #[arg(long, required = false, help = "Nonce of the signer")]
+        nonce: Option<u64>,
+        #[arg(long, required = false, help = "Chain id of the network")]
+        chain_id: Option<u64>,
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: Url,
     },
 }
 
@@ -661,6 +675,38 @@ impl Command {
                 for elem in decode_calldata(&signature, data)? {
                     print_calldata(0, elem);
                 }
+            }
+            Command::Auth {
+                delegated_address,
+                private_key,
+                nonce,
+                chain_id,
+                rpc_url,
+            } => {
+                let client = EthClient::new(rpc_url)?;
+
+                let chain_id = if let Some(chain_id) = chain_id {
+                    chain_id
+                } else {
+                    client.get_chain_id().await?.as_u64()
+                };
+
+                let nonce = if let Some(nonce) = nonce {
+                    nonce
+                } else {
+                    client
+                        .get_nonce(
+                            get_address_from_secret_key(&private_key)
+                                .map_err(|e| eyre::eyre!(e))?,
+                            BlockIdentifier::Tag(BlockTag::Latest),
+                        )
+                        .await?
+                };
+
+                let auth_tuple = make_auth_tuple(&private_key, chain_id, delegated_address, nonce);
+                let mut buf = Vec::new();
+                auth_tuple.encode(&mut buf);
+                println!("0x{:x}", Bytes::from(buf));
             }
         };
         Ok(())
