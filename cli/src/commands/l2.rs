@@ -1,17 +1,18 @@
 use crate::{
     cli::Command as EthCommand,
     common::{BalanceArgs, CallArgs, DeployArgs, SendArgs, TransferArgs},
-    utils::{parse_private_key, parse_u256},
+    utils::{parse_hex, parse_private_key, parse_u256},
 };
 use clap::Subcommand;
-use ethrex_common::types::TxType;
-use ethrex_common::{Address, H256, U256};
+use ethrex_common::{Address, H256, U256, types::AuthorizationTuple};
+use ethrex_common::{Bytes, types::TxType};
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::clients::{
     get_base_fee_vault_address, get_l1_blob_base_fee_per_gas, get_l1_fee_vault_address,
-    get_operator_fee, get_operator_fee_vault_address,
+    get_operator_fee, get_operator_fee_vault_address, send_ethrex_transaction,
 };
 use ethrex_l2_rpc::clients::{get_batch_by_number, get_batch_number};
+use ethrex_rlp::decode::RLPDecode;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::{
     EthClient,
@@ -336,18 +337,22 @@ pub(crate) enum Command {
         )]
         rpc_url: Url,
     },
-    // #[clap(about = "Send an ethrex sponsored transaction")]
-    // SponsorTx {
-    //     #[clap(flatten)]
-    //     args: SendArgs,
-    //     #[arg(
-    //         long,
-    //         default_value = "http://localhost:1729",
-    //         env = "RPC_URL",
-    //         help = "L2 RPC URL"
-    //     )]
-    //     rpc_url: Url,
-    // },
+    #[clap(about = "Send an ethrex sponsored transaction")]
+    SponsorTx {
+        #[arg(help = "Destination address of the transaction")]
+        to: Address,
+        #[arg(long, value_parser = parse_hex, help = "Calldata of the transaction")]
+        calldata: Bytes,
+        #[arg(long, help = "Authorization list")]
+        auth_list: Vec<Bytes>,
+        #[arg(
+            long,
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: Url,
+    },
 }
 
 impl Command {
@@ -690,7 +695,29 @@ impl Command {
                 );
                 println!("  Commit tx:                      {commit_tx}");
                 println!("  Verify tx:                      {verify_tx}");
-            } // Command::SponsorTx { rpc_url } => {}
+            }
+            Command::SponsorTx {
+                rpc_url,
+                to,
+                calldata,
+                auth_list,
+            } => {
+                let client = EthClient::new(rpc_url)?;
+
+                let mut auth_list_parsed = Vec::new();
+                for auth_tuple_raw in &auth_list {
+                    let auth_tuple = AuthorizationTuple::decode(auth_tuple_raw)?;
+                    auth_list_parsed.push(auth_tuple);
+                }
+
+                let auth_list = if auth_list_parsed.is_empty() {
+                    None
+                } else {
+                    Some(auth_list_parsed)
+                };
+
+                send_ethrex_transaction(&client, to, calldata, auth_list).await?;
+            }
         };
         Ok(())
     }
