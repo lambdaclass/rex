@@ -24,6 +24,7 @@ pub async fn deposit_through_transfer(
         amount,
         from,
         bridge_address,
+        TxType::EIP1559,
         from_pk,
         eth_client,
         Overrides::default(),
@@ -38,8 +39,8 @@ pub async fn deposit_through_contract_call(
     bridge_address: Address,
     eth_client: &EthClient,
 ) -> Result<H256, EthClientError> {
-    let l1_from =
-        get_address_from_secret_key(depositor_private_key).map_err(EthClientError::Custom)?;
+    let l1_from = get_address_from_secret_key(&depositor_private_key.secret_bytes())
+        .map_err(EthClientError::Custom)?;
     let calldata = encode_calldata(DEPOSIT_SIGNATURE, &[Value::Address(to)])?;
     let gas_price = eth_client
         .get_gas_price_with_extra(20)
