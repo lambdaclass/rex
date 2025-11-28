@@ -20,13 +20,14 @@ use ethrex_sdk::calldata::decode_calldata;
 use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
 use ethrex_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
+use rex_sdk::authorize::build_authorization_tuple;
 use rex_sdk::client::eth::get_token_balance;
 use rex_sdk::create::{
     DETERMINISTIC_DEPLOYER, brute_force_create2, compute_create_address, compute_create2_address,
 };
 use rex_sdk::l2::authorize::parse_authorization_list;
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
-use rex_sdk::utils::{make_auth_tuple, to_checksum_address};
+use rex_sdk::utils::to_checksum_address;
 use rex_sdk::{balance_in_eth, deploy, transfer, wait_for_transaction_receipt};
 use secp256k1::SecretKey;
 use std::io::{self, Write};
@@ -695,26 +696,14 @@ impl Command {
             Command::Authorize { args, rpc_url } => {
                 let client = EthClient::new(rpc_url)?;
 
-                let chain_id = if let Some(chain_id) = args.chain_id {
-                    chain_id
-                } else {
-                    client.get_chain_id().await?.as_u64()
-                };
-
-                let nonce = if let Some(nonce) = args.nonce {
-                    nonce
-                } else {
-                    client
-                        .get_nonce(
-                            get_address_from_secret_key(&args.private_key.secret_bytes())
-                                .map_err(|e| eyre::eyre!(e))?,
-                            BlockIdentifier::Tag(BlockTag::Latest),
-                        )
-                        .await?
-                };
-
-                let auth_tuple =
-                    make_auth_tuple(&args.private_key, chain_id, args.delegated_address, nonce);
+                let auth_tuple = build_authorization_tuple(
+                    &client,
+                    args.delegated_address,
+                    &args.private_key,
+                    args.chain_id,
+                    args.nonce,
+                )
+                .await?;
                 let mut buf = Vec::new();
                 auth_tuple.encode(&mut buf);
                 println!("0x{:x}", Bytes::from(buf));

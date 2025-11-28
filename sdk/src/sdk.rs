@@ -24,6 +24,7 @@ pub mod keystore;
 pub mod sign;
 pub mod utils;
 
+pub mod authorize;
 pub mod l2;
 
 #[derive(Debug, thiserror::Error)]
