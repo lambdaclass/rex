@@ -7,7 +7,7 @@ use crate::{
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
-use ethrex_common::types::TxType;
+use ethrex_common::types::{AuthorizationTupleEntry, TxType};
 use ethrex_common::{Address, Bytes, H256, H520};
 use ethrex_l2_common::calldata::Value;
 use ethrex_l2_common::utils::get_address_from_secret_key;
@@ -24,6 +24,7 @@ use rex_sdk::client::eth::get_token_balance;
 use rex_sdk::create::{
     DETERMINISTIC_DEPLOYER, brute_force_create2, compute_create_address, compute_create2_address,
 };
+use rex_sdk::l2::authorize::parse_authorization_list;
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
 use rex_sdk::utils::{make_auth_tuple, to_checksum_address};
 use rex_sdk::{balance_in_eth, deploy, transfer, wait_for_transaction_receipt};
@@ -494,9 +495,27 @@ impl Command {
                     parse_func_call(args._args)?
                 };
 
+                let tx_type = if args.auth_tuple.is_empty() {
+                    TxType::EIP1559
+                } else {
+                    TxType::EIP7702
+                };
+
+                let auth_list = parse_authorization_list(&args.auth_tuple)?;
+                let auth_list = if auth_list.is_empty() {
+                    None
+                } else {
+                    Some(
+                        auth_list
+                            .iter()
+                            .map(AuthorizationTupleEntry::from)
+                            .collect(),
+                    )
+                };
+
                 let tx = build_generic_tx(
                     &client,
-                    TxType::EIP1559,
+                    tx_type,
                     args.to,
                     from,
                     calldata,
@@ -508,6 +527,7 @@ impl Command {
                         max_fee_per_gas: args.max_fee_per_gas,
                         max_priority_fee_per_gas: args.max_priority_fee_per_gas,
                         from: Some(from),
+                        authorization_list: auth_list,
                         ..Default::default()
                     },
                 )
