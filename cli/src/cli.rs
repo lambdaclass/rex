@@ -16,7 +16,7 @@ use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
-use ethrex_sdk::calldata::decode_calldata;
+use ethrex_sdk::calldata::{decode_calldata, encode_calldata};
 use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
 use ethrex_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
@@ -450,29 +450,43 @@ impl Command {
                 println!("{signer:x?}");
             }
             Command::Transfer { args, rpc_url } => {
-                if args.token_address.is_some() {
-                    todo!("Handle ERC20 transfers")
-                }
-
                 if args.explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
-
+                let client = EthClient::new(rpc_url)?;
                 let from = get_address_from_secret_key(&args.private_key.secret_bytes())
                     .map_err(|e| eyre::eyre!(e))?;
+                let tx_hash = if let Some(token_address) = args.token_address {
+                    let signature = "transfer(address,uint256)";
+                    let values = vec![Value::Address(args.to), Value::Uint(args.amount)];
+                    let calldata = encode_calldata(signature, &values)?;
 
-                let client = EthClient::new(rpc_url)?;
+                    let tx = build_generic_tx(
+                        &client,
+                        TxType::EIP1559,
+                        token_address,
+                        from,
+                        calldata.into(),
+                        Overrides::default(),
+                    )
+                    .await?;
 
-                let tx_hash = transfer(
-                    args.amount,
-                    from,
-                    args.to,
-                    TxType::EIP1559,
-                    &args.private_key,
-                    &client,
-                    Overrides::default(),
-                )
-                .await?;
+                    let signer = LocalSigner::new(args.private_key).into();
+                    let tx_hash = send_generic_transaction(&client, tx, &signer).await?;
+                    tx_hash
+                } else {
+                    let tx_hash = transfer(
+                        args.amount,
+                        from,
+                        args.to,
+                        TxType::EIP1559,
+                        &args.private_key,
+                        &client,
+                        Overrides::default(),
+                    )
+                    .await?;
+                    tx_hash
+                };
 
                 println!("{tx_hash:#x}");
 
