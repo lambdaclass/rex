@@ -412,7 +412,8 @@ impl Command {
                 random,
             } => {
                 let address = if let Some(private_key) = from_private_key {
-                    get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?
+                    get_address_from_secret_key(&private_key.secret_bytes())
+                        .map_err(|e| eyre::eyre!(e))?
                 } else if zero {
                     Address::zero()
                 } else if random {
@@ -457,8 +458,8 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                let from =
-                    get_address_from_secret_key(&args.private_key).map_err(|e| eyre::eyre!(e))?;
+                let from = get_address_from_secret_key(&args.private_key.secret_bytes())
+                    .map_err(|e| eyre::eyre!(e))?;
 
                 let client = EthClient::new(rpc_url)?;
 
@@ -483,8 +484,8 @@ impl Command {
                     todo!("Display transaction URL in the explorer")
                 }
 
-                let from =
-                    get_address_from_secret_key(&args.private_key).map_err(|e| eyre::eyre!(e))?;
+                let from = get_address_from_secret_key(&args.private_key.secret_bytes())
+                    .map_err(|e| eyre::eyre!(e))?;
 
                 let client = EthClient::new(rpc_url)?;
 
