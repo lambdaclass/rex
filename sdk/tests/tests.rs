@@ -721,13 +721,16 @@ async fn perform_transfer(
         .await?;
 
     let transfer_tx = transfer(
-        transfer_value,
         transferer_address,
         transfer_recipient_address,
         TxType::EIP1559,
         transferer_private_key,
         proposer_client,
-        Overrides::default(),
+        Overrides {
+            value: Some(transfer_value),
+            ..Default::default()
+        },
+        None,
     )
     .await?;
 

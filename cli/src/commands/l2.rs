@@ -6,11 +6,11 @@ use crate::{
 use clap::Subcommand;
 use ethrex_common::{Address, H256, U256};
 use ethrex_common::{Bytes, types::TxType};
-use ethrex_l2_common::utils::get_address_from_secret_key;
+use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::clients::{get_batch_by_number, get_batch_number};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
-use ethrex_sdk::wait_for_message_proof;
+use ethrex_sdk::{calldata::encode_calldata, wait_for_message_proof};
 use rex_sdk::transfer;
 use rex_sdk::{
     l2::authorize::send_authorized_transaction,
@@ -557,10 +557,6 @@ impl Command {
                 fee_token,
                 rpc_url,
             } => {
-                if args.token_address.is_some() {
-                    todo!("Handle ERC20 transfers")
-                }
-
                 if args.explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
@@ -575,17 +571,40 @@ impl Command {
                     TxType::EIP1559
                 };
 
+                let (to, calldata, overrides) = if let Some(token_address) = args.token_address {
+                    let signature = "transfer(address,uint256)";
+                    let values = vec![Value::Address(args.to), Value::Uint(args.amount)];
+                    let calldata = encode_calldata(signature, &values)?;
+
+                    (
+                        token_address,
+                        Some(calldata.into()),
+                        Overrides {
+                            fee_token,
+                            value: Some(U256::zero()),
+                            ..Default::default()
+                        },
+                    )
+                } else {
+                    (
+                        args.to,
+                        None,
+                        Overrides {
+                            fee_token,
+                            value: Some(args.amount),
+                            ..Default::default()
+                        },
+                    )
+                };
+
                 let tx_hash = transfer(
-                    args.amount,
                     from,
-                    args.to,
+                    to,
                     tx_type,
                     &args.private_key,
                     &client,
-                    Overrides {
-                        fee_token,
-                        ..Default::default()
-                    },
+                    overrides,
+                    calldata,
                 )
                 .await?;
 
