@@ -481,7 +481,6 @@ impl Command {
                 };
 
                 let tx_hash = transfer(
-                    args.amount,
                     from,
                     to,
                     TxType::EIP1559,

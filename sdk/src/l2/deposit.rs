@@ -21,13 +21,15 @@ pub async fn deposit_through_transfer(
     eth_client: &EthClient,
 ) -> Result<H256, EthClientError> {
     transfer(
-        amount,
         from,
         bridge_address,
         TxType::EIP1559,
         from_pk,
         eth_client,
-        Overrides::default(),
+        Overrides {
+            value: Some(amount),
+            ..Default::default()
+        },
         None,
     )
     .await

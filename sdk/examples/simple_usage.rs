@@ -61,13 +61,15 @@ async fn main() {
     let to = Address::from_str("0x4852f44fd706e34cb906b399b729798665f64a83").unwrap();
 
     let tx_hash = transfer(
-        amount,
         from,
         to,
         TxType::EIP1559,
         &args.private_key,
         &eth_client,
-        Overrides::default(),
+        Overrides {
+            value: Some(amount),
+            ..Default::default()
+        },
         None,
     )
     .await

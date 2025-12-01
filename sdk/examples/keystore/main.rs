@@ -67,13 +67,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rich_wallet_address = get_address_from_secret_key(&rich_wallet_pk.secret_bytes())?;
     let amount = U256::from_dec_str("1000000000000000000").expect("Failed to parse amount");
     let transfer_tx_hash = transfer(
-        amount,
         rich_wallet_address,
         keystore_address,
         TxType::EIP1559,
         &rich_wallet_pk,
         &eth_client,
-        Overrides::default(),
+        Overrides {
+            value: Some(amount),
+            ..Default::default()
+        },
         None,
     )
     .await?;

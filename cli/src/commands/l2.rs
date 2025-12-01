@@ -580,6 +580,7 @@ impl Command {
                         token_address,
                         Some(calldata.into()),
                         Overrides {
+                            fee_token,
                             value: Some(U256::zero()),
                             ..Default::default()
                         },
@@ -589,6 +590,7 @@ impl Command {
                         args.to,
                         None,
                         Overrides {
+                            fee_token,
                             value: Some(args.amount),
                             ..Default::default()
                         },
@@ -596,7 +598,6 @@ impl Command {
                 };
 
                 let tx_hash = transfer(
-                    args.amount,
                     from,
                     to,
                     tx_type,
