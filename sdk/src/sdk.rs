@@ -45,7 +45,6 @@ pub async fn transfer(
     mut overrides: Overrides,
     calldata: Option<Bytes>,
 ) -> Result<H256, EthClientError> {
-    overrides.value = overrides.value.or(Some(amount));
     let calldata = calldata.unwrap_or_else(Bytes::new);
     let tx = build_generic_tx(client, tx_type, to, from, calldata, overrides).await?;
 
