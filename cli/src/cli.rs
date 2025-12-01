@@ -477,7 +477,7 @@ impl Command {
                             value: Some(args.amount),
                             ..Default::default()
                         },
-)
+                    )
                 };
 
                 let tx_hash = transfer(
