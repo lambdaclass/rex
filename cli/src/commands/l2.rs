@@ -586,6 +586,7 @@ impl Command {
                         fee_token,
                         ..Default::default()
                     },
+                    None,
                 )
                 .await?;
 

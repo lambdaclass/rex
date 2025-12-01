@@ -8,7 +8,7 @@ use crate::{
 };
 use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::types::{AuthorizationTupleEntry, TxType};
-use ethrex_common::{Address, Bytes, H256, H520};
+use ethrex_common::{Address, Bytes, H256, H520, U256};
 use ethrex_l2_common::calldata::Value;
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
@@ -456,37 +456,41 @@ impl Command {
                 let client = EthClient::new(rpc_url)?;
                 let from = get_address_from_secret_key(&args.private_key.secret_bytes())
                     .map_err(|e| eyre::eyre!(e))?;
-                let tx_hash = if let Some(token_address) = args.token_address {
+                let (to, calldata, overrides) = if let Some(token_address) = args.token_address {
                     let signature = "transfer(address,uint256)";
                     let values = vec![Value::Address(args.to), Value::Uint(args.amount)];
                     let calldata = encode_calldata(signature, &values)?;
 
-                    let tx = build_generic_tx(
-                        &client,
-                        TxType::EIP1559,
+                    (
                         token_address,
-                        from,
-                        calldata.into(),
-                        Overrides::default(),
+                        Some(calldata.into()),
+                        Overrides {
+                            value: Some(U256::zero()),
+                            ..Default::default()
+                        },
                     )
-                    .await?;
-
-                    let signer = LocalSigner::new(args.private_key).into();
-                    let tx_hash = send_generic_transaction(&client, tx, &signer).await?;
-                    tx_hash
                 } else {
-                    let tx_hash = transfer(
-                        args.amount,
-                        from,
+                    (
                         args.to,
-                        TxType::EIP1559,
-                        &args.private_key,
-                        &client,
-                        Overrides::default(),
-                    )
-                    .await?;
-                    tx_hash
+                        None,
+                        Overrides {
+                            value: Some(args.amount),
+                            ..Default::default()
+                        },
+)
                 };
+
+                let tx_hash = transfer(
+                    args.amount,
+                    from,
+                    to,
+                    TxType::EIP1559,
+                    &args.private_key,
+                    &client,
+                    overrides,
+                    calldata,
+                )
+                .await?;
 
                 println!("{tx_hash:#x}");
 

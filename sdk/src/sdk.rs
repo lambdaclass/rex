@@ -43,9 +43,11 @@ pub async fn transfer(
     private_key: &SecretKey,
     client: &EthClient,
     mut overrides: Overrides,
+    calldata: Option<Bytes>,
 ) -> Result<H256, EthClientError> {
-    overrides.value = Some(amount);
-    let tx = build_generic_tx(client, tx_type, to, from, Bytes::new(), overrides).await?;
+    overrides.value = overrides.value.or(Some(amount));
+    let calldata = calldata.unwrap_or_else(Bytes::new);
+    let tx = build_generic_tx(client, tx_type, to, from, calldata, overrides).await?;
 
     let signer = LocalSigner::new(*private_key).into();
     send_generic_transaction(client, tx, &signer).await
