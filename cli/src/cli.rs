@@ -14,6 +14,7 @@ use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
+use ethrex_rpc::types::receipt::RpcLog;
 use ethrex_sdk::calldata::decode_calldata;
 use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
 use ethrex_sdk::{compile_contract, git_clone};
@@ -400,6 +401,11 @@ impl Command {
                     Some(used) => format!("{}", used),
                     None => "".to_string(),
                 };
+                let status = if receipt.receipt.status {
+                    "success".to_string()
+                } else {
+                    "failure".to_string()
+                };
 
                 println!("Receipt for transaction 0x{:x}:", tx_hash);
                 println!(
@@ -416,7 +422,7 @@ impl Command {
                 println!("  contract address:     {}", contract_address);
                 println!("  blob gas price:       {}", blob_gas_price);
                 println!("  blob gas used:        {}", blob_gas_used);
-                println!("  status:               {}", receipt.receipt.status);
+                println!("  status:               {}", status);
                 println!(
                     "  cumulative gas used:  {}",
                     receipt.receipt.cumulative_gas_used
@@ -435,6 +441,7 @@ impl Command {
                     "  transaction hash:     0x{:x}",
                     receipt.tx_info.transaction_hash
                 );
+                print_receipt_logs(&receipt.logs);
             }
             Command::Nonce { account, rpc_url } => {
                 let eth_client = EthClient::new(rpc_url)?;
@@ -713,6 +720,37 @@ impl Command {
             }
         };
         Ok(())
+    }
+}
+
+fn print_receipt_logs(logs: &[RpcLog]) {
+    if logs.is_empty() {
+        println!("  logs:                 []");
+        return;
+    }
+
+    println!("  logs:");
+    for (idx, log) in logs.iter().enumerate() {
+        println!(
+            "    [{}] address:        0x{:x}",
+            log.log_index, log.log.address
+        );
+
+        if log.log.topics.is_empty() {
+            println!("         topics:        []");
+        } else {
+            println!("         topics:");
+            for (topic_idx, topic) in log.log.topics.iter().enumerate() {
+                println!("           [{topic_idx}] 0x{:x}", topic);
+            }
+        }
+
+        let data = hex::encode(&log.log.data);
+        println!("         data: 0x{data}");
+
+        if idx + 1 != logs.len() {
+            println!();
+        }
     }
 }
 
