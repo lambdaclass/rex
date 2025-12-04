@@ -732,7 +732,7 @@ fn print_receipt_logs(logs: &[RpcLog]) {
     println!("  logs:");
     for (idx, log) in logs.iter().enumerate() {
         println!(
-            "    [{}] address:        0x{:x}",
+            "    [{}] address:      0x{:x}",
             log.log_index, log.log.address
         );
 
