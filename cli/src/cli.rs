@@ -384,7 +384,57 @@ impl Command {
                     .await?
                     .ok_or(eyre::Error::msg("Not found"))?;
 
-                println!("{:x?}", receipt.tx_info);
+                let to = match receipt.tx_info.to {
+                    Some(addr) => format!("0x{:x}", addr),
+                    None => "".to_string(),
+                };
+                let contract_address = match receipt.tx_info.contract_address {
+                    Some(addr) => format!("0x{:x}", addr),
+                    None => "".to_string(),
+                };
+                let blob_gas_price = match receipt.tx_info.blob_gas_price {
+                    Some(price) => format!("{}", price),
+                    None => "".to_string(),
+                };
+                let blob_gas_used = match receipt.tx_info.blob_gas_used {
+                    Some(used) => format!("{}", used),
+                    None => "".to_string(),
+                };
+
+                println!("Receipt for transaction 0x{:x}:", tx_hash);
+                println!(
+                    "  transaction index:    {}",
+                    receipt.tx_info.transaction_index
+                );
+                println!("  from:                 0x{:x}", receipt.tx_info.from);
+                println!("  to:                   {}", to);
+                println!("  gas used:             {}", receipt.tx_info.gas_used);
+                println!(
+                    "  effective gas price:  {}",
+                    receipt.tx_info.effective_gas_price
+                );
+                println!("  contract address:     {}", contract_address);
+                println!("  blob gas price:       {}", blob_gas_price);
+                println!("  blob gas used:        {}", blob_gas_used);
+                println!("  status:               {}", receipt.receipt.status);
+                println!(
+                    "  cumulative gas used:  {}",
+                    receipt.receipt.cumulative_gas_used
+                );
+                println!("  logs bloom:           0x{:x}", receipt.receipt.logs_bloom);
+                println!("  tx type:              {:?}", receipt.receipt.tx_type);
+                println!(
+                    "  block hash:           0x{:x}",
+                    receipt.block_info.block_hash
+                );
+                println!(
+                    "  block number:         {}",
+                    receipt.block_info.block_number
+                );
+                println!(
+                    "  transaction hash:     0x{:x}",
+                    receipt.tx_info.transaction_hash
+                );
             }
             Command::Nonce { account, rpc_url } => {
                 let eth_client = EthClient::new(rpc_url)?;
