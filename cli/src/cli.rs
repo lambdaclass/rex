@@ -54,10 +54,10 @@ pub(crate) enum Command {
     )]
     Address {
         #[arg(long, value_parser = parse_private_key, conflicts_with_all = ["zero", "random"], required_unless_present_any = ["zero", "random"], env = "PRIVATE_KEY", help = "The private key to derive the address from.")]
-        from_private_key: Option<SecretKey>,
-        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "random"], required_unless_present_any = ["from_private_key", "random"], help = "The zero address.")]
+        private_key: Option<SecretKey>,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["private_key", "random"], required_unless_present_any = ["private_key", "random"], help = "The zero address.")]
         zero: bool,
-        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "zero"], required_unless_present_any = ["from_private_key", "zero"], help = "A random address.")]
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["private_key", "zero"], required_unless_present_any = ["private_key", "zero"], help = "A random address.")]
         random: bool,
     },
     #[clap(subcommand, about = "Generate shell completion scripts.")]
@@ -79,12 +79,12 @@ pub(crate) enum Command {
             help = "Display the balance in ETH."
         )]
         eth: bool,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Get the current block_number.", visible_alias = "bl")]
     BlockNumber {
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Make a call to a contract")]
@@ -102,7 +102,7 @@ pub(crate) enum Command {
             help = "Display the chain id as a hex-string."
         )]
         hex: bool,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Returns code at a given address")]
@@ -116,7 +116,7 @@ pub(crate) enum Command {
             help = "defaultBlock parameter: can be integer block number, 'earliest', 'finalized', 'safe', 'latest' or 'pending'"
         )]
         block: String,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Compute contract address given the deployer address and nonce.")]
@@ -215,13 +215,13 @@ pub(crate) enum Command {
     #[clap(about = "Get the account's nonce.", visible_aliases = ["n"])]
     Nonce {
         account: Address,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
     Receipt {
         tx_hash: H256,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Send a transaction")]
@@ -235,7 +235,7 @@ pub(crate) enum Command {
     Sign {
         #[arg(value_parser = parse_hex, help = "Message to be signed with the private key.")]
         msg: Bytes,
-        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to sign the message.")]
+        #[arg(long, value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to sign the message.")]
         private_key: SecretKey,
     },
     Signer {
@@ -247,14 +247,14 @@ pub(crate) enum Command {
     #[clap(about = "Get the transaction's info.", visible_aliases = ["tx", "t"])]
     Transaction {
         tx_hash: H256,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Transfer funds to another wallet.")]
     Transfer {
         #[clap(flatten)]
         args: TransferArgs,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Verify if the signature of a message was made by an account")]
@@ -453,11 +453,11 @@ impl Command {
                 println!("{nonce}");
             }
             Command::Address {
-                from_private_key,
+                private_key,
                 zero,
                 random,
             } => {
-                let address = if let Some(private_key) = from_private_key {
+                let address = if let Some(private_key) = private_key {
                     get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?
                 } else if zero {
                     Address::zero()

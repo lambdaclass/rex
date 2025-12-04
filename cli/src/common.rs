@@ -52,7 +52,7 @@ pub struct TransferArgs {
         help = "Display transaction URL in the explorer."
     )]
     pub explorer_url: bool,
-    #[clap(value_parser = parse_private_key, env = "PRIVATE_KEY", required = false)]
+    #[clap(long, value_parser = parse_private_key, env = "PRIVATE_KEY", required = false)]
     pub private_key: SecretKey,
 }
 
@@ -100,7 +100,7 @@ pub struct SendArgs {
     )]
     pub explorer_url: bool,
     #[clap(
-        long = "private-key",
+        long,
         short = 'k',
         value_parser = parse_private_key,
         env = "PRIVATE_KEY",
@@ -146,6 +146,7 @@ pub struct DeployArgs {
     #[clap(long, group = "source", value_parser = parse_hex, required = false)]
     pub bytecode: Option<Bytes>,
     #[clap(
+        long,
         value_parser = parse_u256,
         default_value = "0",
         required = false,
@@ -184,7 +185,7 @@ pub struct DeployArgs {
         help = "Display transaction URL in the explorer."
     )]
     pub explorer_url: bool,
-    #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", required = false)]
+    #[arg(long, value_parser = parse_private_key, env = "PRIVATE_KEY", required = false)]
     pub private_key: SecretKey,
     #[arg(
         long,
