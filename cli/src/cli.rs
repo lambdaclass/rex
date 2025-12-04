@@ -14,6 +14,7 @@ use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
+use ethrex_rpc::types::receipt::RpcLog;
 use ethrex_sdk::calldata::decode_calldata;
 use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
 use ethrex_sdk::{compile_contract, git_clone};
@@ -53,10 +54,10 @@ pub(crate) enum Command {
     )]
     Address {
         #[arg(long, value_parser = parse_private_key, conflicts_with_all = ["zero", "random"], required_unless_present_any = ["zero", "random"], env = "PRIVATE_KEY", help = "The private key to derive the address from.")]
-        from_private_key: Option<SecretKey>,
-        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "random"], required_unless_present_any = ["from_private_key", "random"], help = "The zero address.")]
+        private_key: Option<SecretKey>,
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["private_key", "random"], required_unless_present_any = ["private_key", "random"], help = "The zero address.")]
         zero: bool,
-        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["from_private_key", "zero"], required_unless_present_any = ["from_private_key", "zero"], help = "A random address.")]
+        #[arg(short, long, action = ArgAction::SetTrue, conflicts_with_all = ["private_key", "zero"], required_unless_present_any = ["private_key", "zero"], help = "A random address.")]
         random: bool,
     },
     #[clap(subcommand, about = "Generate shell completion scripts.")]
@@ -78,12 +79,12 @@ pub(crate) enum Command {
             help = "Display the balance in ETH."
         )]
         eth: bool,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Get the current block_number.", visible_alias = "bl")]
     BlockNumber {
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Make a call to a contract")]
@@ -101,7 +102,7 @@ pub(crate) enum Command {
             help = "Display the chain id as a hex-string."
         )]
         hex: bool,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Returns code at a given address")]
@@ -115,7 +116,7 @@ pub(crate) enum Command {
             help = "defaultBlock parameter: can be integer block number, 'earliest', 'finalized', 'safe', 'latest' or 'pending'"
         )]
         block: String,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Compute contract address given the deployer address and nonce.")]
@@ -214,13 +215,13 @@ pub(crate) enum Command {
     #[clap(about = "Get the account's nonce.", visible_aliases = ["n"])]
     Nonce {
         account: Address,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
     Receipt {
         tx_hash: H256,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Send a transaction")]
@@ -234,7 +235,7 @@ pub(crate) enum Command {
     Sign {
         #[arg(value_parser = parse_hex, help = "Message to be signed with the private key.")]
         msg: Bytes,
-        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to sign the message.")]
+        #[arg(long, value_parser = parse_private_key, env = "PRIVATE_KEY", help = "The private key to sign the message.")]
         private_key: SecretKey,
     },
     Signer {
@@ -246,14 +247,14 @@ pub(crate) enum Command {
     #[clap(about = "Get the transaction's info.", visible_aliases = ["tx", "t"])]
     Transaction {
         tx_hash: H256,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Transfer funds to another wallet.")]
     Transfer {
         #[clap(flatten)]
         args: TransferArgs,
-        #[arg(default_value = "http://localhost:8545", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Verify if the signature of a message was made by an account")]
@@ -384,7 +385,63 @@ impl Command {
                     .await?
                     .ok_or(eyre::Error::msg("Not found"))?;
 
-                println!("{:x?}", receipt.tx_info);
+                let to = match receipt.tx_info.to {
+                    Some(addr) => format!("0x{:x}", addr),
+                    None => "".to_string(),
+                };
+                let contract_address = match receipt.tx_info.contract_address {
+                    Some(addr) => format!("0x{:x}", addr),
+                    None => "".to_string(),
+                };
+                let blob_gas_price = match receipt.tx_info.blob_gas_price {
+                    Some(price) => format!("{}", price),
+                    None => "".to_string(),
+                };
+                let blob_gas_used = match receipt.tx_info.blob_gas_used {
+                    Some(used) => format!("{}", used),
+                    None => "".to_string(),
+                };
+                let status = if receipt.receipt.status {
+                    "success".to_string()
+                } else {
+                    "failure".to_string()
+                };
+
+                println!("Receipt for transaction 0x{:x}:", tx_hash);
+                println!(
+                    "  transaction index:    {}",
+                    receipt.tx_info.transaction_index
+                );
+                println!("  from:                 0x{:x}", receipt.tx_info.from);
+                println!("  to:                   {}", to);
+                println!("  gas used:             {}", receipt.tx_info.gas_used);
+                println!(
+                    "  effective gas price:  {}",
+                    receipt.tx_info.effective_gas_price
+                );
+                println!("  contract address:     {}", contract_address);
+                println!("  blob gas price:       {}", blob_gas_price);
+                println!("  blob gas used:        {}", blob_gas_used);
+                println!("  status:               {}", status);
+                println!(
+                    "  cumulative gas used:  {}",
+                    receipt.receipt.cumulative_gas_used
+                );
+                println!("  logs bloom:           0x{:x}", receipt.receipt.logs_bloom);
+                println!("  tx type:              {:?}", receipt.receipt.tx_type);
+                println!(
+                    "  block hash:           0x{:x}",
+                    receipt.block_info.block_hash
+                );
+                println!(
+                    "  block number:         {}",
+                    receipt.block_info.block_number
+                );
+                println!(
+                    "  transaction hash:     0x{:x}",
+                    receipt.tx_info.transaction_hash
+                );
+                print_receipt_logs(&receipt.logs);
             }
             Command::Nonce { account, rpc_url } => {
                 let eth_client = EthClient::new(rpc_url)?;
@@ -396,11 +453,11 @@ impl Command {
                 println!("{nonce}");
             }
             Command::Address {
-                from_private_key,
+                private_key,
                 zero,
                 random,
             } => {
-                let address = if let Some(private_key) = from_private_key {
+                let address = if let Some(private_key) = private_key {
                     get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?
                 } else if zero {
                     Address::zero()
@@ -663,6 +720,37 @@ impl Command {
             }
         };
         Ok(())
+    }
+}
+
+fn print_receipt_logs(logs: &[RpcLog]) {
+    if logs.is_empty() {
+        println!("  logs:                 []");
+        return;
+    }
+
+    println!("  logs:");
+    for (idx, log) in logs.iter().enumerate() {
+        println!(
+            "    [{}] address:      0x{:x}",
+            log.log_index, log.log.address
+        );
+
+        if log.log.topics.is_empty() {
+            println!("         topics:        []");
+        } else {
+            println!("         topics:");
+            for (topic_idx, topic) in log.log.topics.iter().enumerate() {
+                println!("           [{topic_idx}] 0x{:x}", topic);
+            }
+        }
+
+        let data = hex::encode(&log.log.data);
+        println!("         data: 0x{data}");
+
+        if idx + 1 != logs.len() {
+            println!();
+        }
     }
 }
 
