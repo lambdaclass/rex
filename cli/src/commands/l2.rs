@@ -1,14 +1,20 @@
 use crate::{
     cli::Command as EthCommand,
-    common::{BalanceArgs, CallArgs, DeployArgs, SendArgs, TransferArgs},
-    utils::{parse_private_key, parse_u256},
+    common::{AuthorizeArgs, BalanceArgs, CallArgs, DeployArgs, SendArgs, TransferArgs},
+    utils::{parse_hex, parse_private_key, parse_u256},
 };
 use clap::Subcommand;
 use ethrex_common::{Address, H256, U256};
+use ethrex_common::{Bytes, types::TxType};
 use ethrex_l2_common::utils::get_address_from_secret_key;
+use ethrex_l2_rpc::clients::{get_batch_by_number, get_batch_number};
 use ethrex_rpc::EthClient;
-use ethrex_sdk::wait_for_message_proof;
+use ethrex_rpc::clients::Overrides;
+use ethrex_sdk::wait_for_l1_message_proof;
+use rex_sdk::transfer;
 use rex_sdk::{
+    l2::authorize::send_authorized_transaction,
+    l2::fees::fetch_fee_info,
     l2::{
         deposit::{deposit_erc20, deposit_through_contract_call},
         withdraw::{claim_erc20withdraw, claim_withdraw, withdraw, withdraw_erc20},
@@ -211,6 +217,12 @@ pub(crate) enum Command {
         #[clap(flatten)]
         args: TransferArgs,
         #[arg(
+            long,
+            required = false,
+            help = "The L2 address of a Fee Token to pay the gas fees"
+        )]
+        fee_token: Option<Address>,
+        #[arg(
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -276,6 +288,72 @@ pub(crate) enum Command {
         )]
         rpc_url: Url,
     },
+    #[clap(about = "Get L2 fees info for a block")]
+    GetFeeInfo {
+        #[arg(
+            long,
+            required = false,
+            help = "Block number to query the fees info for"
+        )]
+        block: Option<u64>,
+        #[arg(
+            long,
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: Url,
+    },
+    #[clap(about = "Get the latest batch number")]
+    BatchNumber {
+        #[arg(
+            long,
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: Url,
+    },
+    #[clap(about = "Get the latest batch or a batch by its number")]
+    BatchByNumber {
+        #[arg(
+            long,
+            short = 'b',
+            required = false,
+            help = "Batch number to retrieve information"
+        )]
+        batch_number: Option<u64>,
+        #[arg(
+            long,
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: Url,
+    },
+    #[clap(about = "Send an ethrex sponsored transaction")]
+    SponsorTx {
+        #[arg(help = "Destination address of the transaction")]
+        to: Address,
+        #[arg(long, value_parser = parse_hex, help = "Calldata of the transaction")]
+        calldata: Option<Bytes>,
+        #[arg(long, help = "Authorization list")]
+        auth_list: Vec<String>,
+        #[arg(
+            long,
+            default_value = "http://localhost:1729",
+            env = "RPC_URL",
+            help = "L2 RPC URL"
+        )]
+        rpc_url: Url,
+    },
+    #[clap(about = "Authorize a delegated account")]
+    Authorize {
+        #[clap(flatten)]
+        args: AuthorizeArgs,
+        #[arg(long, default_value = "http://localhost:1729", env = "RPC_URL")]
+        rpc_url: Url,
+    },
 }
 
 impl Command {
@@ -295,7 +373,8 @@ impl Command {
             } => {
                 let eth_client = EthClient::new(l1_rpc_url)?;
                 let to = to.unwrap_or(
-                    get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?,
+                    get_address_from_secret_key(&private_key.secret_bytes())
+                        .map_err(|e| eyre::eyre!(e))?,
                 );
                 if explorer_url {
                     todo!("Display transaction URL in the explorer")
@@ -306,8 +385,8 @@ impl Command {
                     let token_l2 = token_l2.expect(
                         "Token address on L2 is required if token address on L1 is specified",
                     );
-                    let from =
-                        get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
+                    let from = get_address_from_secret_key(&private_key.secret_bytes())
+                        .map_err(|e| eyre::eyre!(e))?;
                     println!(
                         "Depositing {amount} from {from:#x} to L2 token {token_l2:#x} using L1 token {token_l1:#x}"
                     );
@@ -351,14 +430,15 @@ impl Command {
                 rpc_url,
                 bridge_address,
             } => {
-                let from = get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
+                let from = get_address_from_secret_key(&private_key.secret_bytes())
+                    .map_err(|e| eyre::eyre!(e))?;
 
                 let eth_client = EthClient::new(l1_rpc_url)?;
 
                 let rollup_client = EthClient::new(rpc_url)?;
 
                 let message_proof =
-                    wait_for_message_proof(&rollup_client, l2_withdrawal_tx_hash, 100).await?;
+                    wait_for_l1_message_proof(&rollup_client, l2_withdrawal_tx_hash, 100).await?;
 
                 let withdrawal_proof = message_proof.into_iter().next().ok_or(eyre::eyre!(
                     "No withdrawal proof found for transaction {l2_withdrawal_tx_hash:#x}"
@@ -407,7 +487,8 @@ impl Command {
                 private_key,
                 rpc_url,
             } => {
-                let from = get_address_from_secret_key(&private_key).map_err(|e| eyre::eyre!(e))?;
+                let from = get_address_from_secret_key(&private_key.secret_bytes())
+                    .map_err(|e| eyre::eyre!(e))?;
 
                 let client = EthClient::new(rpc_url)?;
 
@@ -436,7 +517,8 @@ impl Command {
             } => {
                 let client = EthClient::new(rpc_url)?;
 
-                let message_proof = wait_for_message_proof(&client, message_tx_hash, 100).await?;
+                let message_proof =
+                    wait_for_l1_message_proof(&client, message_tx_hash, 100).await?;
                 if message_proof.is_empty() {
                     println!("No message proof found for transaction {message_tx_hash:#x}");
                     return Ok(());
@@ -471,8 +553,48 @@ impl Command {
             Command::Nonce { account, rpc_url } => {
                 Box::pin(async { EthCommand::Nonce { account, rpc_url }.run().await }).await?
             }
-            Command::Transfer { args, rpc_url } => {
-                Box::pin(async { EthCommand::Transfer { args, rpc_url }.run().await }).await?
+            Command::Transfer {
+                args,
+                fee_token,
+                rpc_url,
+            } => {
+                if args.token_address.is_some() {
+                    todo!("Handle ERC20 transfers")
+                }
+
+                if args.explorer_url {
+                    todo!("Display transaction URL in the explorer")
+                }
+
+                let from = get_address_from_secret_key(&args.private_key.secret_bytes())
+                    .map_err(|e| eyre::eyre!(e))?;
+
+                let client = EthClient::new(rpc_url)?;
+                let tx_type = if fee_token.is_some() {
+                    TxType::FeeToken
+                } else {
+                    TxType::EIP1559
+                };
+
+                let tx_hash = transfer(
+                    args.amount,
+                    from,
+                    args.to,
+                    tx_type,
+                    &args.private_key,
+                    &client,
+                    Overrides {
+                        fee_token,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+
+                println!("{tx_hash:#x}");
+
+                if !args.cast {
+                    wait_for_transaction_receipt(tx_hash, &client, 100, args.silent).await?;
+                }
             }
             Command::Send { args, rpc_url } => {
                 Box::pin(async { EthCommand::Send { args, rpc_url }.run().await }).await?
@@ -485,6 +607,98 @@ impl Command {
             }
             Command::ChainId { hex, rpc_url } => {
                 Box::pin(async { EthCommand::ChainId { hex, rpc_url }.run().await }).await?
+            }
+            Command::GetFeeInfo { block, rpc_url } => {
+                let client: EthClient = EthClient::new(rpc_url)?;
+                let fee_info = fetch_fee_info(&client, block).await?;
+
+                let base_fee_vault_address = fee_info
+                    .base_fee_vault_address
+                    .map(|addr| format!("{addr:#x}"))
+                    .unwrap_or_else(String::new);
+                let operator_fee_vault_address = fee_info
+                    .operator_fee_vault_address
+                    .map(|addr| format!("{addr:#x}"))
+                    .unwrap_or_else(String::new);
+                let l1_fee_vault_address = fee_info
+                    .l1_fee_vault_address
+                    .map(|addr| format!("{addr:#x}"))
+                    .unwrap_or_else(String::new);
+
+                println!("L2 fee info for block {}:", fee_info.block_number);
+                println!("  Base fee vault:                     {base_fee_vault_address}");
+                println!("  Operator fee vault:                 {operator_fee_vault_address}");
+                println!("  L1 fee vault:                       {l1_fee_vault_address}");
+                println!(
+                    "  Operator fee (wei/gas):             {:#x}",
+                    fee_info.operator_fee
+                );
+                println!(
+                    "  L1 blob base fee (wei/blob-gas):    {:#x}",
+                    fee_info.blob_base_fee
+                );
+            }
+            Command::BatchNumber { rpc_url } => {
+                let client = EthClient::new(rpc_url)?;
+
+                let batch_number = get_batch_number(&client).await?;
+                println!("{batch_number}");
+            }
+            Command::BatchByNumber {
+                batch_number,
+                rpc_url,
+            } => {
+                let client = EthClient::new(rpc_url)?;
+                let batch_number = match batch_number {
+                    Some(number) => number,
+                    None => get_batch_number(&client).await?,
+                };
+
+                let batch = match get_batch_by_number(&client, batch_number).await {
+                    Ok(batch) => batch.batch,
+                    Err(err) => {
+                        println!("Batch {batch_number} not available yet: {err}");
+                        return Ok(());
+                    }
+                };
+
+                let commit_tx = batch
+                    .commit_tx
+                    .map(|tx| format!("{tx:#x}"))
+                    .unwrap_or_else(String::new);
+                let verify_tx = batch
+                    .verify_tx
+                    .map(|tx| format!("{tx:#x}"))
+                    .unwrap_or_else(String::new);
+
+                println!("Batch info for batch {}", batch.number);
+                println!("  Number:                         {}", batch.number);
+                println!("  First block:                    {}", batch.first_block);
+                println!("  Last block:                     {}", batch.last_block);
+                println!("  State root:                     {:#x}", batch.state_root);
+                println!(
+                    "  Privileged transactions hash:   {:#x}",
+                    batch.privileged_transactions_hash
+                );
+                println!("  Commit tx:                      {commit_tx}");
+                println!("  Verify tx:                      {verify_tx}");
+            }
+            Command::SponsorTx {
+                rpc_url,
+                to,
+                calldata,
+                auth_list,
+            } => {
+                let client = EthClient::new(rpc_url)?;
+                let calldata = calldata.unwrap_or_else(Bytes::new);
+
+                let tx_hash =
+                    send_authorized_transaction(&client, to, calldata, &auth_list).await?;
+
+                println!("{tx_hash:#x}");
+            }
+            Command::Authorize { args, rpc_url } => {
+                Box::pin(async { EthCommand::Authorize { args, rpc_url }.run().await }).await?
             }
         };
         Ok(())
