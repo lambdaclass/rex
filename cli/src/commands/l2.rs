@@ -10,7 +10,7 @@ use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::clients::{get_batch_by_number, get_batch_number};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
-use ethrex_sdk::wait_for_message_proof;
+use ethrex_sdk::wait_for_l1_message_proof;
 use rex_sdk::transfer;
 use rex_sdk::{
     l2::authorize::send_authorized_transaction,
@@ -438,7 +438,7 @@ impl Command {
                 let rollup_client = EthClient::new(rpc_url)?;
 
                 let message_proof =
-                    wait_for_message_proof(&rollup_client, l2_withdrawal_tx_hash, 100).await?;
+                    wait_for_l1_message_proof(&rollup_client, l2_withdrawal_tx_hash, 100).await?;
 
                 let withdrawal_proof = message_proof.into_iter().next().ok_or(eyre::eyre!(
                     "No withdrawal proof found for transaction {l2_withdrawal_tx_hash:#x}"
@@ -517,7 +517,8 @@ impl Command {
             } => {
                 let client = EthClient::new(rpc_url)?;
 
-                let message_proof = wait_for_message_proof(&client, message_tx_hash, 100).await?;
+                let message_proof =
+                    wait_for_l1_message_proof(&client, message_tx_hash, 100).await?;
                 if message_proof.is_empty() {
                     println!("No message proof found for transaction {message_tx_hash:#x}");
                     return Ok(());
