@@ -625,23 +625,18 @@ impl Command {
                     .map(|addr| format!("{addr:#x}"))
                     .unwrap_or_else(String::new);
 
-                let operator_fee = if fee_info.operator_fee.is_zero() {
-                    String::new()
-                } else {
-                    fee_info.operator_fee.to_string()
-                };
-                let blob_base_fee = if fee_info.blob_base_fee == 0 {
-                    String::new()
-                } else {
-                    fee_info.blob_base_fee.to_string()
-                };
-
                 println!("L2 fee info for block {}:", fee_info.block_number);
                 println!("  Base fee vault:                     {base_fee_vault_address}");
                 println!("  Operator fee vault:                 {operator_fee_vault_address}");
                 println!("  L1 fee vault:                       {l1_fee_vault_address}");
-                println!("  Operator fee (wei/gas):             {operator_fee}");
-                println!("  L1 blob base fee (wei/blob-gas):    {blob_base_fee}");
+                println!(
+                    "  Operator fee (wei/gas):             {:#x}",
+                    fee_info.operator_fee
+                );
+                println!(
+                    "  L1 blob base fee (wei/blob-gas):    {:#x}",
+                    fee_info.blob_base_fee
+                );
             }
             Command::BatchNumber { rpc_url } => {
                 let client = EthClient::new(rpc_url)?;
