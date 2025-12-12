@@ -12,7 +12,7 @@ use ethrex_rpc::{
 };
 use ethrex_sdk::{
     L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
-    wait_for_message_proof,
+    wait_for_l1_message_proof,
 };
 use keccak_hash::keccak;
 use reqwest::Url;
@@ -1087,7 +1087,7 @@ async fn test_n_withdraws(
     let mut proofs = vec![];
     for (i, tx) in withdraw_txs.clone().into_iter().enumerate() {
         println!("Getting withdrawal proof {}/{n}", i + 1);
-        let message_proof = wait_for_message_proof(proposer_client, tx, 1000).await?;
+        let message_proof = wait_for_l1_message_proof(proposer_client, tx, 1000).await?;
         let withdrawal_proof = message_proof
             .into_iter()
             .next()
