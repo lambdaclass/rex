@@ -1,7 +1,6 @@
 use ethrex_common::{Address, Bytes, U256, types::TxType};
-use ethrex_l2_common::{
-    calldata::Value, l1_messages::L1MessageProof, utils::get_address_from_secret_key,
-};
+use ethrex_l2_common::messages::L1MessageProof;
+use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rpc::{
     EthClient,
@@ -134,7 +133,8 @@ pub async fn claim_erc20withdraw(
     message_proof: &L1MessageProof,
     bridge_address: Address,
 ) -> Result<H256, EthClientError> {
-    let from = get_address_from_secret_key(&from_pk).map_err(EthClientError::Custom)?;
+    let from =
+        get_address_from_secret_key(&from_pk.secret_bytes()).map_err(EthClientError::Custom)?;
     let calldata_values = vec![
         Value::Address(token_l1),
         Value::Address(token_l2),

@@ -20,10 +20,10 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
-// 0x39b37222708e21491b9126e0969a043baa09d5a7
-const DEFAULT_BRIDGE_ADDRESS: Address = H160([
-    0x39, 0xb3, 0x72, 0x22, 0x70, 0x8e, 0x21, 0x49, 0x1b, 0x91, 0x26, 0xe0, 0x96, 0x9a, 0x04, 0x3b,
-    0xaa, 0x09, 0xd5, 0xa7,
+// 0x13295e5562584289b27f92b28f5418269d3b7d82
+pub const DEFAULT_BRIDGE_ADDRESS: Address = H160([
+    0x13, 0x29, 0x5e, 0x55, 0x62, 0x58, 0x42, 0x89, 0xb2, 0x7f, 0x92, 0xb2, 0x8f, 0x54, 0x18, 0x26,
+    0x9d, 0x3b, 0x7d, 0x82,
 ]);
 // 0x0007a881CD95B1484fca47615B64803dad620C8d
 const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
@@ -117,7 +117,7 @@ async fn test_deposit(
         .map(|value| U256::from_dec_str(&value).expect("Invalid deposit value"))
         .unwrap_or(U256::from(1000000000000000000000u128));
 
-    let depositor_address = get_address_from_secret_key(depositor_private_key)?;
+    let depositor_address = get_address_from_secret_key(&depositor_private_key.secret_bytes())?;
 
     let depositor_l1_initial_balance = get_l1_balance(depositor_address)?;
 
@@ -208,8 +208,8 @@ async fn test_transfer(
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
         .unwrap_or(U256::from(100000000000000000000u128));
-    let returner_address = get_address_from_secret_key(returnerer_private_key)?;
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let returner_address = get_address_from_secret_key(&returnerer_private_key.secret_bytes())?;
+    let transferer_address = get_address_from_secret_key(&transferer_private_key.secret_bytes())?;
 
     perform_transfer(transferer_private_key, returner_address, transfer_value).await?;
 
@@ -226,7 +226,7 @@ async fn perform_transfer(
     transfer_recipient_address: Address,
     transfer_value: U256,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let transferer_address = get_address_from_secret_key(&transferer_private_key.secret_bytes())?;
 
     let transferer_initial_l2_balance = get_l2_balance(transferer_address)?;
 
@@ -404,7 +404,7 @@ async fn test_withdraws(
     n: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Withdraw funds from L2 to L1
-    let withdrawer_address = get_address_from_secret_key(withdrawer_private_key)?;
+    let withdrawer_address = get_address_from_secret_key(&withdrawer_private_key.secret_bytes())?;
     let withdraw_value = std::env::var("INTEGRATION_TEST_WITHDRAW_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid withdraw value"))
         .unwrap_or(U256::from(100000000000000000000u128));
