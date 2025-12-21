@@ -53,10 +53,9 @@ jobs:
           echo "ProofCoordinator not ready in time"
           exit 1
 
-      - name: Move ENVs
+      - name: Show ENVs
         run: |
           cat .env
-          mv .env /home/runner/work/rex/rex/.env
 
       - name: Start Prover
         run: |
@@ -105,10 +104,9 @@ jobs:
           echo "Service not ready in time"
           exit 1
 
-      - name: Move ENVs
+      - name: Show ENVs
         run: |
           cat .env
-          mv .env /home/runner/work/rex/rex/.env
 
       - name: Start Prover
         run: |
