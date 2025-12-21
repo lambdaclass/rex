@@ -134,7 +134,8 @@ pub async fn claim_erc20withdraw(
     message_proof: &L1MessageProof,
     bridge_address: Address,
 ) -> Result<H256, EthClientError> {
-    let from = get_address_from_secret_key(&from_pk).map_err(EthClientError::Custom)?;
+    let from =
+        get_address_from_secret_key(&from_pk.secret_bytes()).map_err(EthClientError::Custom)?;
     let calldata_values = vec![
         Value::Address(token_l1),
         Value::Address(token_l2),
