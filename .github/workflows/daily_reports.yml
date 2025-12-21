@@ -34,11 +34,6 @@ jobs:
         run: |
           ethrex l2 --dev --no-monitor &
 
-      - name: Move ENVs
-        run: |
-          cat .env
-          mv .env /home/runner/work/rex/rex/.env
-
       - name: Wait for ethrex l2
         run: |
           for i in {1..100}; do
@@ -50,6 +45,11 @@ jobs:
           done
           echo "ProofCoordinator not ready in time"
           exit 1
+
+      - name: Move ENVs
+        run: |
+          cat .env
+          mv .env /home/runner/work/rex/rex/.env
 
       - name: Start Prover
         run: |
@@ -88,11 +88,6 @@ jobs:
         run: |
           ethrex l2 --dev --no-monitor &
 
-      - name: Move ENVs
-        run: |
-          cat .env
-          mv .env /home/runner/work/rex/rex/.env
-
       - name: Wait for ethrex l2
         run: |
           for i in {1..100}; do
@@ -104,6 +99,11 @@ jobs:
           done
           echo "ProofCoordinator not ready in time"
           exit 1
+
+      - name: Move ENVs
+        run: |
+          cat .env
+          mv .env /home/runner/work/rex/rex/.env
 
       - name: Start Prover
         run: |
