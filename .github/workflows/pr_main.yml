@@ -53,9 +53,10 @@ jobs:
           echo "ProofCoordinator not ready in time"
           exit 1
 
-      - name: Show ENVs
+      - name: Move ENVs
         run: |
           cat .env
+          mv .env sdk/.env
 
       - name: Start Prover
         run: |
@@ -104,9 +105,10 @@ jobs:
           echo "Service not ready in time"
           exit 1
 
-      - name: Show ENVs
+      - name: Move ENVs
         run: |
           cat .env
+          mv .env cli/.env
 
       - name: Start Prover
         run: |
