@@ -117,7 +117,7 @@ async fn test_deposit(
         .map(|value| U256::from_dec_str(&value).expect("Invalid deposit value"))
         .unwrap_or(U256::from(1000000000000000000000u128));
 
-    let depositor_address = get_address_from_secret_key(depositor_private_key)?;
+    let depositor_address = get_address_from_secret_key(&depositor_private_key.secret_bytes())?;
 
     let depositor_l1_initial_balance = get_l1_balance(depositor_address)?;
 
@@ -208,8 +208,8 @@ async fn test_transfer(
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
         .unwrap_or(U256::from(100000000000000000000u128));
-    let returner_address = get_address_from_secret_key(returnerer_private_key)?;
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let returner_address = get_address_from_secret_key(&returnerer_private_key.secret_bytes())?;
+    let transferer_address = get_address_from_secret_key(&transferer_private_key.secret_bytes())?;
 
     perform_transfer(transferer_private_key, returner_address, transfer_value).await?;
 
@@ -226,7 +226,7 @@ async fn perform_transfer(
     transfer_recipient_address: Address,
     transfer_value: U256,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let transferer_address = get_address_from_secret_key(&transferer_private_key.secret_bytes())?;
 
     let transferer_initial_l2_balance = get_l2_balance(transferer_address)?;
 
@@ -276,7 +276,7 @@ async fn perform_transfer(
 fn get_l1_balance(address: Address) -> Result<U256, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
         .arg("balance")
-        .arg(format!("{:#x}", address))
+        .arg(format!("{address:#x}"))
         .output()
         .unwrap();
 
@@ -293,7 +293,7 @@ fn get_l2_balance(address: Address) -> Result<U256, Box<dyn std::error::Error>> 
     let output = Command::new("rex")
         .arg("l2")
         .arg("balance")
-        .arg(format!("{:#x}", address))
+        .arg(format!("{address:#x}"))
         .output()
         .unwrap();
 
@@ -314,9 +314,9 @@ fn deposit_l2(
     let output = Command::new("rex")
         .arg("l2")
         .arg("deposit")
-        .arg(format!("{}", amount))
+        .arg(format!("{amount}"))
         .arg(depositor_private_key.display_secret().to_string())
-        .arg(format!("{:#x}", bridge_address))
+        .arg(format!("{bridge_address:#x}"))
         .output()
         .unwrap();
 
@@ -340,7 +340,7 @@ fn deposit_l2(
 fn get_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
         .arg("receipt")
-        .arg(format!("{:#x}", tx_hash))
+        .arg(format!("{tx_hash:#x}"))
         .output()
         .unwrap();
 
@@ -357,7 +357,7 @@ fn get_l2_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
         .arg("l2")
         .arg("receipt")
-        .arg(format!("{:#x}", tx_hash))
+        .arg(format!("{tx_hash:#x}"))
         .output()
         .unwrap();
 
@@ -378,8 +378,8 @@ fn transfer(
     let output = Command::new("rex")
         .arg("l2")
         .arg("transfer")
-        .arg(format!("{}", transfer_value))
-        .arg(format!("{:#x}", transfer_recipient_address))
+        .arg(format!("{transfer_value}"))
+        .arg(format!("{transfer_recipient_address:#x}"))
         .arg(transferer_private_key.display_secret().to_string())
         .output()
         .unwrap();
@@ -404,7 +404,7 @@ async fn test_withdraws(
     n: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Withdraw funds from L2 to L1
-    let withdrawer_address = get_address_from_secret_key(withdrawer_private_key)?;
+    let withdrawer_address = get_address_from_secret_key(&withdrawer_private_key.secret_bytes())?;
     let withdraw_value = std::env::var("INTEGRATION_TEST_WITHDRAW_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid withdraw value"))
         .unwrap_or(U256::from(100000000000000000000u128));
@@ -549,7 +549,7 @@ fn withdraw(
     let output = Command::new("rex")
         .arg("l2")
         .arg("withdraw")
-        .arg(format!("{}", withdraw_amount))
+        .arg(format!("{withdraw_amount}"))
         .arg(withdrawer_private_key.display_secret().to_string())
         .output()
         .unwrap();
@@ -575,7 +575,7 @@ fn get_l2_message_proof(tx_hash: H256) -> Result<Vec<H256>, Box<dyn std::error::
     let output = Command::new("rex")
         .arg("l2")
         .arg("message-proof")
-        .arg(format!("{:#x}", tx_hash))
+        .arg(format!("{tx_hash:#x}"))
         .output()
         .unwrap();
 
@@ -607,10 +607,10 @@ fn claim_withdraw(
     let output = Command::new("rex")
         .arg("l2")
         .arg("claim-withdraw")
-        .arg(format!("{}", amount))
-        .arg(format!("{:#x}", tx_hash))
+        .arg(format!("{amount}"))
+        .arg(format!("{tx_hash:#x}"))
         .arg(private_key.display_secret().to_string())
-        .arg(format!("{:#x}", bridge_address))
+        .arg(format!("{bridge_address:#x}"))
         .output()
         .unwrap();
 
