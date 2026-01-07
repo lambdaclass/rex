@@ -671,6 +671,7 @@ impl Command {
                     .map(|tx| format!("{tx:#x}"))
                     .unwrap_or_else(String::new);
 
+                // TODO: update with new fields
                 println!("Batch info for batch {}", batch.number);
                 println!("  Number:                         {}", batch.number);
                 println!("  First block:                    {}", batch.first_block);
@@ -678,7 +679,7 @@ impl Command {
                 println!("  State root:                     {:#x}", batch.state_root);
                 println!(
                     "  Privileged transactions hash:   {:#x}",
-                    batch.privileged_transactions_hash
+                    batch.l1_in_messages_rolling_hash
                 );
                 println!("  Commit tx:                      {commit_tx}");
                 println!("  Verify tx:                      {verify_tx}");
