@@ -32,7 +32,7 @@ jobs:
 
       - name: Install ethrex
         run: |
-          curl -L https://github.com/lambdaclass/ethrex/releases/download/v7.0.0/ethrex-l2-linux-x86_64 -o /usr/local/bin/ethrex
+          curl -L https://github.com/lambdaclass/ethrex/releases/download/v8.0.0/ethrex-l2-linux-x86_64 -o /usr/local/bin/ethrex
           chmod +x /usr/local/bin/ethrex
           ethrex --version
           echo "ethrex installed successfully"
@@ -52,6 +52,11 @@ jobs:
           done
           echo "ProofCoordinator not ready in time"
           exit 1
+
+      - name: Move ENVs
+        run: |
+          cat .env
+          mv .env sdk/.env
 
       - name: Start Prover
         run: |
@@ -79,7 +84,7 @@ jobs:
 
       - name: Install ethrex
         run: |
-          curl -L https://github.com/lambdaclass/ethrex/releases/download/v7.0.0/ethrex-l2-linux-x86_64 -o /usr/local/bin/ethrex
+          curl -L https://github.com/lambdaclass/ethrex/releases/download/v8.0.0/ethrex-l2-linux-x86_64 -o /usr/local/bin/ethrex
           chmod +x /usr/local/bin/ethrex
           ethrex --version
           echo "ethrex installed successfully"
@@ -99,6 +104,11 @@ jobs:
           done
           echo "Service not ready in time"
           exit 1
+
+      - name: Move ENVs
+        run: |
+          cat .env
+          mv .env cli/.env
 
       - name: Start Prover
         run: |

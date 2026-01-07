@@ -171,7 +171,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await?;
 
-    println!("\tTx Logs: {:?}", logs);
+    println!("\tTx Logs: {logs:?}");
 
     // 9. Compare it with the expected one.
     let address_bytes = &logs[0].log.data[logs[0].log.data.len() - 20..];
