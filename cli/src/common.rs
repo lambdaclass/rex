@@ -100,6 +100,12 @@ pub struct SendArgs {
     )]
     pub explorer_url: bool,
     #[clap(
+        long,
+        required = false,
+        help = "Hex endoded authorization tuple for EIP 7702 transactions"
+    )]
+    pub auth_tuple: Vec<String>,
+    #[clap(
         long = "private-key",
         short = 'k',
         value_parser = parse_private_key,
@@ -213,4 +219,16 @@ pub struct DeployArgs {
     pub salt: Option<Secret>,
     #[arg(last = true, hide = true)]
     pub _args: Vec<String>,
+}
+
+#[derive(Parser)]
+pub struct AuthorizeArgs {
+    #[arg(help = "Delegated address")]
+    pub delegated_address: Address,
+    #[arg(long, value_parser = parse_private_key, help = "Private key to sign the auth")]
+    pub private_key: SecretKey,
+    #[arg(long, required = false, help = "Nonce of the signer")]
+    pub nonce: Option<u64>,
+    #[arg(long, required = false, help = "Chain id of the network")]
+    pub chain_id: Option<u64>,
 }
