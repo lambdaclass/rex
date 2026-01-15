@@ -7,6 +7,7 @@ use crate::{
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
+use ethrex_common::types::TxKind;
 use ethrex_common::types::{AuthorizationTupleEntry, TxType};
 use ethrex_common::{Address, Bytes, H256, H520};
 use ethrex_l2_common::calldata::Value;
@@ -17,6 +18,7 @@ use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_rpc::types::receipt::RpcReceipt;
+use ethrex_rpc::types::transaction::RpcTransaction;
 use ethrex_sdk::calldata::decode_calldata;
 use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
 use ethrex_sdk::{compile_contract, git_clone};
@@ -386,7 +388,7 @@ impl Command {
                     .await?
                     .ok_or(eyre::Error::msg("Not found"))?;
 
-                println!("{tx:?}");
+                print_transaction(&tx);
             }
             Command::Receipt { tx_hash, rpc_url } => {
                 let eth_client = EthClient::new(rpc_url)?;
@@ -796,6 +798,69 @@ fn print_receipt(receipt: &RpcReceipt) {
             println!();
         }
     }
+}
+
+fn print_transaction(tx: &RpcTransaction) {
+    let inner_tx = &tx.tx;
+
+    // Get from address
+    let from = inner_tx
+        .sender()
+        .map(|addr| format!("0x{:x}", addr))
+        .unwrap_or_else(|_| "unknown".to_string());
+
+    // Get the "to" field
+    let to = match inner_tx.to() {
+        TxKind::Call(addr) => format!("0x{:x}", addr),
+        TxKind::Create => "[contract creation]".to_string(),
+    };
+
+    // Get gas pricing info based on tx type
+    let (gas_price_line, max_fee_line, max_priority_line) = match inner_tx.tx_type() {
+        TxType::Legacy | TxType::EIP2930 => (
+            Some(format!("  gas price:          {}", inner_tx.gas_price())),
+            None,
+            None,
+        ),
+        _ => {
+            let max_fee = inner_tx.max_fee_per_gas().unwrap_or(0);
+            let max_priority = inner_tx.max_priority_fee().unwrap_or(0);
+            (
+                None,
+                Some(format!("  max fee per gas:    {}", max_fee)),
+                Some(format!("  max priority fee:   {}", max_priority)),
+            )
+        }
+    };
+
+    // Input data as hex
+    let input_hex = hex::encode(inner_tx.data());
+    let input_display = if input_hex.is_empty() {
+        "0x".to_string()
+    } else {
+        format!("0x{}", input_hex)
+    };
+
+    println!("Transaction 0x{:x}:", tx.hash);
+    println!("  type:               {}", inner_tx.tx_type());
+    println!("  from:               {}", from);
+    println!("  to:                 {}", to);
+    println!("  value:              {}", inner_tx.value());
+    println!("  nonce:              {}", inner_tx.nonce());
+    println!("  gas limit:          {}", inner_tx.gas_limit());
+    if let Some(line) = gas_price_line {
+        println!("{}", line);
+    }
+    if let Some(line) = max_fee_line {
+        println!("{}", line);
+    }
+    if let Some(line) = max_priority_line {
+        println!("{}", line);
+    }
+    if let Some(chain_id) = inner_tx.chain_id() {
+        println!("  chain id:           {}", chain_id);
+    }
+    println!("  input:              {}", input_display);
 }
 
 fn print_calldata(depth: usize, data: Value) {
