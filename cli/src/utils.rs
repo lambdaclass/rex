@@ -48,6 +48,27 @@ fn parse_call_args(args: Vec<String>) -> eyre::Result<Option<(String, Vec<Value>
             .next()
             .ok_or(eyre::Error::msg("missing parameter for given signature"))?;
         values.push(match param.as_str() {
+            // Array types must be checked first (before scalar uint/int)
+            _ if param.contains('[') && param.contains(']') => {
+                // Handle fixed-size arrays like uint64[3]
+                let base_type = param.split('[').next().unwrap_or("");
+                let inner = val.trim_start_matches('[').trim_end_matches(']');
+                let elements: Vec<Value> = inner
+                    .split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| {
+                        if base_type.starts_with("uint") || base_type.starts_with("int") {
+                            Ok(Value::Uint(U256::from_dec_str(s)?))
+                        } else if base_type == "address" {
+                            Ok(Value::Address(Address::from_str(s)?))
+                        } else {
+                            Err(eyre::eyre!("Unsupported array element type: {}", base_type))
+                        }
+                    })
+                    .collect::<eyre::Result<Vec<_>>>()?;
+                Value::FixedArray(elements)
+            }
             "address" => Value::Address(Address::from_str(val)?),
             _ if param.starts_with("uint") => Value::Uint(U256::from_dec_str(val)?),
             _ if param.starts_with("int") => {
@@ -67,8 +88,14 @@ fn parse_call_args(args: Vec<String>) -> eyre::Result<Option<(String, Vec<Value>
                 "false" => Value::Uint(U256::from(0)),
                 _ => Err(eyre::Error::msg("Invalid boolean"))?,
             },
-            "bytes" => Value::Bytes(hex::decode(val)?.into()),
-            _ if param.starts_with("bytes") => Value::FixedBytes(hex::decode(val)?.into()),
+            "bytes" => {
+                let val = val.strip_prefix("0x").unwrap_or(val);
+                Value::Bytes(hex::decode(val)?.into())
+            }
+            _ if param.starts_with("bytes") => {
+                let val = val.strip_prefix("0x").unwrap_or(val);
+                Value::FixedBytes(hex::decode(val)?.into())
+            }
             _ => todo!("type unsupported"),
         });
     }
