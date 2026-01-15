@@ -314,8 +314,9 @@ fn deposit_l2(
     let output = Command::new("rex")
         .arg("l2")
         .arg("deposit")
-        .arg(format!("{amount}"))
+        .arg("--private-key")
         .arg(depositor_private_key.display_secret().to_string())
+        .arg(format!("{amount}"))
         .arg(format!("{bridge_address:#x}"))
         .output()
         .unwrap();
@@ -378,9 +379,10 @@ fn transfer(
     let output = Command::new("rex")
         .arg("l2")
         .arg("transfer")
+        .arg("--private-key")
+        .arg(transferer_private_key.display_secret().to_string())
         .arg(format!("{transfer_value}"))
         .arg(format!("{transfer_recipient_address:#x}"))
-        .arg(transferer_private_key.display_secret().to_string())
         .output()
         .unwrap();
 
@@ -549,8 +551,9 @@ fn withdraw(
     let output = Command::new("rex")
         .arg("l2")
         .arg("withdraw")
-        .arg(format!("{withdraw_amount}"))
+        .arg("--private-key")
         .arg(withdrawer_private_key.display_secret().to_string())
+        .arg(format!("{withdraw_amount}"))
         .output()
         .unwrap();
 
@@ -607,9 +610,10 @@ fn claim_withdraw(
     let output = Command::new("rex")
         .arg("l2")
         .arg("claim-withdraw")
+        .arg("--private-key")
+        .arg(private_key.display_secret().to_string())
         .arg(format!("{amount}"))
         .arg(format!("{tx_hash:#x}"))
-        .arg(private_key.display_secret().to_string())
         .arg(format!("{bridge_address:#x}"))
         .output()
         .unwrap();
