@@ -1,4 +1,5 @@
 use crate::commands::l2;
+use crate::common::AuthorizeArgs;
 use crate::utils::{parse_contract_creation, parse_func_call, parse_hex, parse_hex_string};
 use crate::{
     commands::autocomplete,
@@ -6,11 +7,12 @@ use crate::{
     utils::parse_private_key,
 };
 use clap::{ArgAction, Parser, Subcommand};
-use ethrex_common::types::TxType;
+use ethrex_common::types::{AuthorizationTupleEntry, TxType};
 use ethrex_common::{Address, Bytes, H256, H520};
 use ethrex_l2_common::calldata::Value;
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
@@ -18,10 +20,12 @@ use ethrex_sdk::calldata::decode_calldata;
 use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
 use ethrex_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
+use rex_sdk::authorize::build_authorization_tuple;
 use rex_sdk::client::eth::get_token_balance;
 use rex_sdk::create::{
     DETERMINISTIC_DEPLOYER, brute_force_create2, compute_create_address, compute_create2_address,
 };
+use rex_sdk::l2::authorize::parse_authorization_list;
 use rex_sdk::sign::{get_address_from_message_and_signature, sign_hash};
 use rex_sdk::utils::to_checksum_address;
 use rex_sdk::{balance_in_eth, deploy, transfer, wait_for_transaction_receipt};
@@ -276,6 +280,13 @@ pub(crate) enum Command {
         #[arg(value_parser = parse_hex)]
         data: Bytes,
     },
+    #[clap(about = "Authorize a delegated account")]
+    Authorize {
+        #[clap(flatten)]
+        args: AuthorizeArgs,
+        #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
+        rpc_url: Url,
+    },
 }
 
 impl Command {
@@ -456,6 +467,7 @@ impl Command {
                     args.amount,
                     from,
                     args.to,
+                    TxType::EIP1559,
                     &args.private_key,
                     &client,
                     Overrides::default(),
@@ -484,9 +496,27 @@ impl Command {
                     parse_func_call(args._args)?
                 };
 
+                let tx_type = if args.auth_tuple.is_empty() {
+                    TxType::EIP1559
+                } else {
+                    TxType::EIP7702
+                };
+
+                let auth_list = parse_authorization_list(&args.auth_tuple)?;
+                let auth_list = if auth_list.is_empty() {
+                    None
+                } else {
+                    Some(
+                        auth_list
+                            .iter()
+                            .map(AuthorizationTupleEntry::from)
+                            .collect(),
+                    )
+                };
+
                 let tx = build_generic_tx(
                     &client,
-                    TxType::EIP1559,
+                    tx_type,
                     args.to,
                     from,
                     calldata,
@@ -498,6 +528,7 @@ impl Command {
                         max_fee_per_gas: args.max_fee_per_gas,
                         max_priority_fee_per_gas: args.max_priority_fee_per_gas,
                         from: Some(from),
+                        authorization_list: auth_list,
                         ..Default::default()
                     },
                 )
@@ -661,6 +692,21 @@ impl Command {
                 for elem in decode_calldata(&signature, data)? {
                     print_calldata(0, elem);
                 }
+            }
+            Command::Authorize { args, rpc_url } => {
+                let client = EthClient::new(rpc_url)?;
+
+                let auth_tuple = build_authorization_tuple(
+                    &client,
+                    args.delegated_address,
+                    &args.private_key,
+                    args.chain_id,
+                    args.nonce,
+                )
+                .await?;
+                let mut buf = Vec::new();
+                auth_tuple.encode(&mut buf);
+                println!("0x{:x}", Bytes::from(buf));
             }
         };
         Ok(())

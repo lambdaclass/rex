@@ -70,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         amount,
         rich_wallet_address,
         keystore_address,
+        TxType::EIP1559,
         &rich_wallet_pk,
         &eth_client,
         Overrides::default(),

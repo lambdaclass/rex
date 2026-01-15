@@ -24,6 +24,7 @@ pub async fn deposit_through_transfer(
         amount,
         from,
         bridge_address,
+        TxType::EIP1559,
         from_pk,
         eth_client,
         Overrides::default(),
