@@ -102,7 +102,7 @@ pub struct SendArgs {
     #[clap(
         long,
         required = false,
-        help = "Hex endoded authorization tuple for EIP 7702 transactions"
+        help = "Hex encoded authorization tuple for EIP 7702 transactions"
     )]
     pub auth_tuple: Vec<String>,
     #[clap(

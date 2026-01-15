@@ -453,6 +453,7 @@ impl Command {
                 if args.explorer_url {
                     todo!("Display transaction URL in the explorer")
                 }
+
                 let client = EthClient::new(rpc_url)?;
                 let from = get_address_from_secret_key(&args.private_key.secret_bytes())
                     .map_err(|e| eyre::eyre!(e))?;
@@ -837,6 +838,7 @@ async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
         false,
         Some(&solc_remappings_ref),
         &include_paths,
+        None,
     )
     .map_err(|e| eyre::eyre!("Failed to compile contract: {}", e))?;
 

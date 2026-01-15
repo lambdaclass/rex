@@ -27,6 +27,12 @@ To install it, you need to clone the repository and run the following command to
 make cli
 ```
 
+Or install without cloning:
+
+```shell
+cargo install --git https://github.com/lambdaclass/rex --locked
+```
+
 ### Using the CLI
 
 After installing the CLI with `make cli`, run `rex` to display the help message and see the available commands.

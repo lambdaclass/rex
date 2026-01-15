@@ -20,10 +20,10 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
-// 0x39b37222708e21491b9126e0969a043baa09d5a7
-const DEFAULT_BRIDGE_ADDRESS: Address = H160([
-    0x39, 0xb3, 0x72, 0x22, 0x70, 0x8e, 0x21, 0x49, 0x1b, 0x91, 0x26, 0xe0, 0x96, 0x9a, 0x04, 0x3b,
-    0xaa, 0x09, 0xd5, 0xa7,
+// 0x13295e5562584289b27f92b28f5418269d3b7d82
+pub const DEFAULT_BRIDGE_ADDRESS: Address = H160([
+    0x13, 0x29, 0x5e, 0x55, 0x62, 0x58, 0x42, 0x89, 0xb2, 0x7f, 0x92, 0xb2, 0x8f, 0x54, 0x18, 0x26,
+    0x9d, 0x3b, 0x7d, 0x82,
 ]);
 // 0x0007a881CD95B1484fca47615B64803dad620C8d
 const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
@@ -276,7 +276,7 @@ async fn perform_transfer(
 fn get_l1_balance(address: Address) -> Result<U256, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
         .arg("balance")
-        .arg(format!("{:#x}", address))
+        .arg(format!("{address:#x}"))
         .output()
         .unwrap();
 
@@ -293,7 +293,7 @@ fn get_l2_balance(address: Address) -> Result<U256, Box<dyn std::error::Error>> 
     let output = Command::new("rex")
         .arg("l2")
         .arg("balance")
-        .arg(format!("{:#x}", address))
+        .arg(format!("{address:#x}"))
         .output()
         .unwrap();
 
@@ -314,9 +314,9 @@ fn deposit_l2(
     let output = Command::new("rex")
         .arg("l2")
         .arg("deposit")
-        .arg(format!("{}", amount))
+        .arg(format!("{amount}"))
         .arg(depositor_private_key.display_secret().to_string())
-        .arg(format!("{:#x}", bridge_address))
+        .arg(format!("{bridge_address:#x}"))
         .output()
         .unwrap();
 
@@ -340,7 +340,7 @@ fn deposit_l2(
 fn get_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
         .arg("receipt")
-        .arg(format!("{:#x}", tx_hash))
+        .arg(format!("{tx_hash:#x}"))
         .output()
         .unwrap();
 
@@ -357,7 +357,7 @@ fn get_l2_receipt(tx_hash: H256) -> Result<String, Box<dyn std::error::Error>> {
     let output = Command::new("rex")
         .arg("l2")
         .arg("receipt")
-        .arg(format!("{:#x}", tx_hash))
+        .arg(format!("{tx_hash:#x}"))
         .output()
         .unwrap();
 
@@ -378,8 +378,8 @@ fn transfer(
     let output = Command::new("rex")
         .arg("l2")
         .arg("transfer")
-        .arg(format!("{}", transfer_value))
-        .arg(format!("{:#x}", transfer_recipient_address))
+        .arg(format!("{transfer_value}"))
+        .arg(format!("{transfer_recipient_address:#x}"))
         .arg(transferer_private_key.display_secret().to_string())
         .output()
         .unwrap();
@@ -549,7 +549,7 @@ fn withdraw(
     let output = Command::new("rex")
         .arg("l2")
         .arg("withdraw")
-        .arg(format!("{}", withdraw_amount))
+        .arg(format!("{withdraw_amount}"))
         .arg(withdrawer_private_key.display_secret().to_string())
         .output()
         .unwrap();
@@ -575,7 +575,7 @@ fn get_l2_message_proof(tx_hash: H256) -> Result<Vec<H256>, Box<dyn std::error::
     let output = Command::new("rex")
         .arg("l2")
         .arg("message-proof")
-        .arg(format!("{:#x}", tx_hash))
+        .arg(format!("{tx_hash:#x}"))
         .output()
         .unwrap();
 
@@ -607,10 +607,10 @@ fn claim_withdraw(
     let output = Command::new("rex")
         .arg("l2")
         .arg("claim-withdraw")
-        .arg(format!("{}", amount))
-        .arg(format!("{:#x}", tx_hash))
+        .arg(format!("{amount}"))
+        .arg(format!("{tx_hash:#x}"))
         .arg(private_key.display_secret().to_string())
-        .arg(format!("{:#x}", bridge_address))
+        .arg(format!("{bridge_address:#x}"))
         .output()
         .unwrap();
 

@@ -10,7 +10,7 @@ use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::clients::{get_batch_by_number, get_batch_number};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
-use ethrex_sdk::{calldata::encode_calldata, wait_for_message_proof};
+use ethrex_sdk::{calldata::encode_calldata, wait_for_l1_message_proof};
 use rex_sdk::transfer;
 use rex_sdk::{
     l2::authorize::send_authorized_transaction,
@@ -337,8 +337,22 @@ pub(crate) enum Command {
         to: Address,
         #[arg(long, value_parser = parse_hex, help = "Calldata of the transaction")]
         calldata: Option<Bytes>,
-        #[arg(long, help = "Authorization list")]
+        #[arg(long, help = "Hex-encoded RLP authorization tuples (EIP-7702)")]
         auth_list: Vec<String>,
+        #[clap(
+            long,
+            short = 'c',
+            required = false,
+            help = "Send the request asynchronously."
+        )]
+        cast: bool,
+        #[clap(
+            long,
+            short = 's',
+            required = false,
+            help = "Display only the tx hash."
+        )]
+        silent: bool,
         #[arg(
             long,
             default_value = "http://localhost:1729",
@@ -438,7 +452,7 @@ impl Command {
                 let rollup_client = EthClient::new(rpc_url)?;
 
                 let message_proof =
-                    wait_for_message_proof(&rollup_client, l2_withdrawal_tx_hash, 100).await?;
+                    wait_for_l1_message_proof(&rollup_client, l2_withdrawal_tx_hash, 100).await?;
 
                 let withdrawal_proof = message_proof.into_iter().next().ok_or(eyre::eyre!(
                     "No withdrawal proof found for transaction {l2_withdrawal_tx_hash:#x}"
@@ -517,7 +531,8 @@ impl Command {
             } => {
                 let client = EthClient::new(rpc_url)?;
 
-                let message_proof = wait_for_message_proof(&client, message_tx_hash, 100).await?;
+                let message_proof =
+                    wait_for_l1_message_proof(&client, message_tx_hash, 100).await?;
                 if message_proof.is_empty() {
                     println!("No message proof found for transaction {message_tx_hash:#x}");
                     return Ok(());
@@ -642,24 +657,18 @@ impl Command {
                     .l1_fee_vault_address
                     .map(|addr| format!("{addr:#x}"))
                     .unwrap_or_else(String::new);
-
-                let operator_fee = if fee_info.operator_fee.is_zero() {
-                    String::new()
-                } else {
-                    fee_info.operator_fee.to_string()
-                };
-                let blob_base_fee = if fee_info.blob_base_fee == 0 {
-                    String::new()
-                } else {
-                    fee_info.blob_base_fee.to_string()
-                };
-
                 println!("L2 fee info for block {}:", fee_info.block_number);
                 println!("  Base fee vault:                     {base_fee_vault_address}");
                 println!("  Operator fee vault:                 {operator_fee_vault_address}");
                 println!("  L1 fee vault:                       {l1_fee_vault_address}");
-                println!("  Operator fee (wei/gas):             {operator_fee}");
-                println!("  L1 blob base fee (wei/blob-gas):    {blob_base_fee}");
+                println!(
+                    "  Operator fee (wei/gas):             {:#x}",
+                    fee_info.operator_fee
+                );
+                println!(
+                    "  L1 blob base fee (wei/blob-gas):    {:#x}",
+                    fee_info.blob_base_fee
+                );
             }
             Command::BatchNumber { rpc_url } => {
                 let client = EthClient::new(rpc_url)?;
@@ -694,6 +703,7 @@ impl Command {
                     .map(|tx| format!("{tx:#x}"))
                     .unwrap_or_else(String::new);
 
+                // TODO: update with new fields
                 println!("Batch info for batch {}", batch.number);
                 println!("  Number:                         {}", batch.number);
                 println!("  First block:                    {}", batch.first_block);
@@ -701,7 +711,7 @@ impl Command {
                 println!("  State root:                     {:#x}", batch.state_root);
                 println!(
                     "  Privileged transactions hash:   {:#x}",
-                    batch.privileged_transactions_hash
+                    batch.l1_in_messages_rolling_hash
                 );
                 println!("  Commit tx:                      {commit_tx}");
                 println!("  Verify tx:                      {verify_tx}");
@@ -711,6 +721,8 @@ impl Command {
                 to,
                 calldata,
                 auth_list,
+                cast,
+                silent,
             } => {
                 let client = EthClient::new(rpc_url)?;
                 let calldata = calldata.unwrap_or_else(Bytes::new);
@@ -719,6 +731,10 @@ impl Command {
                     send_authorized_transaction(&client, to, calldata, &auth_list).await?;
 
                 println!("{tx_hash:#x}");
+
+                if !cast {
+                    wait_for_transaction_receipt(tx_hash, &client, 100, silent).await?;
+                }
             }
             Command::Authorize { args, rpc_url } => {
                 Box::pin(async { EthCommand::Authorize { args, rpc_url }.run().await }).await?
