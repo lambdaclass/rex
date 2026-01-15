@@ -144,10 +144,10 @@ async fn test_deposit(
 
     let gas_used = U256::from_str(
         deposit_tx_receipt
-            .split("gas_used: ")
+            .split("gas used:")
             .nth(1)
             .unwrap()
-            .split(',')
+            .split('\n')
             .next()
             .unwrap()
             .trim(),
@@ -156,10 +156,10 @@ async fn test_deposit(
 
     let effective_gas_price = U256::from_str(
         deposit_tx_receipt
-            .split("effective_gas_price: ")
+            .split("effective gas price:")
             .nth(1)
             .unwrap()
-            .split(',')
+            .split('\n')
             .next()
             .unwrap()
             .trim(),
@@ -495,10 +495,10 @@ async fn test_withdraws(
     for receipt in withdraw_claim_txs_receipts {
         let gas_used = U256::from_str(
             receipt
-                .split("gas_used: ")
+                .split("gas used:")
                 .nth(1)
                 .unwrap()
-                .split(',')
+                .split('\n')
                 .next()
                 .unwrap()
                 .trim(),
@@ -507,10 +507,10 @@ async fn test_withdraws(
 
         let effective_gas_price = U256::from_str(
             receipt
-                .split("effective_gas_price: ")
+                .split("effective gas price:")
                 .nth(1)
                 .unwrap()
-                .split(',')
+                .split('\n')
                 .next()
                 .unwrap()
                 .trim(),
