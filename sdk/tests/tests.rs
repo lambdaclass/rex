@@ -1,3 +1,4 @@
+use ethrex_common::types::TxType;
 use ethrex_common::{Address, Bytes, H160, H256, U256};
 use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
@@ -11,7 +12,7 @@ use ethrex_rpc::{
 };
 use ethrex_sdk::{
     L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
-    wait_for_message_proof,
+    wait_for_l1_message_proof,
 };
 use keccak_hash::keccak;
 use reqwest::Url;
@@ -47,10 +48,10 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
 const DEFAULT_BRIDGE_ADDRESS: Address = ethrex_sdk::DEFAULT_BRIDGE_ADDRESS;
-// 0x3e141f8f9f083024c6e1ec3de2509de5da47c354
+// 0x44669840b8f0aedaa707636272031b5e8d67516c
 const DEFAULT_ON_CHAIN_PROPOSER_ADDRESS: Address = H160([
-    0x3e, 0x14, 0x1f, 0x8f, 0x9f, 0x08, 0x30, 0x24, 0xc6, 0xe1, 0xec, 0x3d, 0xe2, 0x50, 0x9d, 0xe5,
-    0xda, 0x47, 0xc3, 0x54,
+    0x44, 0x66, 0x98, 0x40, 0xb8, 0xf0, 0xae, 0xda, 0xa7, 0x07, 0x63, 0x62, 0x72, 0x03, 0x1b, 0x5e,
+    0x8d, 0x67, 0x51, 0x6c,
 ]);
 // 0x0007a881CD95B1484fca47615B64803dad620C8d
 const DEFAULT_PROPOSER_COINBASE_ADDRESS: Address = H160([
@@ -69,8 +70,9 @@ async fn sdk_integration_test() -> Result<(), Box<dyn std::error::Error>> {
     let rich_wallet_private_key = l1_rich_wallet_private_key();
     let transfer_return_private_key = l2_return_transfer_private_key();
     let bridge_address = common_bridge_address();
-    let deposit_recipient_address = get_address_from_secret_key(&rich_wallet_private_key)
-        .expect("Failed to get address from l1 rich wallet pk");
+    let deposit_recipient_address =
+        get_address_from_secret_key(&rich_wallet_private_key.secret_bytes())
+            .expect("Failed to get address from l1 rich wallet pk");
 
     test_deposit_through_transfer(
         &rich_wallet_private_key,
@@ -222,7 +224,7 @@ async fn test_deposit_through_transfer(
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching initial balances on L1 and L2");
 
-    let depositor = get_address_from_secret_key(depositor_private_key)?;
+    let depositor = get_address_from_secret_key(&depositor_private_key.secret_bytes())?;
     let deposit_value = std::env::var("INTEGRATION_TEST_DEPOSIT_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid deposit value"))
         .unwrap_or(U256::from(1000000000000000000000u128));
@@ -332,7 +334,7 @@ async fn test_deposit_through_contract_call(
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Fetching initial balances on L1 and L2");
 
-    let depositor = get_address_from_secret_key(depositor_private_key)?;
+    let depositor = get_address_from_secret_key(&depositor_private_key.secret_bytes())?;
     let deposit_value = std::env::var("INTEGRATION_TEST_DEPOSIT_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid deposit value"))
         .unwrap_or(U256::from(1000000000000000000000u128));
@@ -437,8 +439,8 @@ async fn test_transfer(
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
         .unwrap_or(U256::from(100000000000000000000u128));
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
-    let returner_address = get_address_from_secret_key(returnerer_private_key)?;
+    let transferer_address = get_address_from_secret_key(&transferer_private_key.secret_bytes())?;
+    let returner_address = get_address_from_secret_key(&returnerer_private_key.secret_bytes())?;
 
     perform_transfer(
         proposer_client,
@@ -474,8 +476,8 @@ async fn test_transfer_with_privileged_tx(
     let transfer_value = std::env::var("INTEGRATION_TEST_TRANSFER_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid transfer value"))
         .unwrap_or(U256::from(100000000000000000000u128));
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
-    let receiver_address = get_address_from_secret_key(receiver_private_key)?;
+    let transferer_address = get_address_from_secret_key(&transferer_private_key.secret_bytes())?;
+    let receiver_address = get_address_from_secret_key(&receiver_private_key.secret_bytes())?;
 
     let receiver_balance_before = proposer_client
         .get_balance(receiver_address, BlockIdentifier::Tag(BlockTag::Latest))
@@ -518,7 +520,7 @@ async fn test_transfer_with_privileged_tx(
 async fn test_gas_burning(eth_client: &EthClient) -> Result<(), Box<dyn std::error::Error>> {
     println!("Transferring funds on L2 through a deposit");
     let rich_private_key = l1_rich_wallet_private_key();
-    let rich_address = get_address_from_secret_key(&rich_private_key)?;
+    let rich_address = get_address_from_secret_key(&rich_private_key.secret_bytes())?;
     let l2_gas_limit = 2_000_000;
     let l1_extra_gas_limit = 400_000;
 
@@ -696,7 +698,7 @@ async fn perform_transfer(
     transfer_recipient_address: Address,
     transfer_value: U256,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let transferer_address = get_address_from_secret_key(transferer_private_key)?;
+    let transferer_address = get_address_from_secret_key(&transferer_private_key.secret_bytes())?;
 
     let transferer_initial_l2_balance = proposer_client
         .get_balance(transferer_address, BlockIdentifier::Tag(BlockTag::Latest))
@@ -722,6 +724,7 @@ async fn perform_transfer(
         transfer_value,
         transferer_address,
         transfer_recipient_address,
+        TxType::EIP1559,
         transferer_private_key,
         proposer_client,
         Overrides::default(),
@@ -886,8 +889,8 @@ async fn test_call_to_contract_with_deposit(
     proposer_client: &EthClient,
     eth_client: &EthClient,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let caller_address =
-        get_address_from_secret_key(caller_private_key).expect("Failed to get address");
+    let caller_address = get_address_from_secret_key(&caller_private_key.secret_bytes())
+        .expect("Failed to get address");
 
     println!("Checking balances before call");
 
@@ -979,7 +982,7 @@ async fn test_n_withdraws(
     n: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Withdraw funds from L2 to L1
-    let withdrawer_address = get_address_from_secret_key(withdrawer_private_key)?;
+    let withdrawer_address = get_address_from_secret_key(&withdrawer_private_key.secret_bytes())?;
     let withdraw_value = std::env::var("INTEGRATION_TEST_WITHDRAW_VALUE")
         .map(|value| U256::from_dec_str(&value).expect("Invalid withdraw value"))
         .unwrap_or(U256::from(100000000000000000000u128));
@@ -1084,7 +1087,7 @@ async fn test_n_withdraws(
     let mut proofs = vec![];
     for (i, tx) in withdraw_txs.clone().into_iter().enumerate() {
         println!("Getting withdrawal proof {}/{n}", i + 1);
-        let message_proof = wait_for_message_proof(proposer_client, tx, 1000).await?;
+        let message_proof = wait_for_l1_message_proof(proposer_client, tx, 1000).await?;
         let withdrawal_proof = message_proof
             .into_iter()
             .next()

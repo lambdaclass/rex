@@ -1,4 +1,5 @@
 use clap::Parser;
+use ethrex_common::types::TxType;
 use ethrex_common::{Address, Bytes, U256};
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_rpc::{
@@ -35,7 +36,7 @@ fn parse_hex(s: &str) -> eyre::Result<Bytes, FromHexError> {
 async fn main() {
     let args = SimpleUsageArgs::parse();
 
-    let account = get_address_from_secret_key(&args.private_key).unwrap();
+    let account = get_address_from_secret_key(&args.private_key.secret_bytes()).unwrap();
 
     let eth_client = EthClient::new(args.rpc_url).unwrap();
 
@@ -63,6 +64,7 @@ async fn main() {
         amount,
         from,
         to,
+        TxType::EIP1559,
         &args.private_key,
         &eth_client,
         Overrides::default(),

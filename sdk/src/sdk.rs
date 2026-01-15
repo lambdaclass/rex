@@ -24,6 +24,7 @@ pub mod keystore;
 pub mod sign;
 pub mod utils;
 
+pub mod authorize;
 pub mod l2;
 
 #[derive(Debug, thiserror::Error)]
@@ -38,23 +39,13 @@ pub async fn transfer(
     amount: U256,
     from: Address,
     to: Address,
+    tx_type: TxType,
     private_key: &SecretKey,
     client: &EthClient,
     mut overrides: Overrides,
 ) -> Result<H256, EthClientError> {
     overrides.value = Some(amount);
-    let tx = build_generic_tx(
-        client,
-        TxType::EIP1559,
-        to,
-        from,
-        Default::default(),
-        Overrides {
-            value: Some(amount),
-            ..Default::default()
-        },
-    )
-    .await?;
+    let tx = build_generic_tx(client, tx_type, to, from, Bytes::new(), overrides).await?;
 
     let signer = LocalSigner::new(*private_key).into();
     send_generic_transaction(client, tx, &signer).await
