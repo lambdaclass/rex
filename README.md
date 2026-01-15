@@ -50,8 +50,9 @@ Commands:
   chain-id          Get the network's chain id.
   code              Returns code at a given address
   create-address    Compute contract address given the deployer address and nonce.
+  create2-address   Compute contract address for CREATE2 deployments.
   deploy            Deploy a contract
-  hash              Get either the keccak for a given input, the zero hash, the empty string, or a random hash [aliases: h]
+  hash              Get either the keccak for a given input, the zero hash, the empty string, or a random hash [aliases: h, keccak]
   l2                L2 specific commands.
   nonce             Get the account's nonce. [aliases: n]
   receipt           Get the transaction's receipt. [aliases: r]
@@ -61,6 +62,9 @@ Commands:
   transaction       Get the transaction's info. [aliases: tx, t]
   transfer          Transfer funds to another wallet.
   verify-signature  Verify if the signature of a message was made by an account
+  encode-calldata   Encodes calldata
+  decode-calldata   Decodes calldata
+  authorize         Authorize a delegated account
   help              Print this message or the help of the given subcommand(s)
 
 Options:
