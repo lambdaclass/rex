@@ -337,8 +337,22 @@ pub(crate) enum Command {
         to: Address,
         #[arg(long, value_parser = parse_hex, help = "Calldata of the transaction")]
         calldata: Option<Bytes>,
-        #[arg(long, help = "Authorization list")]
+        #[arg(long, help = "Hex-encoded RLP authorization tuples (EIP-7702)")]
         auth_list: Vec<String>,
+        #[clap(
+            long,
+            short = 'c',
+            required = false,
+            help = "Send the request asynchronously."
+        )]
+        cast: bool,
+        #[clap(
+            long,
+            short = 's',
+            required = false,
+            help = "Display only the tx hash."
+        )]
+        silent: bool,
         #[arg(
             long,
             default_value = "http://localhost:1729",
@@ -689,6 +703,8 @@ impl Command {
                 to,
                 calldata,
                 auth_list,
+                cast,
+                silent,
             } => {
                 let client = EthClient::new(rpc_url)?;
                 let calldata = calldata.unwrap_or_else(Bytes::new);
@@ -697,6 +713,10 @@ impl Command {
                     send_authorized_transaction(&client, to, calldata, &auth_list).await?;
 
                 println!("{tx_hash:#x}");
+
+                if !cast {
+                    wait_for_transaction_receipt(tx_hash, &client, 100, silent).await?;
+                }
             }
             Command::Authorize { args, rpc_url } => {
                 Box::pin(async { EthCommand::Authorize { args, rpc_url }.run().await }).await?

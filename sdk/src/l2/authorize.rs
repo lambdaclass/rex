@@ -2,7 +2,6 @@ use ethrex_common::{Address, Bytes, H256, types::AuthorizationTuple};
 use ethrex_l2_rpc::clients::send_ethrex_transaction;
 use ethrex_rlp::decode::RLPDecode;
 use ethrex_rpc::{EthClient, clients::EthClientError};
-use hex;
 
 pub fn parse_authorization_list(
     auth_list: &[String],
