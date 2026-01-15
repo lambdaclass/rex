@@ -3513,7 +3513,7 @@ dependencies = [
 
 [[package]]
 name = "rex"
-version = "7.0.0"
+version = "8.0.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -3546,7 +3546,7 @@ dependencies = [
 
 [[package]]
 name = "rex-sdk"
-version = "7.0.0"
+version = "8.0.0"
 dependencies = [
  "clap",
  "clap_complete",
