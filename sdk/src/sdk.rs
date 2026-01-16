@@ -36,16 +36,16 @@ pub enum SdkError {
 }
 
 pub async fn transfer(
-    amount: U256,
     from: Address,
     to: Address,
     tx_type: TxType,
     private_key: &SecretKey,
     client: &EthClient,
-    mut overrides: Overrides,
+    overrides: Overrides,
+    calldata: Option<Bytes>,
 ) -> Result<H256, EthClientError> {
-    overrides.value = Some(amount);
-    let tx = build_generic_tx(client, tx_type, to, from, Bytes::new(), overrides).await?;
+    let calldata = calldata.unwrap_or_default();
+    let tx = build_generic_tx(client, tx_type, to, from, calldata, overrides).await?;
 
     let signer = LocalSigner::new(*private_key).into();
     send_generic_transaction(client, tx, &signer).await
