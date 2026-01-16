@@ -10,6 +10,16 @@ use std::{
     time::Duration,
 };
 
+/// Parses a U256 from a string. If the string starts with "0x", it's parsed as hex.
+/// Otherwise, it's parsed as decimal.
+fn parse_u256(s: &str) -> Result<U256, String> {
+    if s.starts_with("0x") || s.starts_with("0X") {
+        U256::from_str(s).map_err(|e| e.to_string())
+    } else {
+        U256::from_dec_str(s).map_err(|e| e.to_string())
+    }
+}
+
 // 0x941e103320615d394a55708be13e45994c7d93b932b064dbcb2b511fe3254e2e
 const DEFAULT_L1_RICH_WALLET_PRIVATE_KEY: H256 = H256([
     0x94, 0x1e, 0x10, 0x33, 0x20, 0x61, 0x5d, 0x39, 0x4a, 0x55, 0x70, 0x8b, 0xe1, 0x3e, 0x45, 0x99,
@@ -142,24 +152,24 @@ async fn test_deposit(
 
     let deposit_tx_receipt = get_receipt(deposit_tx_hash)?;
 
-    let gas_used = U256::from_str(
+    let gas_used = parse_u256(
         deposit_tx_receipt
-            .split("gas_used: ")
+            .split("gas used:")
             .nth(1)
             .unwrap()
-            .split(',')
+            .split('\n')
             .next()
             .unwrap()
             .trim(),
     )
     .unwrap();
 
-    let effective_gas_price = U256::from_str(
+    let effective_gas_price = parse_u256(
         deposit_tx_receipt
-            .split("effective_gas_price: ")
+            .split("effective gas price:")
             .nth(1)
             .unwrap()
-            .split(',')
+            .split('\n')
             .next()
             .unwrap()
             .trim(),
@@ -314,8 +324,9 @@ fn deposit_l2(
     let output = Command::new("rex")
         .arg("l2")
         .arg("deposit")
-        .arg(format!("{amount}"))
+        .arg("--private-key")
         .arg(depositor_private_key.display_secret().to_string())
+        .arg(format!("{amount}"))
         .arg(format!("{bridge_address:#x}"))
         .output()
         .unwrap();
@@ -378,9 +389,10 @@ fn transfer(
     let output = Command::new("rex")
         .arg("l2")
         .arg("transfer")
+        .arg("--private-key")
+        .arg(transferer_private_key.display_secret().to_string())
         .arg(format!("{transfer_value}"))
         .arg(format!("{transfer_recipient_address:#x}"))
-        .arg(transferer_private_key.display_secret().to_string())
         .output()
         .unwrap();
 
@@ -491,24 +503,24 @@ async fn test_withdraws(
 
     let mut gas_used_value = U256::zero();
     for receipt in withdraw_claim_txs_receipts {
-        let gas_used = U256::from_str(
+        let gas_used = parse_u256(
             receipt
-                .split("gas_used: ")
+                .split("gas used:")
                 .nth(1)
                 .unwrap()
-                .split(',')
+                .split('\n')
                 .next()
                 .unwrap()
                 .trim(),
         )
         .unwrap();
 
-        let effective_gas_price = U256::from_str(
+        let effective_gas_price = parse_u256(
             receipt
-                .split("effective_gas_price: ")
+                .split("effective gas price:")
                 .nth(1)
                 .unwrap()
-                .split(',')
+                .split('\n')
                 .next()
                 .unwrap()
                 .trim(),
@@ -549,8 +561,9 @@ fn withdraw(
     let output = Command::new("rex")
         .arg("l2")
         .arg("withdraw")
-        .arg(format!("{withdraw_amount}"))
+        .arg("--private-key")
         .arg(withdrawer_private_key.display_secret().to_string())
+        .arg(format!("{withdraw_amount}"))
         .output()
         .unwrap();
 
@@ -607,9 +620,10 @@ fn claim_withdraw(
     let output = Command::new("rex")
         .arg("l2")
         .arg("claim-withdraw")
+        .arg("--private-key")
+        .arg(private_key.display_secret().to_string())
         .arg(format!("{amount}"))
         .arg(format!("{tx_hash:#x}"))
-        .arg(private_key.display_secret().to_string())
         .arg(format!("{bridge_address:#x}"))
         .output()
         .unwrap();

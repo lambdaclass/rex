@@ -31,6 +31,7 @@ pub(crate) enum Command {
         #[clap(flatten)]
         args: BalanceArgs,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -40,6 +41,7 @@ pub(crate) enum Command {
     #[clap(about = "Get the current block_number.", visible_alias = "bl")]
     BlockNumber {
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -51,6 +53,7 @@ pub(crate) enum Command {
         #[clap(flatten)]
         args: CallArgs,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -66,7 +69,7 @@ pub(crate) enum Command {
             help = "Display the chain id as a hex-string."
         )]
         hex: bool,
-        #[arg(default_value = "http://localhost:1729", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:1729", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Finalize a pending withdrawal.")]
@@ -101,13 +104,13 @@ pub(crate) enum Command {
             help = "Display only the tx hash."
         )]
         silent: bool,
-        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
+        #[arg(long, value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
         #[arg(env = "BRIDGE_ADDRESS")]
         bridge_address: Address,
-        #[arg(env = "L1_RPC_URL", default_value = "http://localhost:8545")]
+        #[arg(long, env = "L1_RPC_URL", default_value = "http://localhost:8545")]
         l1_rpc_url: Url,
-        #[arg(env = "RPC_URL", default_value = "http://localhost:1729")]
+        #[arg(long, env = "RPC_URL", default_value = "http://localhost:1729")]
         rpc_url: Url,
     },
     #[clap(about = "Deploy a contract")]
@@ -115,6 +118,7 @@ pub(crate) enum Command {
         #[clap(flatten)]
         args: DeployArgs,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -165,26 +169,33 @@ pub(crate) enum Command {
             help = "Display transaction URL in the explorer."
         )]
         explorer_url: bool,
-        #[clap(value_parser = parse_private_key, env = "PRIVATE_KEY")]
+        #[clap(long, value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
         #[arg(
             env = "BRIDGE_ADDRESS",
             help = "Make sure you are using the correct bridge address before submitting your deposit."
         )]
         bridge_address: Address,
-        #[arg(default_value = "http://localhost:8545", env = "L1_RPC_URL")]
+        #[arg(
+            long,
+            alias = "rpc-url",
+            default_value = "http://localhost:8545",
+            env = "L1_RPC_URL",
+            help = "L1 RPC URL where the Bridge will lock the funds"
+        )]
         l1_rpc_url: Url,
     },
     #[clap(about = "Get the account's nonce.", visible_aliases = ["n"])]
     Nonce {
         account: Address,
-        #[arg(default_value = "http://localhost:1729", env = "RPC_URL")]
+        #[arg(long, default_value = "http://localhost:1729", env = "RPC_URL")]
         rpc_url: Url,
     },
     #[clap(about = "Get the transaction's receipt.", visible_alias = "r")]
     Receipt {
         tx_hash: H256,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -196,6 +207,7 @@ pub(crate) enum Command {
         #[clap(flatten)]
         args: SendArgs,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -206,6 +218,7 @@ pub(crate) enum Command {
     Transaction {
         tx_hash: H256,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -223,6 +236,7 @@ pub(crate) enum Command {
         )]
         fee_token: Option<Address>,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -269,9 +283,10 @@ pub(crate) enum Command {
             help = "Display transaction URL in the explorer."
         )]
         explorer_url: bool,
-        #[arg(value_parser = parse_private_key, env = "PRIVATE_KEY")]
+        #[arg(long, value_parser = parse_private_key, env = "PRIVATE_KEY")]
         private_key: SecretKey,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
@@ -282,6 +297,7 @@ pub(crate) enum Command {
     MessageProof {
         message_tx_hash: H256,
         #[arg(
+            long,
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
