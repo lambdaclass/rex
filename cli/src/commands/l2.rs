@@ -176,7 +176,13 @@ pub(crate) enum Command {
             help = "Make sure you are using the correct bridge address before submitting your deposit."
         )]
         bridge_address: Address,
-        #[arg(long, default_value = "http://localhost:8545", env = "L1_RPC_URL")]
+        #[arg(
+            long,
+            alias = "rpc-url",
+            default_value = "http://localhost:8545",
+            env = "L1_RPC_URL",
+            help = "L1 RPC URL where the Bridge will lock the funds"
+        )]
         l1_rpc_url: Url,
     },
     #[clap(about = "Get the account's nonce.", visible_aliases = ["n"])]
