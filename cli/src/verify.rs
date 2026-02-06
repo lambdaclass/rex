@@ -41,8 +41,11 @@ pub async fn verify_contract_on_etherscan(params: VerifyParams) -> eyre::Result<
             .to_string()
     });
 
-    let standard_json =
-        build_standard_json_input(&params.contract_path, &params.remappings, params.optimize_runs)?;
+    let standard_json = build_standard_json_input(
+        &params.contract_path,
+        &params.remappings,
+        params.optimize_runs,
+    )?;
     let standard_json_str = serde_json::to_string(&standard_json)?;
 
     let constructor_args_hex = hex::encode(&params.constructor_args);
@@ -189,13 +192,8 @@ fn resolve_sources_recursive(
         return Ok(());
     }
 
-    let content = std::fs::read_to_string(file_path).map_err(|e| {
-        eyre::eyre!(
-            "Failed to read source file {}: {}",
-            file_path.display(),
-            e
-        )
-    })?;
+    let content = std::fs::read_to_string(file_path)
+        .map_err(|e| eyre::eyre!("Failed to read source file {}: {}", file_path.display(), e))?;
 
     let key = file_name_str(file_path);
 
@@ -256,9 +254,8 @@ fn get_solc_version() -> eyre::Result<String> {
     let output = Command::new("solc").arg("--version").output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    static SOLC_VERSION_RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(\d+\.\d+\.\d+\+commit\.[0-9a-f]+)").expect("valid regex")
-    });
+    static SOLC_VERSION_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(\d+\.\d+\.\d+\+commit\.[0-9a-f]+)").expect("valid regex"));
     let version = SOLC_VERSION_RE
         .find(&stdout)
         .context("Could not parse solc version from output")?
@@ -324,9 +321,7 @@ async fn poll_verification_status(
         }
 
         // "Pending in queue" and "Unable to locate" are normal in-progress states
-        if resp.result.contains("Pending in queue")
-            || resp.result.contains("Unable to locate")
-        {
+        if resp.result.contains("Pending in queue") || resp.result.contains("Unable to locate") {
             continue;
         }
 
