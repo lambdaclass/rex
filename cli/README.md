@@ -287,10 +287,97 @@ Options:
           Remove downloaded dependencies after compilation
       --salt <SALT>
           Salt for deploying CREATE2 contracts. If it is provided, the contract will be deployed using CREATE2.
+      --optimizations <OPTIMIZATIONS>
+          Number of optimization runs for the Solidity compiler
+      --verify-contract
+          Verify the contract on Etherscan after deployment
+      --etherscan-api-key <ETHERSCAN_API_KEY>
+          Etherscan API key for contract verification [env: ETHERSCAN_API_KEY=]
+      --contract-name <CONTRACT_NAME>
+          Contract name (defaults to filename stem). Required when file contains multiple contracts.
       --rpc-url <RPC_URL>
           [env: RPC_URL=] [default: http://localhost:8545]
   -h, --help
           Print help
+```
+
+#### Contract verification
+
+The `--verify-contract` flag automatically verifies the contract source code on Etherscan after deployment. This makes the contract's source code publicly readable and its ABI available on Etherscan.
+
+**Requirements:**
+- Must use `--contract-path` (not `--bytecode`)
+- Requires an Etherscan API key via `--etherscan-api-key` or the `ETHERSCAN_API_KEY` environment variable
+- Incompatible with `--cast` (verification needs to wait for the transaction receipt)
+- Requires `solc` installed locally (the same version used to compile will be reported to Etherscan)
+
+**Supported networks:** Ethereum Mainnet, Sepolia, and Holesky (uses [Etherscan API V2](https://docs.etherscan.io/etherscan-v2)).
+
+**Basic example:**
+
+```shell
+rex deploy \
+  --contract-path MyContract.sol \
+  --remappings "" \
+  --verify-contract \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
+  --private-key $PRIVATE_KEY \
+  --rpc-url https://ethereum-sepolia-rpc.publicnode.com
+```
+
+**With optimizer enabled:**
+
+```shell
+rex deploy \
+  --contract-path MyContract.sol \
+  --remappings "" \
+  --optimizations 200 \
+  --verify-contract \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
+  --private-key $PRIVATE_KEY \
+  --rpc-url https://ethereum-sepolia-rpc.publicnode.com
+```
+
+**With imports and remappings:**
+
+```shell
+rex deploy \
+  --contract-path MyToken.sol \
+  --remappings "@openzeppelin/contracts=https://github.com/OpenZeppelin/openzeppelin-contracts.git" \
+  --verify-contract \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
+  --private-key $PRIVATE_KEY \
+  --rpc-url https://ethereum-sepolia-rpc.publicnode.com
+```
+
+**With constructor arguments:**
+
+```shell
+rex deploy \
+  --contract-path MyToken.sol \
+  --remappings "" \
+  --verify-contract \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
+  --private-key $PRIVATE_KEY \
+  --rpc-url https://ethereum-sepolia-rpc.publicnode.com \
+  -- "constructor(string,uint256)" "MyToken" 1000000
+```
+
+**Output:**
+
+```
+Compiler run successful. Artifact(s) can be found in directory "./solc_out".
+Contract deployed in tx: 0x1234...
+Contract address: 0x5678...
+
+Verifying contract on Etherscan...
+  Compiler version: v0.8.31+commit.fd3a2265
+  Contract name: MyContract
+  Submitting verification request...
+  Verification submitted (GUID: abc123...)
+  [1/60] Checking verification status...
+  Contract verified successfully!
+  https://sepolia.etherscan.io/address/0x5678...#code
 ```
 
 ### `rex encode-calldata`
