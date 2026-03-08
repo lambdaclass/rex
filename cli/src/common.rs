@@ -146,7 +146,7 @@ pub struct CallArgs {
     pub _args: Vec<String>,
 }
 
-#[derive(Parser, Clone)]
+#[derive(Parser)]
 #[clap(group = clap::ArgGroup::new("source").required(true))]
 pub struct DeployArgs {
     #[clap(long, group = "source", value_parser = parse_hex, required = false)]
@@ -218,6 +218,32 @@ pub struct DeployArgs {
         required = false
     )]
     pub salt: Option<Secret>,
+    #[arg(
+        long,
+        required = false,
+        help = "Number of optimization runs for the Solidity compiler"
+    )]
+    pub optimizations: Option<u64>,
+    #[arg(
+        long,
+        help = "Verify the contract on Etherscan after deployment",
+        default_value_t = false,
+        requires = "source"
+    )]
+    pub verify_contract: bool,
+    #[arg(
+        long,
+        env = "ETHERSCAN_API_KEY",
+        required = false,
+        help = "Etherscan API key for contract verification"
+    )]
+    pub etherscan_api_key: Option<String>,
+    #[arg(
+        long,
+        required = false,
+        help = "Contract name (defaults to filename stem). Required when file contains multiple contracts."
+    )]
+    pub contract_name: Option<String>,
     #[arg(last = true, hide = true)]
     pub _args: Vec<String>,
 }
