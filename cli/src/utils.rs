@@ -115,3 +115,139 @@ pub fn parse_contract_creation(args: Vec<String>) -> eyre::Result<Bytes> {
     };
     Ok(encode_tuple(&values)?.into())
 }
+
+/// Parse a single typed-prefix constructor argument like `address:0x…`,
+/// `uint256:100`, `bool:true`, `string:hi`, `bytes32:0xdead…`, or
+/// `uint256[]:[1,2,3]`. Types mirror Solidity ABI names.
+pub fn parse_typed_value(arg: &str) -> eyre::Result<Value> {
+    let (ty, val) = arg
+        .split_once(':')
+        .ok_or_else(|| eyre::eyre!("constructor arg must be 'type:value' (got '{arg}')"))?;
+    let ty = ty.trim();
+    let val = val.trim();
+
+    if let Some(inner_ty) = array_inner_type(ty) {
+        let list = val.trim_start_matches('[').trim_end_matches(']');
+        let elements = list
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| parse_typed_value(&format!("{inner_ty}:{s}")))
+            .collect::<eyre::Result<Vec<_>>>()?;
+        return Ok(if ty.ends_with("[]") {
+            Value::Array(elements)
+        } else {
+            Value::FixedArray(elements)
+        });
+    }
+
+    Ok(match ty {
+        "address" => Value::Address(Address::from_str(val)?),
+        "bool" => match val {
+            "true" => Value::Bool(true),
+            "false" => Value::Bool(false),
+            _ => return Err(eyre::eyre!("invalid bool value '{val}'")),
+        },
+        "string" => Value::String(val.to_owned()),
+        "bytes" => {
+            let stripped = val.strip_prefix("0x").unwrap_or(val);
+            Value::Bytes(hex::decode(stripped)?.into())
+        }
+        _ if ty.starts_with("bytes") => {
+            let stripped = val.strip_prefix("0x").unwrap_or(val);
+            Value::FixedBytes(hex::decode(stripped)?.into())
+        }
+        _ if ty.starts_with("uint") => Value::Uint(parse_uint_value(val)?),
+        _ if ty.starts_with("int") => {
+            if let Some(rest) = val.strip_prefix('-') {
+                let x = parse_uint_value(rest)?;
+                if x.is_zero() {
+                    Value::Uint(x)
+                } else {
+                    Value::Uint(U256::max_value() - x + 1)
+                }
+            } else {
+                Value::Uint(parse_uint_value(val)?)
+            }
+        }
+        _ => return Err(eyre::eyre!("unsupported constructor arg type '{ty}'")),
+    })
+}
+
+fn array_inner_type(ty: &str) -> Option<&str> {
+    let open = ty.rfind('[')?;
+    let close = ty.rfind(']')?;
+    if close != ty.len() - 1 || open >= close {
+        return None;
+    }
+    Some(&ty[..open])
+}
+
+fn parse_uint_value(s: &str) -> eyre::Result<U256> {
+    if let Some(rest) = s.strip_prefix("0x") {
+        Ok(U256::from_str(&format!("0x{rest}"))?)
+    } else {
+        Ok(U256::from_dec_str(s)?)
+    }
+}
+
+pub fn encode_constructor_args(args: &[String]) -> eyre::Result<Bytes> {
+    if args.is_empty() {
+        return Ok(Bytes::new());
+    }
+    let values: Vec<Value> = args
+        .iter()
+        .map(|a| parse_typed_value(a))
+        .collect::<eyre::Result<_>>()?;
+    Ok(encode_tuple(&values)?.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_typed_scalars() {
+        let v = parse_typed_value("uint256:100").unwrap();
+        assert!(matches!(v, Value::Uint(x) if x == U256::from(100u64)));
+
+        let v = parse_typed_value("bool:true").unwrap();
+        assert!(matches!(v, Value::Bool(true)));
+
+        let v = parse_typed_value("string:hello").unwrap();
+        assert!(matches!(v, Value::String(s) if s == "hello"));
+    }
+
+    #[test]
+    fn parses_typed_address() {
+        let v =
+            parse_typed_value("address:0x8943545177806ed17b9f23f0a21ee5948ecaa776").unwrap();
+        assert!(matches!(v, Value::Address(_)));
+    }
+
+    #[test]
+    fn parses_typed_array() {
+        let v = parse_typed_value("uint256[]:[1,2,3]").unwrap();
+        match v {
+            Value::Array(vs) => assert_eq!(vs.len(), 3),
+            _ => panic!("expected Array"),
+        }
+    }
+
+    #[test]
+    fn encodes_empty_args_to_empty_bytes() {
+        let b = encode_constructor_args(&[]).unwrap();
+        assert!(b.is_empty());
+    }
+
+    #[test]
+    fn encodes_single_address_matches_abi() {
+        // abi.encode(address) is 32 bytes left-padded.
+        let addr = "0x8943545177806ed17b9f23f0a21ee5948ecaa776";
+        let encoded =
+            encode_constructor_args(&[format!("address:{addr}")]).unwrap();
+        assert_eq!(encoded.len(), 32);
+        let expected_suffix = hex::decode(&addr[2..]).unwrap();
+        assert_eq!(&encoded[12..], expected_suffix.as_slice());
+    }
+}
