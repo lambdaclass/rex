@@ -1,4 +1,4 @@
-use crate::commands::{l2, wallet};
+use crate::commands::{frame, l2, wallet};
 use crate::common::AuthorizeArgs;
 use crate::utils::{
     encode_constructor_args, parse_contract_creation, parse_func_call, parse_hex, parse_hex_string,
@@ -292,6 +292,11 @@ pub(crate) enum Command {
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
+    #[clap(
+        subcommand,
+        about = "EIP-8141 frame transaction support (tx type 0x06)."
+    )]
+    Frame(frame::Command),
     #[clap(subcommand, about = "Wallet utilities (mnemonic derivation, etc).")]
     Wallet(wallet::Command),
 }
@@ -301,6 +306,7 @@ impl Command {
         match self {
             Command::L2(cmd) => cmd.run().await?,
             Command::Autocomplete(cmd) => cmd.run()?,
+            Command::Frame(cmd) => cmd.run().await?,
             Command::Wallet(cmd) => cmd.run()?,
             Command::Balance {
                 account,
