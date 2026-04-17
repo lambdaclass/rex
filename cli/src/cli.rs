@@ -1,4 +1,4 @@
-use crate::commands::l2;
+use crate::commands::{l2, wallet};
 use crate::common::AuthorizeArgs;
 use crate::utils::{parse_contract_creation, parse_func_call, parse_hex, parse_hex_string};
 use crate::{
@@ -290,6 +290,8 @@ pub(crate) enum Command {
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
+    #[clap(subcommand, about = "Wallet utilities (mnemonic derivation, etc).")]
+    Wallet(wallet::Command),
 }
 
 impl Command {
@@ -297,6 +299,7 @@ impl Command {
         match self {
             Command::L2(cmd) => cmd.run().await?,
             Command::Autocomplete(cmd) => cmd.run()?,
+            Command::Wallet(cmd) => cmd.run()?,
             Command::Balance {
                 account,
                 token_address,
