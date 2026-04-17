@@ -6,7 +6,7 @@
 //!
 //! - `mode`:  execution mode (1 = VERIFY, 2 = SENDER)
 //! - `flags`: bitmask — 0x01 = PAYMENT approval, 0x02 = EXECUTION approval,
-//!            0x03 = both, 0x04 = atomic batch
+//!   0x03 = both, 0x04 = atomic batch
 //!
 //! sig_hash = keccak(0x06 || rlp(...)) with VERIFY frame data replaced by
 //! empty bytes so the signature signs over the frame structure but not over
@@ -35,6 +35,7 @@ pub const EXEC_MODE_SENDER: u8 = 2;
 pub const FLAG_PAYMENT: u8 = 0x01;
 pub const FLAG_EXECUTION: u8 = 0x02;
 pub const FLAG_BOTH: u8 = 0x03;
+#[allow(dead_code)] // defined for future atomic batch support
 pub const FLAG_ATOMIC_BATCH: u8 = 0x04;
 
 #[derive(Debug, Clone)]
@@ -237,6 +238,7 @@ fn parse_amount(s: &str) -> eyre::Result<U256> {
 // ------ CLI ------------------------------------------------------------------
 
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Command {
     #[clap(about = "Send a frame (EIP-8141, tx type 0x06) transaction.")]
     Send {
@@ -426,13 +428,10 @@ impl Command {
                 let chain_id_u64: u64 = chain_id
                     .try_into()
                     .map_err(|_| eyre::eyre!("chain id {chain_id} does not fit in u64"))?;
-                let nonce_u64: u64 = nonce
-                    .try_into()
-                    .map_err(|_| eyre::eyre!("nonce {nonce} does not fit in u64"))?;
 
                 let unsigned = FrameTx {
                     chain_id: chain_id_u64,
-                    nonce: nonce_u64,
+                    nonce,
                     sender,
                     frames: frames.clone(),
                     max_priority_fee_per_gas,
@@ -646,7 +645,8 @@ mod tests {
             nonce: 0,
             sender: sender_addr(),
             frames: vec![Frame {
-                mode: EXEC_MODE_VERIFY | (SCOPE_BOTH << 8),
+                mode: EXEC_MODE_VERIFY,
+                flags: FLAG_BOTH,
                 target: sender_addr(),
                 gas_limit: 100_000,
                 data: Bytes::from(vec![0xaa; 66]),
@@ -670,6 +670,7 @@ mod tests {
             sender: sender_addr(),
             frames: vec![Frame {
                 mode: EXEC_MODE_SENDER,
+                flags: 0,
                 target: sender_addr(),
                 gas_limit: 100_000,
                 data: Bytes::from(vec![0x11; 4]),
