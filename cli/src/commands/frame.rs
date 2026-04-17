@@ -2,12 +2,11 @@
 //!
 //! The frame-tx envelope is `0x06 || rlp(chain_id, nonce, sender, frames,
 //! max_priority_fee, max_fee, max_blob_fee, blob_hashes)` where each frame is
-//! `rlp(mode, target, gas_limit, data)`.
+//! `rlp(mode, flags, target, gas_limit, data)` (5 fields).
 //!
-//! The `mode` field packs three sub-fields:
-//!   - bits 0-7:  execution mode (1 = VERIFY, 2 = SENDER)
-//!   - bits 8-9:  scope restriction (1 = sender only, 2 = payer only, 3 = both)
-//!   - bit 10:    atomic batch flag
+//! - `mode`:  execution mode (1 = VERIFY, 2 = SENDER)
+//! - `flags`: bitmask — 0x01 = PAYMENT approval, 0x02 = EXECUTION approval,
+//!            0x03 = both, 0x04 = atomic batch
 //!
 //! sig_hash = keccak(0x06 || rlp(...)) with VERIFY frame data replaced by
 //! empty bytes so the signature signs over the frame structure but not over
@@ -29,28 +28,27 @@ use url::Url;
 
 use crate::utils::{parse_hex, parse_private_key};
 
-pub const EXEC_MODE_VERIFY: u32 = 1;
-pub const EXEC_MODE_SENDER: u32 = 2;
+pub const EXEC_MODE_VERIFY: u8 = 1;
+pub const EXEC_MODE_SENDER: u8 = 2;
 
-pub const SCOPE_SENDER: u32 = 1;
-pub const SCOPE_PAYER: u32 = 2;
-pub const SCOPE_BOTH: u32 = 3;
+/// Flag bitmasks (post spec-update: 0x01=PAYMENT, 0x02=EXECUTION).
+pub const FLAG_PAYMENT: u8 = 0x01;
+pub const FLAG_EXECUTION: u8 = 0x02;
+pub const FLAG_BOTH: u8 = 0x03;
+pub const FLAG_ATOMIC_BATCH: u8 = 0x04;
 
 #[derive(Debug, Clone)]
 pub struct Frame {
-    pub mode: u32,
+    pub mode: u8,
+    pub flags: u8,
     pub target: Address,
     pub gas_limit: u64,
     pub data: Bytes,
 }
 
 impl Frame {
-    pub fn execution_mode(&self) -> u32 {
-        self.mode & 0xff
-    }
-
     pub fn is_verify(&self) -> bool {
-        self.execution_mode() == EXEC_MODE_VERIFY
+        self.mode == EXEC_MODE_VERIFY
     }
 }
 
@@ -70,7 +68,8 @@ fn encode_frame_bytes(frame: &Frame, elide_data: bool) -> Vec<u8> {
     let mut out = Vec::new();
     let data: &[u8] = if elide_data { &[] } else { frame.data.as_ref() };
     Encoder::new(&mut out)
-        .encode_field(&frame.mode)
+        .encode_field(&(frame.mode as u64))
+        .encode_field(&(frame.flags as u64))
         .encode_field(&frame.target)
         .encode_field(&frame.gas_limit)
         .encode_bytes(data)
@@ -329,7 +328,9 @@ pub(crate) enum Command {
 
 #[derive(Deserialize)]
 struct FrameJson {
-    mode: u32,
+    mode: u8,
+    #[serde(default)]
+    flags: u8,
     target: Address,
     #[serde(alias = "gasLimit", alias = "gas_limit")]
     gas_limit: u64,
@@ -382,19 +383,22 @@ impl Command {
                 let mut frames = if let Some(sponsor_addr) = sponsor {
                     vec![
                         Frame {
-                            mode: EXEC_MODE_VERIFY | (SCOPE_SENDER << 8),
+                            mode: EXEC_MODE_VERIFY,
+                            flags: FLAG_EXECUTION,
                             target: sender,
                             gas_limit: frame_gas_limit,
                             data: Bytes::new(),
                         },
                         Frame {
-                            mode: EXEC_MODE_VERIFY | (SCOPE_PAYER << 8),
+                            mode: EXEC_MODE_VERIFY,
+                            flags: FLAG_PAYMENT,
                             target: sponsor_addr,
                             gas_limit: sponsor_gas_limit,
                             data: sponsor_calldata,
                         },
                         Frame {
                             mode: EXEC_MODE_SENDER,
+                            flags: 0,
                             target: sender,
                             gas_limit: frame_gas_limit,
                             data: sender_data.into(),
@@ -403,13 +407,15 @@ impl Command {
                 } else {
                     vec![
                         Frame {
-                            mode: EXEC_MODE_VERIFY | (SCOPE_BOTH << 8),
+                            mode: EXEC_MODE_VERIFY,
+                            flags: FLAG_BOTH,
                             target: sender,
                             gas_limit: frame_gas_limit,
                             data: Bytes::new(),
                         },
                         Frame {
                             mode: EXEC_MODE_SENDER,
+                            flags: 0,
                             target: sender,
                             gas_limit: frame_gas_limit,
                             data: sender_data.into(),
@@ -481,6 +487,7 @@ impl Command {
                     };
                     out_frames.push(Frame {
                         mode: f.mode,
+                        flags: f.flags,
                         target: f.target,
                         gas_limit: f.gas_limit,
                         data: data_bytes,
