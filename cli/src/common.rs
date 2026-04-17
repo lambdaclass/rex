@@ -220,6 +220,12 @@ pub struct DeployArgs {
     pub salt: Option<Secret>,
     #[arg(last = true, hide = true)]
     pub _args: Vec<String>,
+    #[arg(
+        long = "constructor-args",
+        value_delimiter = ',',
+        help = "Constructor arguments as typed values, comma-separated. Example: --constructor-args 'address:0xabc...,uint256:100,string:hello,bool:true'. Supported types: address, uint/uint{N}, int/int{N}, bool, string, bytes, bytes{N}, and array forms like 'uint256[]:[1,2,3]'."
+    )]
+    pub constructor_args: Vec<String>,
 }
 
 #[derive(Parser)]

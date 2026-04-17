@@ -1,6 +1,8 @@
 use crate::commands::{frame, l2};
 use crate::common::AuthorizeArgs;
-use crate::utils::{parse_contract_creation, parse_func_call, parse_hex, parse_hex_string};
+use crate::utils::{
+    encode_constructor_args, parse_contract_creation, parse_func_call, parse_hex, parse_hex_string,
+};
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
@@ -621,7 +623,9 @@ impl Command {
                 } else {
                     compile_contract_from_path(args.clone()).await?
                 };
-                let init_args = if !args._args.is_empty() {
+                let init_args = if !args.constructor_args.is_empty() {
+                    encode_constructor_args(&args.constructor_args)?
+                } else if !args._args.is_empty() {
                     parse_contract_creation(args._args)?
                 } else {
                     Bytes::new()
