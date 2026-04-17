@@ -220,8 +220,7 @@ mod tests {
 
     #[test]
     fn parses_typed_address() {
-        let v =
-            parse_typed_value("address:0x8943545177806ed17b9f23f0a21ee5948ecaa776").unwrap();
+        let v = parse_typed_value("address:0x8943545177806ed17b9f23f0a21ee5948ecaa776").unwrap();
         assert!(matches!(v, Value::Address(_)));
     }
 
@@ -244,8 +243,7 @@ mod tests {
     fn encodes_single_address_matches_abi() {
         // abi.encode(address) is 32 bytes left-padded.
         let addr = "0x8943545177806ed17b9f23f0a21ee5948ecaa776";
-        let encoded =
-            encode_constructor_args(&[format!("address:{addr}")]).unwrap();
+        let encoded = encode_constructor_args(&[format!("address:{addr}")]).unwrap();
         assert_eq!(encoded.len(), 32);
         let expected_suffix = hex::decode(&addr[2..]).unwrap();
         assert_eq!(&encoded[12..], expected_suffix.as_slice());
