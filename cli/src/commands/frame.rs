@@ -185,9 +185,15 @@ fn parse_amount(s: &str) -> eyre::Result<U256> {
     let (num, decimals) = UNITS
         .iter()
         .find_map(|(unit, decimals)| {
-            lower
-                .strip_suffix(unit)
-                .map(|_| (trimmed.get(..lower.len() - unit.len()).unwrap_or("").trim_end(), *decimals))
+            lower.strip_suffix(unit).map(|_| {
+                (
+                    trimmed
+                        .get(..lower.len() - unit.len())
+                        .unwrap_or("")
+                        .trim_end(),
+                    *decimals,
+                )
+            })
         })
         .unwrap_or((trimmed, 0));
 
@@ -207,8 +213,8 @@ fn parse_amount(s: &str) -> eyre::Result<U256> {
     {
         return Err(eyre::eyre!("invalid digits in amount: {s}"));
     }
-    let frac_len = u32::try_from(frac_part.len())
-        .map_err(|_| eyre::eyre!("fractional part too long: {s}"))?;
+    let frac_len =
+        u32::try_from(frac_part.len()).map_err(|_| eyre::eyre!("fractional part too long: {s}"))?;
     if frac_len > decimals {
         return Err(eyre::eyre!("too many fractional digits for unit: {s}"));
     }
@@ -439,10 +445,7 @@ impl Command {
                     frames[1].data = paymaster_owner_verify_data(sig_hash, &owner_key).into();
                 }
 
-                let signed_tx = FrameTx {
-                    frames,
-                    ..unsigned
-                };
+                let signed_tx = FrameTx { frames, ..unsigned };
                 let raw = signed_tx.to_raw();
 
                 if dry_run {
@@ -504,10 +507,7 @@ impl Command {
     }
 }
 
-async fn fetch_and_print_frame_receipt(
-    client: &EthClient,
-    tx_hash: H256,
-) -> eyre::Result<()> {
+async fn fetch_and_print_frame_receipt(client: &EthClient, tx_hash: H256) -> eyre::Result<()> {
     let value = fetch_raw_receipt(client, tx_hash).await?;
     let obj = value
         .as_object()
@@ -516,10 +516,7 @@ async fn fetch_and_print_frame_receipt(
     Ok(())
 }
 
-async fn fetch_raw_receipt(
-    client: &EthClient,
-    tx_hash: H256,
-) -> eyre::Result<serde_json::Value> {
+async fn fetch_raw_receipt(client: &EthClient, tx_hash: H256) -> eyre::Result<serde_json::Value> {
     let request = RpcRequest::new(
         "eth_getTransactionReceipt",
         Some(vec![serde_json::json!(format!("0x{tx_hash:x}"))]),
