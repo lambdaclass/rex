@@ -73,8 +73,9 @@ impl Command {
                 output,
                 force,
             } => {
-                let mnemonic: Mnemonic<English> = Mnemonic::<English>::new_from_phrase(&mnemonic)
-                    .map_err(|e| eyre::eyre!("invalid mnemonic: {e}"))?;
+                let mnemonic: Mnemonic<English> =
+                    Mnemonic::<English>::new_from_phrase(&mnemonic)
+                        .map_err(|e| eyre::eyre!("invalid mnemonic: {e}"))?;
 
                 let mut keys: Vec<DerivedKey> = Vec::new();
                 for i in index {
