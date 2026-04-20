@@ -29,6 +29,8 @@ strum = "0.27.1"
 # Crypto
 keccak-hash.workspace = true
 secp256k1.workspace = true
+coins-bip32 = "0.12"
+coins-bip39 = "0.12"
 
 # Utils
 hex.workspace = true
