@@ -2,11 +2,15 @@
 //!
 //! The frame-tx envelope is `0x06 || rlp(chain_id, nonce, sender, frames,
 //! max_priority_fee, max_fee, max_blob_fee, blob_hashes)` where each frame is
-//! `rlp(mode, flags, target, gas_limit, data)` (5 fields).
+//! `rlp(mode, flags, target, gas_limit, value, data)` (6 fields).
 //!
 //! - `mode`:  execution mode (1 = VERIFY, 2 = SENDER)
 //! - `flags`: bitmask — 0x01 = PAYMENT approval, 0x02 = EXECUTION approval,
 //!   0x03 = both, 0x04 = atomic batch
+//! - `value`: wei transferred to `target` when the frame executes. Always
+//!   zero for VERIFY frames. For the SENDER frame with default EOA code,
+//!   funds the sender's own default-code call so it can forward subcall
+//!   values to the recipients listed in `data`.
 //!
 //! sig_hash = keccak(0x06 || rlp(...)) with VERIFY frame data replaced by
 //! empty bytes so the signature signs over the frame structure but not over
@@ -44,6 +48,7 @@ pub struct Frame {
     pub flags: u8,
     pub target: Address,
     pub gas_limit: u64,
+    pub value: U256,
     pub data: Bytes,
 }
 
@@ -73,6 +78,7 @@ fn encode_frame_bytes(frame: &Frame, elide_data: bool) -> Vec<u8> {
         .encode_field(&(frame.flags as u64))
         .encode_field(&frame.target)
         .encode_field(&frame.gas_limit)
+        .encode_field(&frame.value)
         .encode_bytes(data)
         .finish();
     out
@@ -300,7 +306,8 @@ pub(crate) enum Command {
     #[clap(
         about = "Build a raw frame tx from explicit frames (no RPC calls).",
         long_about = "Build a frame tx envelope from explicit parameters. --frames is a JSON \
-                      array of {mode, target, gasLimit, data} objects. Useful when you want \
+                      array of {mode, flags, target, gasLimit, value, data} objects. \
+                      `flags` and `value` default to 0 if omitted. Useful when you want \
                       to inspect the raw 0x06 bytes before sending."
     )]
     Build {
@@ -336,6 +343,8 @@ struct FrameJson {
     target: Address,
     #[serde(alias = "gasLimit", alias = "gas_limit")]
     gas_limit: u64,
+    #[serde(default)]
+    value: U256,
     #[serde(default)]
     data: String,
 }
@@ -389,6 +398,7 @@ impl Command {
                             flags: FLAG_EXECUTION,
                             target: sender,
                             gas_limit: frame_gas_limit,
+                            value: U256::zero(),
                             data: Bytes::new(),
                         },
                         Frame {
@@ -396,6 +406,7 @@ impl Command {
                             flags: FLAG_PAYMENT,
                             target: sponsor_addr,
                             gas_limit: sponsor_gas_limit,
+                            value: U256::zero(),
                             data: sponsor_calldata,
                         },
                         Frame {
@@ -403,6 +414,8 @@ impl Command {
                             flags: 0,
                             target: sender,
                             gas_limit: frame_gas_limit,
+                            // Default EOA code forwards this to the subcalls listed in data.
+                            value,
                             data: sender_data.into(),
                         },
                     ]
@@ -413,6 +426,7 @@ impl Command {
                             flags: FLAG_BOTH,
                             target: sender,
                             gas_limit: frame_gas_limit,
+                            value: U256::zero(),
                             data: Bytes::new(),
                         },
                         Frame {
@@ -420,6 +434,7 @@ impl Command {
                             flags: 0,
                             target: sender,
                             gas_limit: frame_gas_limit,
+                            value,
                             data: sender_data.into(),
                         },
                     ]
@@ -489,6 +504,7 @@ impl Command {
                         flags: f.flags,
                         target: f.target,
                         gas_limit: f.gas_limit,
+                        value: f.value,
                         data: data_bytes,
                     });
                 }
@@ -649,6 +665,7 @@ mod tests {
                 flags: FLAG_BOTH,
                 target: sender_addr(),
                 gas_limit: 100_000,
+                value: U256::zero(),
                 data: Bytes::from(vec![0xaa; 66]),
             }],
             max_priority_fee_per_gas: U256::from(1u64),
@@ -673,6 +690,7 @@ mod tests {
                 flags: 0,
                 target: sender_addr(),
                 gas_limit: 100_000,
+                value: U256::zero(),
                 data: Bytes::from(vec![0x11; 4]),
             }],
             max_priority_fee_per_gas: U256::from(1u64),
@@ -683,6 +701,100 @@ mod tests {
         let mut other = base.clone();
         other.frames[0].data = Bytes::from(vec![0x22; 4]);
         assert_ne!(base.sig_hash(), other.sig_hash());
+    }
+
+    #[test]
+    fn frame_encodes_exactly_six_fields() {
+        // Build a frame with distinct, easily-spotted values so we can count
+        // the RLP fields in the encoded list.
+        let frame = Frame {
+            mode: 2,
+            flags: 0,
+            target: sender_addr(),
+            gas_limit: 100_000,
+            value: U256::from(0x1234u64),
+            data: Bytes::from(vec![0xcc, 0xdd]),
+        };
+        let encoded = encode_frame_bytes(&frame, false);
+        // Walk the RLP list and count items. Skip the list prefix.
+        let (list_prefix_len, _payload_len) = rlp_list_header(&encoded);
+        let mut cursor = list_prefix_len;
+        let mut fields = 0;
+        while cursor < encoded.len() {
+            cursor += rlp_item_total_len(&encoded[cursor..]);
+            fields += 1;
+        }
+        assert_eq!(fields, 6, "frame must RLP-encode 6 fields, got {fields}");
+    }
+
+    #[test]
+    fn sig_hash_covers_frame_value() {
+        let base = FrameTx {
+            chain_id: 1,
+            nonce: 0,
+            sender: sender_addr(),
+            frames: vec![Frame {
+                mode: EXEC_MODE_SENDER,
+                flags: 0,
+                target: sender_addr(),
+                gas_limit: 100_000,
+                value: U256::from(0x10u64),
+                data: Bytes::new(),
+            }],
+            max_priority_fee_per_gas: U256::from(1u64),
+            max_fee_per_gas: U256::from(2u64),
+            max_fee_per_blob_gas: U256::zero(),
+            blob_versioned_hashes: Vec::new(),
+        };
+        let mut other = base.clone();
+        other.frames[0].value = U256::from(0x20u64);
+        assert_ne!(
+            base.sig_hash(),
+            other.sig_hash(),
+            "flipping frame.value must change sig_hash"
+        );
+    }
+
+    /// Return (prefix_len, payload_len) for an RLP list item. Test-only,
+    /// supports both short and long forms enough to dissect our encodings.
+    fn rlp_list_header(buf: &[u8]) -> (usize, usize) {
+        let first = buf[0];
+        if (0xc0..=0xf7).contains(&first) {
+            (1, (first - 0xc0) as usize)
+        } else {
+            let len_bytes = (first - 0xf7) as usize;
+            let mut payload = 0usize;
+            for b in &buf[1..1 + len_bytes] {
+                payload = (payload << 8) | (*b as usize);
+            }
+            (1 + len_bytes, payload)
+        }
+    }
+
+    /// Return the full byte length of the next RLP item starting at buf[0].
+    fn rlp_item_total_len(buf: &[u8]) -> usize {
+        let first = buf[0];
+        if first <= 0x7f {
+            1
+        } else if (0x80..=0xb7).contains(&first) {
+            1 + (first - 0x80) as usize
+        } else if (0xb8..=0xbf).contains(&first) {
+            let len_bytes = (first - 0xb7) as usize;
+            let mut payload = 0usize;
+            for b in &buf[1..1 + len_bytes] {
+                payload = (payload << 8) | (*b as usize);
+            }
+            1 + len_bytes + payload
+        } else if (0xc0..=0xf7).contains(&first) {
+            1 + (first - 0xc0) as usize
+        } else {
+            let len_bytes = (first - 0xf7) as usize;
+            let mut payload = 0usize;
+            for b in &buf[1..1 + len_bytes] {
+                payload = (payload << 8) | (*b as usize);
+            }
+            1 + len_bytes + payload
+        }
     }
 
     #[test]
