@@ -226,8 +226,7 @@ impl StateOverrideArgs {
             set.entry(addr).state.insert(slot, value);
         }
         for raw in &self.state_diff {
-            let (addr, slot, value) =
-                split_three(raw, "override-state-diff", "ADDR:SLOT:VALUE")?;
+            let (addr, slot, value) = split_three(raw, "override-state-diff", "ADDR:SLOT:VALUE")?;
             set.entry(addr).state_diff.insert(slot, value);
         }
         for raw in &self.move_precompile {
@@ -239,22 +238,14 @@ impl StateOverrideArgs {
     }
 }
 
-fn split_two<'a>(
-    raw: &'a str,
-    flag: &str,
-    shape: &str,
-) -> eyre::Result<(Address, &'a str)> {
+fn split_two<'a>(raw: &'a str, flag: &str, shape: &str) -> eyre::Result<(Address, &'a str)> {
     let (addr, rest) = raw
         .split_once(':')
         .ok_or_else(|| eyre::eyre!("--{flag} expects '{shape}', got '{raw}'"))?;
     Ok((Address::from_str(addr.trim())?, rest.trim()))
 }
 
-fn split_three(
-    raw: &str,
-    flag: &str,
-    shape: &str,
-) -> eyre::Result<(Address, H256, U256)> {
+fn split_three(raw: &str, flag: &str, shape: &str) -> eyre::Result<(Address, H256, U256)> {
     let mut parts = raw.splitn(3, ':');
     let addr = parts
         .next()

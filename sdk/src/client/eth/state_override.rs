@@ -87,7 +87,10 @@ impl StateOverrideSet {
                 entry.insert("stateDiff".into(), Value::Object(storage));
             }
             if let Some(target) = ov.move_precompile_to {
-                entry.insert("movePrecompileToAddress".into(), json!(format!("{target:#x}")));
+                entry.insert(
+                    "movePrecompileToAddress".into(),
+                    json!(format!("{target:#x}")),
+                );
             }
             out.insert(format!("{addr:#x}"), Value::Object(entry));
         }
