@@ -574,6 +574,7 @@ impl Command {
                         token_address: args.token_address,
                         eth: args.eth,
                         rpc_url,
+                        state_overrides: Default::default(),
                     }
                     .run()
                     .await
