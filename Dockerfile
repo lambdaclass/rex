@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-RUN cargo install cargo-chef
+RUN cargo install cargo-chef --locked
 
 WORKDIR /rex
 
