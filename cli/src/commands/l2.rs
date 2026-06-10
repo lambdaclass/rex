@@ -575,6 +575,7 @@ impl Command {
                         eth: args.eth,
                         rpc_url,
                         state_overrides: Default::default(),
+                        block_overrides: Default::default(),
                     }
                     .run()
                     .await

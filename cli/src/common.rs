@@ -4,7 +4,7 @@ use std::str::FromStr;
 use crate::utils::{parse_hex, parse_private_key, parse_u256};
 use clap::Parser;
 use ethrex_common::{Address, Bytes, H256, Secret, U256};
-use rex_sdk::client::eth::StateOverrideSet;
+use rex_sdk::client::eth::{BlockOverrideSet, StateOverrideSet};
 use secp256k1::SecretKey;
 
 #[derive(Parser)]
@@ -146,6 +146,8 @@ pub struct CallArgs {
     pub explorer_url: bool,
     #[clap(flatten)]
     pub state_overrides: StateOverrideArgs,
+    #[clap(flatten)]
+    pub block_overrides: BlockOverrideArgs,
     #[clap(required = false)]
     pub _args: Vec<String>,
 }
@@ -235,6 +237,97 @@ impl StateOverrideArgs {
         }
 
         Ok(set)
+    }
+}
+
+/// Block Override Set (geth-style, ethrex PR #6660). Each flag replaces one
+/// field of the block header the call is simulated against; omitted fields
+/// keep the real header values. Empty by default; when no flags are passed,
+/// no 4th `eth_call` parameter is sent.
+#[derive(Parser, Default, Clone, Debug)]
+pub struct BlockOverrideArgs {
+    #[clap(
+        long = "override-block-number",
+        value_name = "NUMBER",
+        value_parser = parse_u64_flex,
+        help = "Override the block number. Hex (0x…) or decimal."
+    )]
+    pub number: Option<u64>,
+    #[clap(
+        long = "override-block-time",
+        value_name = "TIMESTAMP",
+        value_parser = parse_u64_flex,
+        help = "Override the block timestamp (unix seconds). Hex (0x…) or decimal."
+    )]
+    pub time: Option<u64>,
+    #[clap(
+        long = "override-block-gas-limit",
+        value_name = "GAS",
+        value_parser = parse_u64_flex,
+        help = "Override the block gas limit. Hex (0x…) or decimal."
+    )]
+    pub block_gas_limit: Option<u64>,
+    #[clap(
+        long = "override-block-coinbase",
+        visible_alias = "override-block-fee-recipient",
+        value_name = "ADDR",
+        help = "Override the block coinbase (fee recipient)."
+    )]
+    pub coinbase: Option<Address>,
+    #[clap(
+        long = "override-block-prev-randao",
+        visible_alias = "override-block-random",
+        value_name = "HASH",
+        value_parser = parse_h256,
+        help = "Override PREVRANDAO. Up to 32-byte hex, left-padded."
+    )]
+    pub prev_randao: Option<H256>,
+    #[clap(
+        long = "override-block-base-fee",
+        value_name = "VALUE",
+        value_parser = parse_u64_flex,
+        help = "Override the block base fee per gas. Hex (0x…) or decimal."
+    )]
+    pub base_fee_per_gas: Option<u64>,
+    #[clap(
+        long = "override-block-blob-base-fee",
+        value_name = "VALUE",
+        value_parser = parse_u256,
+        help = "Override the blob base fee per gas. Hex (0x…) or decimal."
+    )]
+    pub blob_base_fee_per_gas: Option<U256>,
+    #[clap(
+        long = "override-block-difficulty",
+        value_name = "VALUE",
+        value_parser = parse_u256,
+        help = "Override the block difficulty (pre-merge chains). Hex (0x…) or decimal."
+    )]
+    pub difficulty: Option<U256>,
+}
+
+impl BlockOverrideArgs {
+    pub fn is_empty(&self) -> bool {
+        self.number.is_none()
+            && self.time.is_none()
+            && self.block_gas_limit.is_none()
+            && self.coinbase.is_none()
+            && self.prev_randao.is_none()
+            && self.base_fee_per_gas.is_none()
+            && self.blob_base_fee_per_gas.is_none()
+            && self.difficulty.is_none()
+    }
+
+    pub fn build(&self) -> BlockOverrideSet {
+        BlockOverrideSet {
+            number: self.number,
+            time: self.time,
+            gas_limit: self.block_gas_limit,
+            coinbase: self.coinbase,
+            random: self.prev_randao,
+            base_fee_per_gas: self.base_fee_per_gas,
+            blob_base_fee_per_gas: self.blob_base_fee_per_gas,
+            difficulty: self.difficulty,
+        }
     }
 }
 

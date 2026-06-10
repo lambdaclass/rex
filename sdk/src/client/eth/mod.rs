@@ -6,8 +6,10 @@ use ethrex_rpc::{
 };
 use serde_json::{Value, json};
 
+pub mod block_override;
 pub mod state_override;
 
+pub use block_override::BlockOverrideSet;
 pub use state_override::{AccountOverride, StateOverrideSet};
 
 // 0x70a08231 == balanceOf(address)
@@ -18,11 +20,12 @@ pub async fn get_token_balance(
     address: Address,
     token_address: Address,
 ) -> Result<U256, EthClientError> {
-    get_token_balance_with_state_overrides(
+    get_token_balance_with_overrides(
         eth_client,
         address,
         token_address,
         &StateOverrideSet::new(),
+        &BlockOverrideSet::new(),
     )
     .await
 }
@@ -33,15 +36,33 @@ pub async fn get_token_balance_with_state_overrides(
     token_address: Address,
     state_overrides: &StateOverrideSet,
 ) -> Result<U256, EthClientError> {
+    get_token_balance_with_overrides(
+        eth_client,
+        address,
+        token_address,
+        state_overrides,
+        &BlockOverrideSet::new(),
+    )
+    .await
+}
+
+pub async fn get_token_balance_with_overrides(
+    eth_client: &EthClient,
+    address: Address,
+    token_address: Address,
+    state_overrides: &StateOverrideSet,
+    block_overrides: &BlockOverrideSet,
+) -> Result<U256, EthClientError> {
     let mut calldata = Vec::from(BALANCE_OF_SELECTOR);
     calldata.resize(16, 0);
     calldata.extend(address.to_fixed_bytes());
-    let raw = call_with_state_overrides(
+    let raw = call_with_overrides(
         eth_client,
         token_address,
         calldata.into(),
         Overrides::default(),
         state_overrides,
+        block_overrides,
     )
     .await?;
     U256::from_str_radix(raw.trim_start_matches("0x"), 16).map_err(|_| {
@@ -58,6 +79,31 @@ pub async fn call_with_state_overrides(
     calldata: Bytes,
     overrides: Overrides,
     state_overrides: &StateOverrideSet,
+) -> Result<String, EthClientError> {
+    call_with_overrides(
+        eth_client,
+        to,
+        calldata,
+        overrides,
+        state_overrides,
+        &BlockOverrideSet::new(),
+    )
+    .await
+}
+
+/// Like [`EthClient::call`] but threads a State Override Set and a Block
+/// Override Set as the 3rd and 4th `eth_call` parameters. Trailing empty sets
+/// are omitted, so with both empty this behaves like a normal 2-param
+/// `eth_call` and older nodes keep working. When only block overrides are
+/// given, an empty object (a no-op) is sent as the 3rd parameter to keep the
+/// 4th in position.
+pub async fn call_with_overrides(
+    eth_client: &EthClient,
+    to: Address,
+    calldata: Bytes,
+    overrides: Overrides,
+    state_overrides: &StateOverrideSet,
+    block_overrides: &BlockOverrideSet,
 ) -> Result<String, EthClientError> {
     let mut tx_json = json!({
         "to": format!("{to:#x}"),
@@ -82,8 +128,11 @@ pub async fn call_with_state_overrides(
         .unwrap_or_else(|| Value::String("latest".to_string()));
 
     let mut params = vec![tx_json, block_param];
-    if !state_overrides.is_empty() {
+    if !state_overrides.is_empty() || !block_overrides.is_empty() {
         params.push(state_overrides.to_rpc_value());
+    }
+    if !block_overrides.is_empty() {
+        params.push(block_overrides.to_rpc_value());
     }
 
     let request = RpcRequest::new("eth_call", Some(params));
