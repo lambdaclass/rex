@@ -57,8 +57,10 @@ impl StateOverrideSet {
         self.0.entry(address).or_default()
     }
 
-    /// Render to the JSON form geth/ethrex expect. Values are emitted as hex
-    /// strings (`balance`, `nonce`, `code`, storage slot keys/values).
+    /// Render to the JSON form geth/ethrex expect. `balance` and `nonce` are
+    /// emitted as minimal hex; storage slot keys and values as full 32-byte
+    /// words, since geth/anvil deserialize them into 32-byte hashes and reject
+    /// shorter hex.
     pub fn to_rpc_value(&self) -> Value {
         let mut out = serde_json::Map::new();
         for (addr, ov) in &self.0 {
@@ -75,14 +77,14 @@ impl StateOverrideSet {
             if !ov.state.is_empty() {
                 let mut storage = serde_json::Map::new();
                 for (slot, value) in &ov.state {
-                    storage.insert(format!("{slot:#x}"), json!(format!("{value:#x}")));
+                    storage.insert(format!("{slot:#x}"), json!(format!("{value:#066x}")));
                 }
                 entry.insert("state".into(), Value::Object(storage));
             }
             if !ov.state_diff.is_empty() {
                 let mut storage = serde_json::Map::new();
                 for (slot, value) in &ov.state_diff {
-                    storage.insert(format!("{slot:#x}"), json!(format!("{value:#x}")));
+                    storage.insert(format!("{slot:#x}"), json!(format!("{value:#066x}")));
                 }
                 entry.insert("stateDiff".into(), Value::Object(storage));
             }
@@ -152,6 +154,31 @@ mod tests {
         let v = set.to_rpc_value();
         let entry = v.get("0x00000000000000000000000000000000000000cc").unwrap();
         let diff = entry.get("stateDiff").unwrap().as_object().unwrap();
-        assert!(diff.contains_key(&format!("{slot:#x}")));
+        assert_eq!(
+            diff.get(&format!("{slot:#x}")).unwrap(),
+            "0x00000000000000000000000000000000000000000000000000000000000000aa"
+        );
+    }
+
+    #[test]
+    fn storage_values_serialize_as_full_32_byte_words() {
+        // geth/anvil deserialize `state`/`stateDiff` values into 32-byte
+        // hashes; minimal hex like "0x0" is rejected ("odd number of digits").
+        let mut set = StateOverrideSet::new();
+        let a = addr("0x00000000000000000000000000000000000000dd");
+        set.entry(a)
+            .state
+            .insert(H256::from_low_u64_be(2), U256::zero());
+        assert_eq!(
+            set.to_rpc_value(),
+            json!({
+                "0x00000000000000000000000000000000000000dd": {
+                    "state": {
+                        "0x0000000000000000000000000000000000000000000000000000000000000002":
+                        "0x0000000000000000000000000000000000000000000000000000000000000000"
+                    }
+                }
+            })
+        );
     }
 }

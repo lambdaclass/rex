@@ -11,6 +11,7 @@
     - [`rex call`](#rex-call)
       - [State overrides](#state-overrides)
         - [Stacking multiple overrides](#stacking-multiple-overrides)
+      - [Block overrides](#block-overrides)
     - [`rex chain-id`](#rex-chain-id)
     - [`rex code`](#rex-code)
     - [`rex create-address`](#rex-create-address)
@@ -131,10 +132,18 @@ Options:
       --override-state <ADDR:SLOT:VALUE>            Replace a storage slot for this call.
       --override-state-diff <ADDR:SLOT:VALUE>       Overlay a storage slot for this call.
       --override-move-precompile <ADDR:TARGET>      Relocate a precompile to a different address.
+      --override-block-number <NUMBER>              Override the block number for this call (see [Block overrides](#block-overrides)).
+      --override-block-time <TIMESTAMP>             Override the block timestamp.
+      --override-block-gas-limit <GAS>              Override the block gas limit.
+      --override-block-coinbase <ADDR>              Override the block coinbase (fee recipient).
+      --override-block-prev-randao <HASH>           Override PREVRANDAO.
+      --override-block-base-fee <VALUE>             Override the block base fee per gas.
+      --override-block-blob-base-fee <VALUE>        Override the blob base fee per gas.
+      --override-block-difficulty <VALUE>           Override the block difficulty.
   -h, --help                                        Print help
 ```
 
-State overrides require the token form (`--token`); plain ETH balance reads use `eth_getBalance`, which does not accept overrides.
+State and block overrides require the token form (`--token`); plain ETH balance reads use `eth_getBalance`, which does not accept overrides.
 
 ### `rex block-number`
 
@@ -173,6 +182,14 @@ Options:
       --override-state <ADDR:SLOT:VALUE>            Replace a storage slot for this call.
       --override-state-diff <ADDR:SLOT:VALUE>       Overlay a storage slot for this call.
       --override-move-precompile <ADDR:TARGET>      Relocate a precompile to a different address.
+      --override-block-number <NUMBER>              Override the block number for this call (see [Block overrides](#block-overrides)).
+      --override-block-time <TIMESTAMP>             Override the block timestamp.
+      --override-block-gas-limit <GAS>              Override the block gas limit.
+      --override-block-coinbase <ADDR>              Override the block coinbase (fee recipient).
+      --override-block-prev-randao <HASH>           Override PREVRANDAO.
+      --override-block-base-fee <VALUE>             Override the block base fee per gas.
+      --override-block-blob-base-fee <VALUE>        Override the blob base fee per gas.
+      --override-block-difficulty <VALUE>           Override the block difficulty.
   -h, --help                                        Print help
 ```
 
@@ -233,6 +250,51 @@ rex call 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 \
          --override-state-diff 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48:0x9254cb65314db3d2d7ca17f753f1d9c7f1b6fa05111d18d10ed5b9519d1b247c:0x42 \
          --override-balance 0x0000000000000000000000000000000000000bad:0x100 \
          --override-nonce   0x0000000000000000000000000000000000000bad:0x7
+```
+
+#### Block overrides
+
+`rex call` and `rex balance --token …` also accept a Block Override Set as the 4th `eth_call` parameter, matching the format documented at <https://geth.ethereum.org/docs/interacting-with-geth/rpc/objects#block-overrides> (also implemented in ethrex as of
+[lambdaclass/ethrex#6660](https://github.com/lambdaclass/ethrex/pull/6660)).
+
+Each flag replaces one field of the block header the call is simulated against; omitted fields keep the real header values. Unlike state override flags, each flag takes a single value — there is only one block context per call. Numeric values accept hex (`0x…`) or decimal.
+
+| Flag | Format | JSON field | Meaning |
+|---|---|---|---|
+| `--override-block-number` | `NUMBER` | `number` | Block number (`block.number`). |
+| `--override-block-time` | `TIMESTAMP` | `time` | Block timestamp in unix seconds (`block.timestamp`). |
+| `--override-block-gas-limit` | `GAS` | `gasLimit` | Block gas limit. |
+| `--override-block-coinbase` | `ADDR` | `coinbase` | Fee recipient (`block.coinbase`). Alias: `--override-block-fee-recipient`. |
+| `--override-block-prev-randao` | `HASH` | `random` | PREVRANDAO value (`block.prevrandao`). Alias: `--override-block-random`. |
+| `--override-block-base-fee` | `VALUE` | `baseFeePerGas` | Base fee per gas (EIP-1559). |
+| `--override-block-blob-base-fee` | `VALUE` | `blobBaseFeePerGas` | Blob base fee per gas (EIP-4844). |
+| `--override-block-difficulty` | `VALUE` | `difficulty` | Block difficulty; a no-op on post-merge blocks. |
+
+Block and state overrides compose freely in one invocation. When only block override flags are passed, an empty state override object (a no-op) is sent as the 3rd parameter to keep the block override set in 4th position; when neither is passed, the 2-parameter `eth_call` form is used so older nodes keep working.
+
+> [!NOTE]
+> The JSON field names follow ethrex and reth (`coinbase`, `random`, `blobBaseFeePerGas`). Recent geth releases renamed these three to `feeRecipient`, `prevRandao` and `blobBaseFee` and silently ignore the older spellings, so against a current geth node those three overrides won't take effect.
+
+Examples:
+
+```bash
+# Simulate a call one year in the future, e.g. to check that a vesting
+# contract releases funds after its cliff
+rex call 0x00000000000000000000000000000000000ce11a \
+         --calldata 0x86d1a69f \
+         --override-block-time 1812837600 \
+         --override-block-number 25000000
+
+# Query an ERC-20 balance under a synthetic block context
+rex balance --token 0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 \
+            0x37305b1cd40574e4c5ce33f8e8306be057fd7341 \
+            --override-block-number 0x1312d00
+
+# Combine state and block overrides in one call
+rex call 0x00000000000000000000000000000000000ce11a \
+         --calldata 0x86d1a69f \
+         --override-balance 0x0000000000000000000000000000000000000bad:0x100 \
+         --override-block-coinbase 0x000000000000000000000000000000000000cafe
 ```
 
 ### `rex chain-id`
