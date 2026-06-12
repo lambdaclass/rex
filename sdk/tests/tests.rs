@@ -592,8 +592,8 @@ async fn test_privileged_tx_with_contract_call(
 
     while proposer_client
         .get_logs(
-            first_block,
-            block_number,
+            first_block.into(),
+            block_number.into(),
             deployed_contract_address,
             vec![topic],
         )
@@ -601,14 +601,14 @@ async fn test_privileged_tx_with_contract_call(
         .is_ok_and(|logs| logs.is_empty())
     {
         println!("Waiting for the event to be built");
-        block_number += U256::one();
+        block_number += 1;
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 
     let logs = proposer_client
         .get_logs(
-            first_block,
-            block_number,
+            first_block.into(),
+            block_number.into(),
             deployed_contract_address,
             vec![topic],
         )

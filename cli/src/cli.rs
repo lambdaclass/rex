@@ -11,7 +11,7 @@ use crate::{
 use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::types::TxKind;
 use ethrex_common::types::{AuthorizationTupleEntry, TxType};
-use ethrex_common::{Address, Bytes, H256, H520, U256};
+use ethrex_common::{Address, Bytes, H256, H520, NativeCrypto, U256};
 use ethrex_l2_common::calldata::Value;
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
@@ -868,7 +868,7 @@ fn print_transaction(tx: &RpcTransaction) {
 
     // Get from address
     let from = inner_tx
-        .sender()
+        .sender(&NativeCrypto)
         .map(|addr| format!("0x{:x}", addr))
         .unwrap_or_else(|_| "unknown".to_string());
 

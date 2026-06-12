@@ -1,8 +1,8 @@
 use ethrex_common::{Address, Bytes, U256, types::TxKind};
 use ethrex_rpc::{
     EthClient,
-    clients::{EthClientError, Overrides, eth::RpcResponse},
-    utils::RpcRequest,
+    clients::{EthClientError, Overrides},
+    utils::{RpcRequest, RpcResponse},
 };
 use serde_json::{Value, json};
 
