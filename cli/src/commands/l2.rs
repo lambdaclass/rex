@@ -17,7 +17,10 @@ use rex_sdk::{
     l2::fees::fetch_fee_info,
     l2::{
         deposit::{deposit_erc20, deposit_through_contract_call},
-        withdraw::{claim_erc20withdraw, claim_withdraw, withdraw, withdraw_erc20},
+        withdraw::{
+            claim_erc20withdraw, claim_native_withdraw, claim_withdraw,
+            get_native_withdrawal_proof, withdraw, withdraw_erc20,
+        },
     },
     wait_for_transaction_receipt,
 };
@@ -112,6 +115,32 @@ pub(crate) enum Command {
         l1_rpc_url: Url,
         #[arg(long, env = "RPC_URL", default_value = "http://localhost:1729")]
         rpc_url: Url,
+    },
+    #[clap(about = "Finalize a pending native rollup withdrawal.")]
+    ClaimNativeWithdraw {
+        l2_withdrawal_tx_hash: H256,
+        #[clap(value_parser = parse_private_key, env = "PRIVATE_KEY")]
+        private_key: SecretKey,
+        #[arg(env = "NATIVE_ROLLUP_ADDRESS")]
+        native_rollup_address: Address,
+        #[arg(env = "L1_RPC_URL", default_value = "http://localhost:8545")]
+        l1_rpc_url: Url,
+        #[arg(env = "RPC_URL", default_value = "http://localhost:1729")]
+        rpc_url: Url,
+        #[clap(
+            long,
+            short = 'c',
+            required = false,
+            help = "Send the request asynchronously."
+        )]
+        cast: bool,
+        #[clap(
+            long,
+            short = 's',
+            required = false,
+            help = "Display only the tx hash."
+        )]
+        silent: bool,
     },
     #[clap(about = "Deploy a contract")]
     Deploy {
@@ -501,6 +530,43 @@ impl Command {
                 };
 
                 println!("Withdrawal claim sent: {tx_hash:#x}");
+
+                if !cast {
+                    wait_for_transaction_receipt(tx_hash, &eth_client, 100, silent).await?;
+                }
+            }
+            Command::ClaimNativeWithdraw {
+                l2_withdrawal_tx_hash,
+                private_key,
+                native_rollup_address,
+                l1_rpc_url,
+                rpc_url,
+                cast,
+                silent,
+            } => {
+                println!(
+                    "Fetching native withdrawal proof for tx {l2_withdrawal_tx_hash:#x}..."
+                );
+
+                let proof =
+                    get_native_withdrawal_proof(rpc_url.as_str(), l2_withdrawal_tx_hash).await?;
+
+                println!(
+                    "Proof received: from={:#x}, receiver={:#x}, amount={}, block={}",
+                    proof.from, proof.receiver, proof.amount, proof.block_number
+                );
+
+                let eth_client = EthClient::new(l1_rpc_url)?;
+
+                let tx_hash = claim_native_withdraw(
+                    &proof,
+                    private_key,
+                    &eth_client,
+                    native_rollup_address,
+                )
+                .await?;
+
+                println!("Native withdrawal claim sent: {tx_hash:#x}");
 
                 if !cast {
                     wait_for_transaction_receipt(tx_hash, &eth_client, 100, silent).await?;
