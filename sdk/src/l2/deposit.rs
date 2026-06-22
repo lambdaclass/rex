@@ -2,11 +2,11 @@ use crate::transfer;
 use ethrex_common::{Address, U256, types::TxType};
 use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_l2_sdk::{build_generic_tx, calldata::encode_calldata, send_generic_transaction};
 use ethrex_rpc::{
     EthClient,
     clients::{EthClientError, Overrides},
 };
-use ethrex_l2_sdk::{build_generic_tx, calldata::encode_calldata, send_generic_transaction};
 use keccak_hash::H256;
 use secp256k1::SecretKey;
 

@@ -2,12 +2,12 @@ use ethrex_common::{
     Address, Bytes, H160, H256, U256,
     types::{PrivilegedL2Transaction, TxType},
 };
+use ethrex_l2_sdk::build_generic_tx;
 use ethrex_rpc::{
     EthClient,
     clients::{EthClientError, Overrides},
     types::receipt::RpcLogInfo,
 };
-use ethrex_l2_sdk::build_generic_tx;
 
 use crate::SdkError;
 

@@ -8,9 +8,9 @@ use ethrex_common::{Address, H256, U256};
 use ethrex_common::{Bytes, types::TxType};
 use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::clients::{get_batch_by_number, get_batch_number};
+use ethrex_l2_sdk::{calldata::encode_calldata, wait_for_l1_message_proof};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
-use ethrex_l2_sdk::{calldata::encode_calldata, wait_for_l1_message_proof};
 use rex_sdk::transfer;
 use rex_sdk::{
     l2::authorize::send_authorized_transaction,

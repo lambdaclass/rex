@@ -3,12 +3,12 @@ use ethrex_l2_common::{
     calldata::Value, messages::L1MessageProof, utils::get_address_from_secret_key,
 };
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_l2_sdk::{
+    COMMON_BRIDGE_L2_ADDRESS, build_generic_tx, calldata::encode_calldata, send_generic_transaction,
+};
 use ethrex_rpc::{
     EthClient,
     clients::{EthClientError, Overrides},
-};
-use ethrex_l2_sdk::{
-    COMMON_BRIDGE_L2_ADDRESS, build_generic_tx, calldata::encode_calldata, send_generic_transaction,
 };
 use keccak_hash::H256;
 use secp256k1::SecretKey;
