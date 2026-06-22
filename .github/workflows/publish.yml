@@ -1,0 +1,51 @@
+name: Publish rex-sdk to crates.io
+run-name: Publish rex-sdk to crates.io${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && ' (dry run)' || '' }}
+
+# Only rex-sdk is published; the rex CLI crate is marked `publish = false`
+# (its `rex` / `rex-cli` names are taken on crates.io).
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Verify (package + compile) without publishing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: crates-release-prod
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: ./.github/actions/setup-rust
+
+      - name: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && 'Verify' || 'Publish' }} rex-sdk
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ "${DRY_RUN:-false}" = "true" ]; then
+            # Validate without publishing: list the tarball file set (no index lookup)
+            # and compile rex-sdk with default features.
+            cargo package -p rex-sdk --no-verify --list >/dev/null
+            cargo check -p rex-sdk
+          else
+            OUTPUT=$(cargo publish -p rex-sdk 2>&1) || {
+              echo "$OUTPUT"
+              # Idempotent re-runs: skip if the version is already on crates.io.
+              if echo "$OUTPUT" | grep -qiE "already (uploaded|exists)"; then
+                echo "rex-sdk already published, skipping"
+                exit 0
+              fi
+              exit 1
+            }
+          fi

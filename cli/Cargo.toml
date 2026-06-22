@@ -2,6 +2,9 @@
 name = "rex"
 version.workspace = true
 edition.workspace = true
+# `rex` and `rex-cli` are already taken on crates.io; the CLI is not published
+# (only rex-sdk is). This guards against an accidental publish.
+publish = false
 
 [dependencies]
 rex-sdk.workspace = true

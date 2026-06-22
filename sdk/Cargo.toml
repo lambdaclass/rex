@@ -2,6 +2,10 @@
 name = "rex-sdk"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "SDK for Ethereum and ethrex L2 development: accounts, transactions, signing, and RPC clients"
 
 [dependencies]
 ethrex-common.workspace = true

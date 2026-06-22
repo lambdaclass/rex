@@ -2,6 +2,10 @@ use ethrex_common::types::TxType;
 use ethrex_common::{Address, Bytes, H160, H256, U256};
 use ethrex_l2_common::{calldata::Value, utils::get_address_from_secret_key};
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_l2_sdk::{
+    L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
+    wait_for_l1_message_proof,
+};
 use ethrex_rpc::{
     EthClient,
     clients::Overrides,
@@ -9,10 +13,6 @@ use ethrex_rpc::{
         block_identifier::{BlockIdentifier, BlockTag},
         receipt::RpcReceipt,
     },
-};
-use ethrex_sdk::{
-    L1ToL2TransactionData, calldata::encode_calldata, get_last_verified_batch, send_l1_to_l2_tx,
-    wait_for_l1_message_proof,
 };
 use keccak_hash::keccak;
 use reqwest::Url;
@@ -47,7 +47,7 @@ const DEFAULT_L2_RETURN_TRANSFER_PRIVATE_KEY: H256 = H256([
     0xbc, 0xdf, 0x20, 0x24, 0x9a, 0xbf, 0x0e, 0xd6, 0xd9, 0x44, 0xc0, 0x28, 0x8f, 0xad, 0x48, 0x9e,
     0x33, 0xf6, 0x6b, 0x39, 0x60, 0xd9, 0xe6, 0x22, 0x9c, 0x1c, 0xd2, 0x14, 0xed, 0x3b, 0xbe, 0x31,
 ]);
-const DEFAULT_BRIDGE_ADDRESS: Address = ethrex_sdk::DEFAULT_BRIDGE_ADDRESS;
+const DEFAULT_BRIDGE_ADDRESS: Address = ethrex_l2_sdk::DEFAULT_BRIDGE_ADDRESS;
 // 0x44669840b8f0aedaa707636272031b5e8d67516c
 const DEFAULT_ON_CHAIN_PROPOSER_ADDRESS: Address = H160([
     0x44, 0x66, 0x98, 0x40, 0xb8, 0xf0, 0xae, 0xda, 0xa7, 0x07, 0x63, 0x62, 0x72, 0x03, 0x1b, 0x5e,
