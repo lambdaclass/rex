@@ -7,7 +7,7 @@ use ethrex_rpc::{
     EthClient,
     clients::{EthClientError, Overrides},
 };
-use ethrex_sdk::{
+use ethrex_l2_sdk::{
     COMMON_BRIDGE_L2_ADDRESS, build_generic_tx, calldata::encode_calldata, send_generic_transaction,
 };
 use keccak_hash::H256;

@@ -21,9 +21,9 @@ use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_rpc::types::receipt::RpcReceipt;
 use ethrex_rpc::types::transaction::RpcTransaction;
-use ethrex_sdk::calldata::{decode_calldata, encode_calldata};
-use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
-use ethrex_sdk::{compile_contract, git_clone};
+use ethrex_l2_sdk::calldata::{decode_calldata, encode_calldata};
+use ethrex_l2_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
+use ethrex_l2_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
 use rex_sdk::authorize::build_authorization_tuple;
 use rex_sdk::client::eth::{

@@ -452,19 +452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bls12_381"
-version = "0.8.0"
-source = "git+https://github.com/lambdaclass/bls12_381?branch=expose-affine-constructors#78cad0378b17fc3157b83f514be192bf46edf9a1"
-dependencies = [
- "digest",
- "ff",
- "group",
- "pairing",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
 name = "blst"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1254,8 +1241,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-blockchain"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0bb71d49ebc59181d73c9b6d64cc79255902dff099ca2db1cb3dc77fd347ae3"
 dependencies = [
  "bytes",
  "crossbeam",
@@ -1276,8 +1264,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-common"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76e20ad08dc26dffc61d7e4346d60fdd4f4b8ebbe8468e836367de7e0ec1e861"
 dependencies = [
  "bytes",
  "crc32fast",
@@ -1306,16 +1295,15 @@ dependencies = [
 
 [[package]]
 name = "ethrex-crypto"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c34883c327a09be736e72f84ef7d1e795542ed3ff2d08a8eb7193fbf6b5e052"
 dependencies = [
  "ark-bn254",
  "ark-ec",
  "ark-ff",
- "bls12_381",
  "c-kzg",
  "ethereum-types",
- "ff",
  "hex-literal",
  "k256",
  "malachite",
@@ -1330,8 +1318,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-l2-common"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "441fbd3261e5d7a255fb9a1c5bbe53f46f2e762b399ddab1434bb18e92f49467"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1349,8 +1338,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-l2-rpc"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "40497a486e96e69644e74420573391e280a57cafef8ec7802935bc436ebe9afc"
 dependencies = [
  "axum",
  "bytes",
@@ -1380,8 +1370,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-levm"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6f9ace81a6afa64584b1cccf703345194d2e89fcddba0d8662452bdc5918d90"
 dependencies = [
  "bytes",
  "derive_more",
@@ -1398,8 +1389,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-metrics"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed28d88f40a83e930dac55b8f47d92a5b545df39b927aa85b38da01b1ad7230f"
 dependencies = [
  "axum",
  "ethrex-common",
@@ -1414,8 +1406,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-p2p"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d303eaf65d4b336029649cbd095d947cdc9f47e6c0a2b4121d06f29c2af26d33"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1458,8 +1451,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rlp"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fda0d1ff8e555b03931c3a7118c3c0b06001ab50c77251d0c5e2092e0075ae05"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1468,8 +1462,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rpc"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d550dc368e97a5b93a66f3185df48e86c1b2415444cfd11b20a0b690f6470279"
 dependencies = [
  "axum",
  "axum-extra",
@@ -1489,6 +1484,7 @@ dependencies = [
  "hex-literal",
  "jsonwebtoken",
  "rand 0.8.5",
+ "rayon",
  "reqwest",
  "secp256k1",
  "serde",
@@ -1507,8 +1503,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2668950ac21b7055347f7b7a0ce26c6d290338b8a47da533c166ae175a75a14"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1532,8 +1529,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk-contract-utils"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3359b890d8667541527655beaccde99233258c5e26e8970cd286e2db35b1b5b5"
 dependencies = [
  "thiserror 2.0.17",
  "tracing",
@@ -1541,8 +1539,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8647fc738e827d9bb4ca7081bcd5fbcd0d19d6dfc714c805654e2f1eac8d169c"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1563,8 +1562,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage-rollup"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d5deda5e1d566e09a0120aa92e95a59db0aeea4735da2b39147dba108b090ad"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1579,8 +1579,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-trie"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c75722c380ee445a647d813125fa8432626c9f34c0729103334d591d5d94512f"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1598,8 +1599,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-vm"
-version = "16.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?tag=v16.0.0#b4d76c669df41fe48a049e1c767c6ec1051e6d29"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c5fc7dde7ec31ad28bcdd42a813423974f0b3844faae0e5203dafd237694782"
 dependencies = [
  "bytes",
  "derive_more",
@@ -1649,7 +1651,6 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0b50bfb653653f9ca9095b427bed08ab8d75a137839d9ad64eb11810d5b6393"
 dependencies = [
- "bitvec",
  "rand_core 0.6.4",
  "subtle",
 ]
@@ -2827,15 +2828,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pairing"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81fec4625e73cf41ef4bb6846cafa6d44736525f442ba45e407c4a000a13996f"
-dependencies = [
- "group",
-]
-
-[[package]]
 name = "parity-scale-codec"
 version = "3.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3351,7 +3343,7 @@ dependencies = [
 
 [[package]]
 name = "rex"
-version = "16.0.0"
+version = "17.0.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -3386,7 +3378,7 @@ dependencies = [
 
 [[package]]
 name = "rex-sdk"
-version = "16.0.0"
+version = "17.0.0"
 dependencies = [
  "clap",
  "clap_complete",

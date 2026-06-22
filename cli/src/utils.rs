@@ -1,6 +1,6 @@
 use ethrex_common::{Address, Bytes, U256};
 use ethrex_l2_common::calldata::Value;
-use ethrex_sdk::calldata::{encode_calldata, encode_tuple, parse_signature};
+use ethrex_l2_sdk::calldata::{encode_calldata, encode_tuple, parse_signature};
 use hex::FromHexError;
 use secp256k1::SecretKey;
 use std::str::FromStr;

@@ -7,7 +7,7 @@ use ethrex_rpc::{
     clients::{EthClientError, Overrides},
     types::receipt::RpcLogInfo,
 };
-use ethrex_sdk::build_generic_tx;
+use ethrex_l2_sdk::build_generic_tx;
 
 use crate::SdkError;
 
