@@ -19,6 +19,10 @@
     - [`rex decode-calldata`](#rex-decode-calldata)
     - [`rex deploy`](#rex-deploy)
     - [`rex encode-calldata`](#rex-encode-calldata)
+    - [`rex frame`](#rex-frame)
+      - [`rex frame send`](#rex-frame-send)
+      - [`rex frame build`](#rex-frame-build)
+      - [`rex frame inspect`](#rex-frame-inspect)
     - [`rex hash`](#rex-hash)
     - [`rex help`](#rex-help)
     - [`rex l2`](#rex-l2)
@@ -444,6 +448,142 @@ Arguments:
 
 Options:
   -h, --help  Print help
+```
+
+### `rex frame`
+
+Send, build, and inspect **frame transactions** (EIP-8141, transaction type `0x06`).
+A frame transaction has no ECDSA signature in the usual sense: the sender is
+explicit and authentication/gas payment happen through `APPROVE` inside its
+*frames*. Each frame runs in a mode — `VERIFY` (authenticate / approve, run as
+`ENTRY_POINT`), `SENDER` (execute as the sender), `POST_TX` (post-execution
+assertion, EIP-7906) — and the outer `signatures` list carries the secp256k1/P256
+signatures the `VERIFY` frames check.
+
+This command uses ethrex's canonical frame-transaction types directly (pinned to
+ethrex's `hegota-devnet` branch), so the wire format stays in lockstep with the
+deployed EIP-8141/8250/8272/7906 chain.
+
+```Shell
+Usage: rex frame <COMMAND>
+
+Commands:
+  send     Send a frame (EIP-8141, tx type 0x06) transaction.
+  build    Build a raw frame tx from explicit frames (no RPC calls).
+  inspect  Inspect a frame tx: decode its frames and pair them with their per-frame results.
+```
+
+#### `rex frame send`
+
+Sends a frame transaction. With no `--sponsor`, it builds a self-verified transfer:
+a `VERIFY` frame in which the sender approves both execution and payment, then a
+`SENDER` frame that transfers `--value` (and optional `--data`) to `--to`. The
+sender's secp256k1 signature over the `sig_hash` is placed in the outer
+signatures list automatically.
+
+```Shell
+Usage: rex frame send [OPTIONS] --to <TO> --private-key <PRIVATE_KEY>
+
+Options:
+      --to <TO>                     Recipient of the SENDER frame.
+      --value <VALUE>               Amount to transfer (1ether, 1.5gwei, or wei) [default: 0]
+      --data <DATA>                 Calldata for the SENDER frame [default: ]
+      --sponsor <SPONSOR>           Optional gas-sponsor (paymaster) address for a sponsored tx.
+      --sponsor-calldata <..>       Static calldata for the sponsor's VERIFY frame [default: ]
+      --sponsor-owner-key <..>      Owner key of the sponsor; adds a second outer signature [env: SPONSOR_OWNER_KEY=]
+      --frame-gas-limit <..>        [default: 100000]
+      --sponsor-gas-limit <..>      [default: 200000]
+      --max-fee-per-gas <..>
+      --max-priority-fee-per-gas <..>  maxPriorityFeePerGas [default: 1gwei]
+      --private-key <PRIVATE_KEY>   [env: PRIVATE_KEY=]
+      --rpc-url <RPC_URL>           [env: RPC_URL=] [default: http://localhost:8545]
+      --dry-run                     Print the raw tx hex instead of sending it.
+```
+
+Send a self-verified transfer and (after it mines) print the decoded frames:
+
+```Shell
+rex frame send \
+  --to 0xE25583099BA105D9ec0A67f5Ae86D90e50036425 \
+  --value 1gwei \
+  --private-key $PRIVATE_KEY \
+  --rpc-url https://rpc1.hegota.ethrex.xyz
+```
+
+Preview the raw `0x06` bytes without sending (useful for debugging encoding):
+
+```Shell
+rex frame send --to 0x… --value 1gwei --private-key $PRIVATE_KEY --dry-run
+```
+
+Sponsored (a paymaster pays): the sender approves execution, the sponsor approves
+payment. `--sponsor-owner-key` adds the sponsor owner's signature to the outer
+signatures list.
+
+```Shell
+rex frame send \
+  --to 0xRecipient --value 0.01ether \
+  --sponsor 0xPaymaster --sponsor-owner-key $SPONSOR_OWNER_KEY \
+  --private-key $PRIVATE_KEY --rpc-url https://rpc1.hegota.ethrex.xyz
+```
+
+#### `rex frame build`
+
+Builds a raw, **unsigned** frame-tx envelope from explicit frames (no RPC calls).
+`--frames` is a JSON array of `{mode, flags, target, gasLimit, value, data}`.
+Handy for inspecting the exact `0x06` encoding.
+
+```Shell
+Usage: rex frame build --chain-id <CHAIN_ID> --nonce <NONCE> --sender <SENDER> --frames <FRAMES> [OPTIONS]
+
+Options:
+      --chain-id <CHAIN_ID>
+      --nonce <NONCE>            nonce_seq for key 0 (the account's linear nonce)
+      --sender <SENDER>
+      --frames <FRAMES>          JSON array of {mode, flags, target, gasLimit, value, data}
+      --max-fee <MAX_FEE>        [default: 10gwei]
+      --max-priority-fee <..>    [default: 1gwei]
+```
+
+```Shell
+rex frame build --chain-id 3151908 --nonce 0 --sender 0x… \
+  --frames '[{"mode":1,"flags":3,"gasLimit":100000,"value":"0","data":"0x"},
+             {"mode":2,"flags":0,"target":"0xRecipient","gasLimit":30000,"value":"1","data":"0x"}]'
+```
+
+#### `rex frame inspect`
+
+Fetches both the transaction and its receipt and prints a **unified, decoded**
+view: each frame (mode name, decoded `APPROVE` scope / atomic-batch flags, target,
+value, data size) paired with its per-frame result (status, gas, log count), under
+a header with the sender, resolved payer, keyed nonces, fees and signature count.
+(Aliased as `rex frame receipt`.)
+
+```Shell
+Usage: rex frame inspect [OPTIONS] <TX_HASH>
+
+Arguments:
+  <TX_HASH>
+Options:
+      --rpc-url <RPC_URL>  [env: RPC_URL=] [default: http://localhost:8545]
+```
+
+```Shell
+➜ rex frame inspect 0x02e6…0c0a --rpc-url https://rpc1.hegota.ethrex.xyz
+Frame transaction (type 0x06)
+  status:    SUCCESS
+  block:     0x2f6b6
+  gas used:  0x52fe
+  payer:     0xe25583099ba105d9ec0a67f5ae86d90e50036425 (self)
+  sender:    0xe25583099ba105d9ec0a67f5ae86d90e50036425
+  nonceKeys: [0x0]  seq: 0xe
+  maxFee:    0x2540be400  maxPriorityFee: 0x3b9aca00
+  signatures: 1
+  frames:    2
+    [0] VERIFY [APPROVE execution+payment] -> 0xe255…6425  value 0x0  data 0B
+        ✓ gas 0x0, 0 logs
+    [1] SENDER [APPROVE none] -> 0xe255…6425  value 0x1  data 0B
+        ✓ gas 0x0, 0 logs
 ```
 
 ### `rex hash`
