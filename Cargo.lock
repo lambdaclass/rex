@@ -1242,8 +1242,7 @@ dependencies = [
 [[package]]
 name = "ethrex-blockchain"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0bb71d49ebc59181d73c9b6d64cc79255902dff099ca2db1cb3dc77fd347ae3"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "bytes",
  "crossbeam",
@@ -1265,8 +1264,7 @@ dependencies = [
 [[package]]
 name = "ethrex-common"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76e20ad08dc26dffc61d7e4346d60fdd4f4b8ebbe8468e836367de7e0ec1e861"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "bytes",
  "crc32fast",
@@ -1296,8 +1294,7 @@ dependencies = [
 [[package]]
 name = "ethrex-crypto"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c34883c327a09be736e72f84ef7d1e795542ed3ff2d08a8eb7193fbf6b5e052"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -1319,8 +1316,7 @@ dependencies = [
 [[package]]
 name = "ethrex-l2-common"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "441fbd3261e5d7a255fb9a1c5bbe53f46f2e762b399ddab1434bb18e92f49467"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1339,8 +1335,7 @@ dependencies = [
 [[package]]
 name = "ethrex-l2-rpc"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40497a486e96e69644e74420573391e280a57cafef8ec7802935bc436ebe9afc"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "axum",
  "bytes",
@@ -1371,8 +1366,7 @@ dependencies = [
 [[package]]
 name = "ethrex-levm"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6f9ace81a6afa64584b1cccf703345194d2e89fcddba0d8662452bdc5918d90"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "bytes",
  "derive_more",
@@ -1390,8 +1384,7 @@ dependencies = [
 [[package]]
 name = "ethrex-metrics"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed28d88f40a83e930dac55b8f47d92a5b545df39b927aa85b38da01b1ad7230f"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "axum",
  "ethrex-common",
@@ -1407,8 +1400,7 @@ dependencies = [
 [[package]]
 name = "ethrex-p2p"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d303eaf65d4b336029649cbd095d947cdc9f47e6c0a2b4121d06f29c2af26d33"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1452,8 +1444,7 @@ dependencies = [
 [[package]]
 name = "ethrex-rlp"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fda0d1ff8e555b03931c3a7118c3c0b06001ab50c77251d0c5e2092e0075ae05"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1463,8 +1454,7 @@ dependencies = [
 [[package]]
 name = "ethrex-rpc"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d550dc368e97a5b93a66f3185df48e86c1b2415444cfd11b20a0b690f6470279"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "axum",
  "axum-extra",
@@ -1504,8 +1494,7 @@ dependencies = [
 [[package]]
 name = "ethrex-sdk"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2668950ac21b7055347f7b7a0ce26c6d290338b8a47da533c166ae175a75a14"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1530,8 +1519,7 @@ dependencies = [
 [[package]]
 name = "ethrex-sdk-contract-utils"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3359b890d8667541527655beaccde99233258c5e26e8970cd286e2db35b1b5b5"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "thiserror 2.0.17",
  "tracing",
@@ -1540,8 +1528,7 @@ dependencies = [
 [[package]]
 name = "ethrex-storage"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8647fc738e827d9bb4ca7081bcd5fbcd0d19d6dfc714c805654e2f1eac8d169c"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1563,8 +1550,7 @@ dependencies = [
 [[package]]
 name = "ethrex-storage-rollup"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d5deda5e1d566e09a0120aa92e95a59db0aeea4735da2b39147dba108b090ad"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1580,8 +1566,7 @@ dependencies = [
 [[package]]
 name = "ethrex-trie"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c75722c380ee445a647d813125fa8432626c9f34c0729103334d591d5d94512f"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1600,8 +1585,7 @@ dependencies = [
 [[package]]
 name = "ethrex-vm"
 version = "17.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c5fc7dde7ec31ad28bcdd42a813423974f0b3844faae0e5203dafd237694782"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
 dependencies = [
  "bytes",
  "derive_more",

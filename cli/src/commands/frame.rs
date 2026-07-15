@@ -1,24 +1,29 @@
-//! EIP-8141 frame transaction support (tx type 0x06).
+//! EIP-8141/8250/8272/7906 frame transaction support (tx type 0x06).
 //!
-//! The frame-tx envelope is `0x06 || rlp(chain_id, nonce, sender, frames,
-//! max_priority_fee, max_fee, max_blob_fee, blob_hashes)` where each frame is
-//! `rlp(mode, flags, target, gas_limit, data)` (5 fields).
+//! This uses ethrex's canonical `FrameTransaction` types directly (via the
+//! `ethrex-common` dependency pinned to ethrex's `hegota-devnet` branch) so the
+//! wire format, `sig_hash`, and RLP encoding stay in lockstep with the deployed
+//! chain and cannot drift out of the spec.
 //!
-//! - `mode`:  execution mode (1 = VERIFY, 2 = SENDER)
-//! - `flags`: bitmask — 0x01 = PAYMENT approval, 0x02 = EXECUTION approval,
-//!   0x03 = both, 0x04 = atomic batch
+//! Envelope: `0x06 || rlp([chain_id, nonce_keys, nonce_seq, sender, frames,
+//! signatures, max_priority_fee, max_fee, max_fee_per_blob_gas,
+//! blob_versioned_hashes, recent_root_references])`
+//!   - frame     = `rlp([mode, flags, target, gas_limit, value, data])`
+//!   - signature = `rlp([scheme, signer, msg, signature_bytes])`
+//!   - sig_hash  = `keccak(0x06 || rlp(envelope with empty-msg signature bytes elided))`
 //!
-//! sig_hash = keccak(0x06 || rlp(...)) with VERIFY frame data replaced by
-//! empty bytes so the signature signs over the frame structure but not over
-//! itself. Default EOA VERIFY data is `[0x00 (type), v, r, s]` = 66 bytes.
+//! - `mode`:  0 = DEFAULT, 1 = VERIFY, 2 = SENDER, 3 = POST_TX (EIP-7906)
+//! - `flags`: bit 0 = PAYMENT approval, bit 1 = EXECUTION approval, bit 2 = atomic batch
+//! - a secp256k1 outer signature is `v(1) || r(32) || s(32)`, v = recovery_id + 27
 
 use clap::Subcommand;
+use ethrex_common::types::{
+    FRAME_SIG_SCHEME_SECP256K1, Frame, FrameSignature, FrameTransaction, Transaction,
+};
 use ethrex_common::{Address, Bytes, H256, U256};
 use ethrex_l2_common::utils::get_address_from_secret_key;
-use ethrex_rlp::structs::Encoder;
 use ethrex_rpc::EthClient;
 use ethrex_rpc::utils::{RpcRequest, RpcResponse};
-use keccak_hash::keccak;
 use rex_sdk::sign::sign_hash;
 use secp256k1::SecretKey;
 use serde::Deserialize;
@@ -27,148 +32,83 @@ use url::Url;
 
 use crate::utils::{parse_hex, parse_private_key};
 
-pub const EXEC_MODE_VERIFY: u8 = 1;
-pub const EXEC_MODE_SENDER: u8 = 2;
+pub const MODE_DEFAULT: u8 = 0;
+pub const MODE_VERIFY: u8 = 1;
+pub const MODE_SENDER: u8 = 2;
+pub const MODE_POST_TX: u8 = 3;
 
-/// Flag bitmasks (post spec-update: 0x01=PAYMENT, 0x02=EXECUTION).
+/// Flag bitmasks (0x01 = PAYMENT, 0x02 = EXECUTION, 0x04 = atomic batch).
 pub const FLAG_PAYMENT: u8 = 0x01;
 pub const FLAG_EXECUTION: u8 = 0x02;
 pub const FLAG_BOTH: u8 = 0x03;
-#[allow(dead_code)] // defined for future atomic batch support
 pub const FLAG_ATOMIC_BATCH: u8 = 0x04;
 
-#[derive(Debug, Clone)]
-pub struct Frame {
-    pub mode: u8,
-    pub flags: u8,
-    pub target: Address,
-    pub gas_limit: u64,
-    pub data: Bytes,
-}
-
-impl Frame {
-    pub fn is_verify(&self) -> bool {
-        self.mode == EXEC_MODE_VERIFY
+fn mode_name(mode: u8) -> &'static str {
+    match mode {
+        MODE_DEFAULT => "DEFAULT",
+        MODE_VERIFY => "VERIFY",
+        MODE_SENDER => "SENDER",
+        MODE_POST_TX => "POST_TX",
+        _ => "RESERVED",
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct FrameTx {
-    pub chain_id: u64,
-    pub nonce: u64,
-    pub sender: Address,
-    pub frames: Vec<Frame>,
-    pub max_priority_fee_per_gas: U256,
-    pub max_fee_per_gas: U256,
-    pub max_fee_per_blob_gas: U256,
-    pub blob_versioned_hashes: Vec<H256>,
-}
-
-fn encode_frame_bytes(frame: &Frame, elide_data: bool) -> Vec<u8> {
-    let mut out = Vec::new();
-    let data: &[u8] = if elide_data { &[] } else { frame.data.as_ref() };
-    Encoder::new(&mut out)
-        .encode_field(&(frame.mode as u64))
-        .encode_field(&(frame.flags as u64))
-        .encode_field(&frame.target)
-        .encode_field(&frame.gas_limit)
-        .encode_bytes(data)
-        .finish();
-    out
-}
-
-fn encode_frames_list(frames: &[Frame], elide_verify_data: bool) -> Vec<u8> {
-    let mut out = Vec::new();
-    let mut enc = Encoder::new(&mut out);
-    for frame in frames {
-        let single = encode_frame_bytes(frame, elide_verify_data && frame.is_verify());
-        enc = enc.encode_raw(&single);
-    }
-    enc.finish();
-    out
-}
-
-impl FrameTx {
-    fn encode_payload(&self, elide_verify_data: bool) -> Vec<u8> {
-        let frames_rlp = encode_frames_list(&self.frames, elide_verify_data);
-        let mut payload = Vec::new();
-        Encoder::new(&mut payload)
-            .encode_field(&self.chain_id)
-            .encode_field(&self.nonce)
-            .encode_field(&self.sender)
-            .encode_raw(&frames_rlp)
-            .encode_field(&self.max_priority_fee_per_gas)
-            .encode_field(&self.max_fee_per_gas)
-            .encode_field(&self.max_fee_per_blob_gas)
-            .encode_field(&self.blob_versioned_hashes)
-            .finish();
-        payload
-    }
-
-    pub fn sig_hash(&self) -> H256 {
-        let payload = self.encode_payload(true);
-        let mut buf = Vec::with_capacity(payload.len() + 1);
-        buf.push(0x06);
-        buf.extend_from_slice(&payload);
-        keccak(&buf)
-    }
-
-    pub fn to_raw(&self) -> Vec<u8> {
-        let payload = self.encode_payload(false);
-        let mut out = Vec::with_capacity(payload.len() + 1);
-        out.push(0x06);
-        out.extend_from_slice(&payload);
-        out
+/// Human-readable flag decode: APPROVE scope + atomic-batch bit.
+fn flags_desc(flags: u8) -> String {
+    let scope = match flags & 0x03 {
+        0x00 => "APPROVE none",
+        FLAG_PAYMENT => "APPROVE payment",
+        FLAG_EXECUTION => "APPROVE execution",
+        FLAG_BOTH => "APPROVE execution+payment",
+        _ => unreachable!(),
+    };
+    if flags & FLAG_ATOMIC_BATCH != 0 {
+        format!("{scope}, atomic-batch")
+    } else {
+        scope.to_string()
     }
 }
 
-/// Sign the sig_hash with secp256k1 and return the 66-byte default EOA VERIFY
-/// data: `[0x00 (secp256k1 type), v, r, s]`.
-pub fn default_eoa_verify_data(sig_hash: H256, secret: &SecretKey) -> Vec<u8> {
-    // sign_hash returns [r(32), s(32), v(1, already +27)] = 65 bytes.
+/// A secp256k1 outer signature over `sig_hash`, encoded as ethrex expects
+/// (`v || r || s`, v = recovery_id + 27 — see levm frame-signature verification).
+/// `msg` is empty, so its signature bytes are elided from the sig_hash; `signer`
+/// is the account whose key signed.
+fn secp256k1_signature(sig_hash: H256, signer: Address, secret: &SecretKey) -> FrameSignature {
+    // sign_hash returns r(32) || s(32) || v(1, already +27).
     let sig = sign_hash(sig_hash, *secret);
-    debug_assert_eq!(sig.len(), 65);
-    let r = &sig[0..32];
-    let s = &sig[32..64];
-    let v = sig[64];
-    let mut out = Vec::with_capacity(66);
-    out.push(0x00);
-    out.push(v);
-    out.extend_from_slice(r);
-    out.extend_from_slice(s);
-    out
-}
-
-/// Sign the sig_hash with the paymaster owner key and return the 65-byte
-/// CanonicalPaymaster VERIFY data: `r(32) || s(32) || v(1)`. No leading
-/// type byte — the paymaster contract expects exactly these 65 bytes.
-pub fn paymaster_owner_verify_data(sig_hash: H256, owner_secret: &SecretKey) -> Vec<u8> {
-    // sign_hash already returns r||s||v = 65 bytes with v = recovery_id + 27.
-    let sig = sign_hash(sig_hash, *owner_secret);
-    debug_assert_eq!(sig.len(), 65);
-    sig
-}
-
-/// Default SENDER frame data: `rlp([[target, value, calldata], ...])`.
-pub fn encode_sender_calls(calls: &[(Address, U256, Bytes)]) -> Vec<u8> {
-    let mut out = Vec::new();
-    let mut outer = Encoder::new(&mut out);
-    for (target, value, data) in calls {
-        let mut call_buf = Vec::new();
-        Encoder::new(&mut call_buf)
-            .encode_field(target)
-            .encode_field(value)
-            .encode_bytes(data)
-            .finish();
-        outer = outer.encode_raw(&call_buf);
+    let mut bytes = Vec::with_capacity(65);
+    bytes.push(sig[64]); // v
+    bytes.extend_from_slice(&sig[0..32]); // r
+    bytes.extend_from_slice(&sig[32..64]); // s
+    FrameSignature {
+        scheme: FRAME_SIG_SCHEME_SECP256K1,
+        signer,
+        msg: Bytes::new(),
+        signature: Bytes::from(bytes),
     }
-    outer.finish();
-    out
 }
 
-/// Parse an amount like `1ether`, `1.5gwei`, `100mwei`, `500wei`, or a plain
-/// wei integer. Duplicated here so this branch stays independent of the
-/// ether-units branch.
+/// An empty-bytes signature placeholder: fixes the signatures-list length,
+/// scheme, signer and (empty) msg so `compute_sig_hash` sees the final structure.
+/// The empty bytes are elided from the hash and filled in after signing.
+fn signature_placeholder(signer: Address) -> FrameSignature {
+    FrameSignature {
+        scheme: FRAME_SIG_SCHEME_SECP256K1,
+        signer,
+        msg: Bytes::new(),
+        signature: Bytes::new(),
+    }
+}
+
+fn raw_canonical(tx: FrameTransaction) -> Vec<u8> {
+    Transaction::FrameTransaction(tx).encode_canonical_to_vec()
+}
+
+fn u256_to_u64(v: U256, field: &str) -> eyre::Result<u64> {
+    u64::try_from(v).map_err(|_| eyre::eyre!("{field} does not fit in u64: {v}"))
+}
+
+/// Parse a "1ether"/"1.5gwei"/"0x…"/plain-wei amount into a wei `U256`.
 fn parse_amount(s: &str) -> eyre::Result<U256> {
     const UNITS: &[(&str, u32)] = &[
         ("ether", 18),
@@ -241,7 +181,7 @@ fn parse_amount(s: &str) -> eyre::Result<U256> {
 pub(crate) enum Command {
     #[clap(about = "Send a frame (EIP-8141, tx type 0x06) transaction.")]
     Send {
-        #[arg(long, help = "Recipient of the inner SENDER call.")]
+        #[arg(long, help = "Recipient of the SENDER frame.")]
         to: Address,
         #[arg(
             long,
@@ -254,17 +194,19 @@ pub(crate) enum Command {
             long,
             default_value = "",
             value_parser = parse_hex,
-            help = "Calldata for the inner subcall. Empty for plain ETH transfer."
+            help = "Calldata for the SENDER frame. Empty for plain ETH transfer."
         )]
         data: Bytes,
-        #[arg(long, help = "Optional gas-sponsor address for a sponsored tx.")]
+        #[arg(
+            long,
+            help = "Optional gas-sponsor (paymaster) address for a sponsored tx."
+        )]
         sponsor: Option<Address>,
         #[arg(
             long,
             default_value = "",
             value_parser = parse_hex,
             requires = "sponsor",
-            conflicts_with = "sponsor_owner_key",
             help = "Static calldata passed to the sponsor's VERIFY frame (e.g. 0xfc735e99 for GasSponsor)."
         )]
         sponsor_calldata: Bytes,
@@ -273,7 +215,7 @@ pub(crate) enum Command {
             value_parser = parse_private_key,
             requires = "sponsor",
             env = "SPONSOR_OWNER_KEY",
-            help = "Private key that owns the sponsor contract (e.g. CanonicalPaymaster). When set, the sponsor VERIFY frame data is r(32)||s(32)||v(1) = 65 bytes, signed by this key over the sig_hash."
+            help = "Private key that owns the sponsor contract. When set, a second outer signature (signer = the owner) is added to the signatures list."
         )]
         sponsor_owner_key: Option<SecretKey>,
         #[arg(long, default_value_t = 100_000)]
@@ -299,19 +241,20 @@ pub(crate) enum Command {
     #[clap(
         about = "Build a raw frame tx from explicit frames (no RPC calls).",
         long_about = "Build a frame tx envelope from explicit parameters. --frames is a JSON \
-                      array of {mode, target, gasLimit, data} objects. Useful when you want \
-                      to inspect the raw 0x06 bytes before sending."
+                      array of {mode, flags, target, gasLimit, value, data} objects. The \
+                      envelope is left unsigned (empty signatures list); useful for inspecting \
+                      the raw 0x06 bytes before sending."
     )]
     Build {
         #[arg(long)]
         chain_id: u64,
-        #[arg(long)]
+        #[arg(long, help = "nonce_seq for key 0 (the account's linear nonce).")]
         nonce: u64,
         #[arg(long)]
         sender: Address,
         #[arg(
             long,
-            help = "JSON array of frames, e.g. '[{\"mode\":769,\"target\":\"0x…\",\"gasLimit\":100000,\"data\":\"0x\"}]'."
+            help = "JSON array of frames, e.g. '[{\"mode\":1,\"flags\":3,\"target\":\"0x…\",\"gasLimit\":100000,\"value\":\"0\",\"data\":\"0x\"}]'."
         )]
         frames: String,
         #[arg(long, default_value = "10gwei", value_parser = parse_amount)]
@@ -319,8 +262,11 @@ pub(crate) enum Command {
         #[arg(long, default_value = "1gwei", value_parser = parse_amount)]
         max_priority_fee: U256,
     },
-    #[clap(about = "Display a frame-tx receipt including payer and per-frame status.")]
-    Receipt {
+    #[clap(
+        about = "Inspect a frame tx: decode its frames and pair them with their per-frame results.",
+        alias = "receipt"
+    )]
+    Inspect {
         tx_hash: H256,
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
@@ -332,9 +278,12 @@ struct FrameJson {
     mode: u8,
     #[serde(default)]
     flags: u8,
-    target: Address,
+    #[serde(default)]
+    target: Option<Address>,
     #[serde(alias = "gasLimit", alias = "gas_limit")]
     gas_limit: u64,
+    #[serde(default)]
+    value: Option<String>,
     #[serde(default)]
     data: String,
 }
@@ -379,78 +328,104 @@ impl Command {
                     }
                 };
 
-                let sender_data = encode_sender_calls(&[(to, value, data)]);
-
-                let mut frames = if let Some(sponsor_addr) = sponsor {
-                    vec![
-                        Frame {
-                            mode: EXEC_MODE_VERIFY,
-                            flags: FLAG_EXECUTION,
-                            target: sender,
-                            gas_limit: frame_gas_limit,
-                            data: Bytes::new(),
-                        },
-                        Frame {
-                            mode: EXEC_MODE_VERIFY,
-                            flags: FLAG_PAYMENT,
-                            target: sponsor_addr,
-                            gas_limit: sponsor_gas_limit,
-                            data: sponsor_calldata,
-                        },
-                        Frame {
-                            mode: EXEC_MODE_SENDER,
-                            flags: 0,
-                            target: sender,
-                            gas_limit: frame_gas_limit,
-                            data: sender_data.into(),
-                        },
-                    ]
+                // Build the frames. SENDER frames carry their value/data directly
+                // (per-frame `value`), not an encoded call list in `data`.
+                let (frames, mut signatures) = if let Some(sponsor_addr) = sponsor {
+                    let owner = match &sponsor_owner_key {
+                        Some(k) => get_address_from_secret_key(&k.secret_bytes())
+                            .map_err(|e| eyre::eyre!(e))?,
+                        None => sponsor_addr,
+                    };
+                    (
+                        vec![
+                            Frame {
+                                mode: MODE_VERIFY,
+                                flags: FLAG_EXECUTION,
+                                target: Some(sender),
+                                gas_limit: frame_gas_limit,
+                                value: U256::zero(),
+                                data: Bytes::new(),
+                            },
+                            Frame {
+                                mode: MODE_VERIFY,
+                                flags: FLAG_PAYMENT,
+                                target: Some(sponsor_addr),
+                                gas_limit: sponsor_gas_limit,
+                                value: U256::zero(),
+                                data: sponsor_calldata,
+                            },
+                            Frame {
+                                mode: MODE_SENDER,
+                                flags: 0,
+                                target: Some(to),
+                                gas_limit: frame_gas_limit,
+                                value,
+                                data,
+                            },
+                        ],
+                        // sender approves execution; owner (or sponsor) approves payment.
+                        vec![signature_placeholder(sender), signature_placeholder(owner)],
+                    )
                 } else {
-                    vec![
-                        Frame {
-                            mode: EXEC_MODE_VERIFY,
-                            flags: FLAG_BOTH,
-                            target: sender,
-                            gas_limit: frame_gas_limit,
-                            data: Bytes::new(),
-                        },
-                        Frame {
-                            mode: EXEC_MODE_SENDER,
-                            flags: 0,
-                            target: sender,
-                            gas_limit: frame_gas_limit,
-                            data: sender_data.into(),
-                        },
-                    ]
+                    (
+                        vec![
+                            Frame {
+                                mode: MODE_VERIFY,
+                                flags: FLAG_BOTH,
+                                target: Some(sender),
+                                gas_limit: frame_gas_limit,
+                                value: U256::zero(),
+                                data: Bytes::new(),
+                            },
+                            Frame {
+                                mode: MODE_SENDER,
+                                flags: 0,
+                                target: Some(to),
+                                gas_limit: frame_gas_limit,
+                                value,
+                                data,
+                            },
+                        ],
+                        vec![signature_placeholder(sender)],
+                    )
                 };
 
                 let chain_id_u64: u64 = chain_id
                     .try_into()
                     .map_err(|_| eyre::eyre!("chain id {chain_id} does not fit in u64"))?;
 
-                let unsigned = FrameTx {
+                let mut tx = FrameTransaction {
                     chain_id: chain_id_u64,
-                    nonce,
+                    nonce_keys: vec![U256::zero()],
+                    nonce_seq: nonce,
                     sender,
-                    frames: frames.clone(),
-                    max_priority_fee_per_gas,
-                    max_fee_per_gas: max_fee,
+                    frames,
+                    signatures: signatures.clone(),
+                    max_priority_fee_per_gas: u256_to_u64(
+                        max_priority_fee_per_gas,
+                        "max_priority_fee_per_gas",
+                    )?,
+                    max_fee_per_gas: u256_to_u64(max_fee, "max_fee_per_gas")?,
                     max_fee_per_blob_gas: U256::zero(),
                     blob_versioned_hashes: Vec::new(),
+                    recent_root_references: Vec::new(),
+                    ..Default::default()
                 };
 
-                let sig_hash = unsigned.sig_hash();
-                let verify_data = default_eoa_verify_data(sig_hash, &private_key);
-                frames[0].data = verify_data.into();
-
-                if let Some(owner_key) = sponsor_owner_key {
-                    // Sponsor VERIFY is frame index 1 in the sponsored layout.
-                    // Override its data with the owner's 65-byte r||s||v signature.
-                    frames[1].data = paymaster_owner_verify_data(sig_hash, &owner_key).into();
+                // Sign the sig_hash (signatures' empty-msg bytes are elided from it),
+                // then fill the real signature bytes back in.
+                let sig_hash = tx.compute_sig_hash();
+                signatures[0] = secp256k1_signature(sig_hash, sender, &private_key);
+                if let Some(owner_key) = &sponsor_owner_key {
+                    let owner = get_address_from_secret_key(&owner_key.secret_bytes())
+                        .map_err(|e| eyre::eyre!(e))?;
+                    signatures[1] = secp256k1_signature(sig_hash, owner, owner_key);
                 }
+                tx.signatures = signatures;
+                tx.cached_canonical.take();
+                tx.inner_hash.take();
 
-                let signed_tx = FrameTx { frames, ..unsigned };
-                let raw = signed_tx.to_raw();
+                let raw = raw_canonical(tx);
 
                 if dry_run {
                     println!("sig_hash:  0x{sig_hash:x}");
@@ -461,10 +436,8 @@ impl Command {
 
                 let tx_hash = client.send_raw_transaction(&raw).await?;
                 println!("{tx_hash:#x}");
-                // Standard wait_for_transaction_receipt deserializes to the typed
-                // RpcReceipt which doesn't know about tx type 0x06, so we poll
-                // directly via raw JSON — same path as `rex frame receipt`.
-                poll_and_print_frame_receipt(&client, tx_hash, 100).await
+                // The typed RpcReceipt doesn't model tx type 0x06, so inspect via raw JSON.
+                poll_and_inspect(&client, tx_hash, 100).await
             }
             Command::Build {
                 chain_id,
@@ -481,68 +454,80 @@ impl Command {
                         Bytes::new()
                     } else {
                         let s = f.data.strip_prefix("0x").unwrap_or(&f.data);
-                        hex::decode(s)?.into()
+                        Bytes::from(hex::decode(s)?)
+                    };
+                    let value = match f.value {
+                        Some(v) => parse_amount(&v)?,
+                        None => U256::zero(),
                     };
                     out_frames.push(Frame {
                         mode: f.mode,
                         flags: f.flags,
                         target: f.target,
                         gas_limit: f.gas_limit,
+                        value,
                         data: data_bytes,
                     });
                 }
-                let tx = FrameTx {
+                let tx = FrameTransaction {
                     chain_id,
-                    nonce,
+                    nonce_keys: vec![U256::zero()],
+                    nonce_seq: nonce,
                     sender,
                     frames: out_frames,
-                    max_priority_fee_per_gas: max_priority_fee,
-                    max_fee_per_gas: max_fee,
+                    signatures: Vec::new(),
+                    max_priority_fee_per_gas: u256_to_u64(max_priority_fee, "max_priority_fee")?,
+                    max_fee_per_gas: u256_to_u64(max_fee, "max_fee")?,
                     max_fee_per_blob_gas: U256::zero(),
                     blob_versioned_hashes: Vec::new(),
+                    recent_root_references: Vec::new(),
+                    ..Default::default()
                 };
-                println!("0x{}", hex::encode(tx.to_raw()));
+                println!("0x{}", hex::encode(raw_canonical(tx)));
                 Ok(())
             }
-            Command::Receipt { tx_hash, rpc_url } => {
+            Command::Inspect { tx_hash, rpc_url } => {
                 let client = EthClient::new(rpc_url)?;
-                fetch_and_print_frame_receipt(&client, tx_hash).await
+                inspect_frame_tx(&client, tx_hash).await
             }
         }
     }
 }
 
-async fn fetch_and_print_frame_receipt(client: &EthClient, tx_hash: H256) -> eyre::Result<()> {
-    let value = fetch_raw_receipt(client, tx_hash).await?;
-    let obj = value
-        .as_object()
-        .ok_or_else(|| eyre::eyre!("receipt not found for {tx_hash:#x}"))?;
-    print_raw_frame_receipt(obj);
-    Ok(())
-}
-
-async fn fetch_raw_receipt(client: &EthClient, tx_hash: H256) -> eyre::Result<serde_json::Value> {
+async fn send_raw_rpc(
+    client: &EthClient,
+    method: &str,
+    tx_hash: H256,
+) -> eyre::Result<serde_json::Value> {
     let request = RpcRequest::new(
-        "eth_getTransactionReceipt",
+        method,
         Some(vec![serde_json::json!(format!("0x{tx_hash:x}"))]),
     );
-    let response = client.send_request(request).await?;
-    match response {
+    match client.send_request(request).await? {
         RpcResponse::Success(s) => Ok(s.result),
         RpcResponse::Error(e) => Err(eyre::eyre!("rpc error: {}", e.error.message)),
     }
 }
 
-async fn poll_and_print_frame_receipt(
-    client: &EthClient,
-    tx_hash: H256,
-    max_retries: u64,
-) -> eyre::Result<()> {
+async fn inspect_frame_tx(client: &EthClient, tx_hash: H256) -> eyre::Result<()> {
+    let receipt = send_raw_rpc(client, "eth_getTransactionReceipt", tx_hash).await?;
+    let receipt = receipt
+        .as_object()
+        .ok_or_else(|| eyre::eyre!("receipt not found for {tx_hash:#x}"))?;
+    // The transaction carries the frames themselves (the receipt only has results).
+    let tx = send_raw_rpc(client, "eth_getTransactionByHash", tx_hash)
+        .await
+        .ok()
+        .and_then(|v| v.as_object().cloned());
+    print_frame_tx(tx.as_ref(), receipt);
+    Ok(())
+}
+
+async fn poll_and_inspect(client: &EthClient, tx_hash: H256, max_retries: u64) -> eyre::Result<()> {
     for attempt in 1..=max_retries {
-        let value = fetch_raw_receipt(client, tx_hash).await?;
-        if let Some(obj) = value.as_object() {
-            print_raw_frame_receipt(obj);
-            return Ok(());
+        let value = send_raw_rpc(client, "eth_getTransactionReceipt", tx_hash).await?;
+        if value.as_object().is_some() {
+            return inspect_frame_tx(client, tx_hash).await;
         }
         if attempt == max_retries {
             return Err(eyre::eyre!(
@@ -555,51 +540,119 @@ async fn poll_and_print_frame_receipt(
     Ok(())
 }
 
-fn print_raw_frame_receipt(receipt: &serde_json::Map<String, serde_json::Value>) {
-    let status_str = receipt
-        .get("status")
-        .and_then(|v| v.as_str())
-        .unwrap_or("?");
-    let status = match status_str {
+fn s<'a>(obj: &'a serde_json::Map<String, serde_json::Value>, key: &str) -> &'a str {
+    obj.get(key).and_then(|v| v.as_str()).unwrap_or("?")
+}
+
+/// Print a unified, decoded view: header (sender/payer/nonce/fees) + a
+/// frame-by-frame listing pairing each frame (mode, flags, target, value, data)
+/// with its result (status, gas, #logs). Works with just the receipt when the
+/// transaction body isn't available (e.g. still pending).
+fn print_frame_tx(
+    tx: Option<&serde_json::Map<String, serde_json::Value>>,
+    receipt: &serde_json::Map<String, serde_json::Value>,
+) {
+    let status = match s(receipt, "status") {
         "0x1" => "SUCCESS",
         "0x0" => "FAILED",
         other => other,
     };
-    let block = receipt
-        .get("blockNumber")
-        .and_then(|v| v.as_str())
-        .unwrap_or("?");
-    let gas_used = receipt
-        .get("gasUsed")
-        .and_then(|v| v.as_str())
-        .unwrap_or("?");
-    let payer = receipt
-        .get("payer")
-        .and_then(|v| v.as_str())
-        .unwrap_or("N/A");
+    println!("Frame transaction (type 0x06)");
+    println!("  status:    {status}");
+    println!("  block:     {}", s(receipt, "blockNumber"));
+    println!("  gas used:  {}", s(receipt, "gasUsed"));
 
-    println!("Status:    {status}");
-    println!("Block:     {block}");
-    println!("Gas used:  {gas_used}");
-    println!("Payer:     {payer}");
+    let payer = receipt.get("payer").and_then(|v| v.as_str());
+    let sender = tx.map(|t| s(t, "from"));
+    match (payer, sender) {
+        (Some(p), Some(f)) if p.eq_ignore_ascii_case(f) => println!("  payer:     {p} (self)"),
+        (Some(p), _) => println!("  payer:     {p}"),
+        (None, _) => println!("  payer:     N/A"),
+    }
+    if let Some(t) = tx {
+        println!("  sender:    {}", s(t, "from"));
+        if let Some(keys) = t.get("nonceKeys").and_then(|v| v.as_array()) {
+            let keys: Vec<&str> = keys.iter().filter_map(|k| k.as_str()).collect();
+            println!(
+                "  nonceKeys: [{}]  seq: {}",
+                keys.join(", "),
+                s(t, "nonceSeq")
+            );
+        }
+        println!(
+            "  maxFee:    {}  maxPriorityFee: {}",
+            s(t, "maxFeePerGas"),
+            s(t, "maxPriorityFeePerGas")
+        );
+        if let Some(refs) = t.get("recentRootReferences").and_then(|v| v.as_array())
+            && !refs.is_empty()
+        {
+            println!("  recentRootReferences: {}", refs.len());
+        }
+        if let Some(sigs) = t.get("signatures").and_then(|v| v.as_array()) {
+            println!("  signatures: {}", sigs.len());
+        }
+    }
 
-    if let Some(frame_receipts) = receipt.get("frameReceipts").and_then(|v| v.as_array()) {
-        println!("Frames:    {}", frame_receipts.len());
-        for (i, fr) in frame_receipts.iter().enumerate() {
-            let st = fr.get("status").and_then(|v| v.as_str()).unwrap_or("?");
-            let st = match st {
-                "0x1" => "OK",
-                "0x0" => "FAIL",
+    let frames = tx.and_then(|t| t.get("frames").and_then(|v| v.as_array()));
+    let results = receipt.get("frameReceipts").and_then(|v| v.as_array());
+    let frame_count = frames.map(|f| f.len()).unwrap_or(0);
+    let result_count = results.map(|r| r.len()).unwrap_or(0);
+    let count = frame_count.max(result_count);
+
+    println!("  frames:    {count}");
+    for i in 0..count {
+        let frame = frames.and_then(|f| f.get(i)).and_then(|v| v.as_object());
+        let result = results.and_then(|r| r.get(i)).and_then(|v| v.as_object());
+
+        // Frame structure (from the tx body).
+        let header = if let Some(fr) = frame {
+            let mode = fr
+                .get("mode")
+                .and_then(|v| v.as_str())
+                .and_then(|h| u8::from_str_radix(h.trim_start_matches("0x"), 16).ok())
+                .unwrap_or(0);
+            let flags = fr
+                .get("flags")
+                .and_then(|v| v.as_str())
+                .and_then(|h| u8::from_str_radix(h.trim_start_matches("0x"), 16).ok())
+                .unwrap_or(0);
+            let target = fr.get("to").and_then(|v| v.as_str()).unwrap_or("(none)");
+            let value = fr.get("value").and_then(|v| v.as_str()).unwrap_or("0x0");
+            let data_len = fr
+                .get("data")
+                .and_then(|v| v.as_str())
+                .map(|d| d.trim_start_matches("0x").len() / 2)
+                .unwrap_or(0);
+            format!(
+                "{} [{}] -> {target}  value {value}  data {data_len}B",
+                mode_name(mode),
+                flags_desc(flags)
+            )
+        } else {
+            "(frame body unavailable)".to_string()
+        };
+
+        // Per-frame result (from the receipt).
+        let result_str = if let Some(rr) = result {
+            let ok = match rr.get("status").and_then(|v| v.as_str()).unwrap_or("?") {
+                "0x1" => "\u{2713}",
+                "0x0" => "\u{2717}",
                 other => other,
             };
-            let gas = fr.get("gasUsed").and_then(|v| v.as_str()).unwrap_or("?");
-            let logs_count = fr
+            let gas = rr.get("gasUsed").and_then(|v| v.as_str()).unwrap_or("?");
+            let logs = rr
                 .get("logs")
                 .and_then(|v| v.as_array())
                 .map(|a| a.len())
                 .unwrap_or(0);
-            println!("  Frame {i}: {st}, gas={gas}, logs={logs_count}");
-        }
+            format!("{ok} gas {gas}, {logs} logs")
+        } else {
+            "(no result)".to_string()
+        };
+
+        println!("    [{i}] {header}");
+        println!("        {result_str}");
     }
 }
 
@@ -621,105 +674,87 @@ mod tests {
         assert_eq!(parse_amount("100").unwrap(), U256::from(100u64));
     }
 
-    #[test]
-    fn encode_sender_calls_single_transfer_layout() {
-        let recipient = Address::from_str("0x0000000000000000000000000000000000c0ffee").unwrap();
-        let encoded = encode_sender_calls(&[(
-            recipient,
-            U256::from(10_000_000_000_000_000u64),
-            Bytes::new(),
-        )]);
-        // Inner list = [address(21 RLP), uint 10^16 (8 RLP), 0x80] = 30 bytes body
-        //   -> prefix 0xde (0xc0 + 30) -> 31 bytes total.
-        // Outer list = the 31-byte inner -> prefix 0xdf (0xc0 + 31) -> 32 bytes.
-        assert_eq!(encoded.len(), 32);
-        assert_eq!(encoded[0], 0xc0 + 31);
-        assert_eq!(encoded[1], 0xc0 + 30);
-    }
-
-    #[test]
-    fn sig_hash_elides_verify_data() {
-        let tx_a = FrameTx {
+    fn self_verify_tx() -> FrameTransaction {
+        FrameTransaction {
             chain_id: 1,
-            nonce: 0,
+            nonce_keys: vec![U256::zero()],
+            nonce_seq: 0,
             sender: sender_addr(),
-            frames: vec![Frame {
-                mode: EXEC_MODE_VERIFY,
-                flags: FLAG_BOTH,
-                target: sender_addr(),
-                gas_limit: 100_000,
-                data: Bytes::from(vec![0xaa; 66]),
-            }],
-            max_priority_fee_per_gas: U256::from(1u64),
-            max_fee_per_gas: U256::from(2u64),
+            frames: vec![
+                Frame {
+                    mode: MODE_VERIFY,
+                    flags: FLAG_BOTH,
+                    target: Some(sender_addr()),
+                    gas_limit: 100_000,
+                    value: U256::zero(),
+                    data: Bytes::new(),
+                },
+                Frame {
+                    mode: MODE_SENDER,
+                    flags: 0,
+                    target: Some(sender_addr()),
+                    gas_limit: 30_000,
+                    value: U256::from(1u64),
+                    data: Bytes::new(),
+                },
+            ],
+            signatures: vec![signature_placeholder(sender_addr())],
+            max_priority_fee_per_gas: 1,
+            max_fee_per_gas: 2,
             max_fee_per_blob_gas: U256::zero(),
             blob_versioned_hashes: Vec::new(),
-        };
-        let mut tx_b = tx_a.clone();
-        tx_b.frames[0].data = Bytes::from(vec![0xbb; 66]);
-        assert_eq!(tx_a.sig_hash(), tx_b.sig_hash());
-        assert_ne!(tx_a.to_raw(), tx_b.to_raw());
-    }
-
-    #[test]
-    fn sig_hash_covers_sender_frame_data() {
-        let base = FrameTx {
-            chain_id: 1,
-            nonce: 0,
-            sender: sender_addr(),
-            frames: vec![Frame {
-                mode: EXEC_MODE_SENDER,
-                flags: 0,
-                target: sender_addr(),
-                gas_limit: 100_000,
-                data: Bytes::from(vec![0x11; 4]),
-            }],
-            max_priority_fee_per_gas: U256::from(1u64),
-            max_fee_per_gas: U256::from(2u64),
-            max_fee_per_blob_gas: U256::zero(),
-            blob_versioned_hashes: Vec::new(),
-        };
-        let mut other = base.clone();
-        other.frames[0].data = Bytes::from(vec![0x22; 4]);
-        assert_ne!(base.sig_hash(), other.sig_hash());
-    }
-
-    #[test]
-    fn default_eoa_verify_data_layout() {
-        let sig_hash = H256::from_low_u64_be(42);
-        let sk = SecretKey::from_slice(&[0x11; 32]).unwrap();
-        let out = default_eoa_verify_data(sig_hash, &sk);
-        assert_eq!(out.len(), 66);
-        assert_eq!(out[0], 0x00);
-        assert!(out[1] == 27 || out[1] == 28);
-    }
-
-    #[test]
-    fn paymaster_owner_verify_data_layout() {
-        // CanonicalPaymaster expects exactly r(32) || s(32) || v(1) = 65 bytes.
-        let sig_hash = H256::from_low_u64_be(42);
-        let sk = SecretKey::from_slice(&[0x22; 32]).unwrap();
-        let out = paymaster_owner_verify_data(sig_hash, &sk);
-        assert_eq!(out.len(), 65);
-        // v sits at the tail, already +27.
-        assert!(out[64] == 27 || out[64] == 28);
-        // Two different hashes should produce different signatures.
-        let other = paymaster_owner_verify_data(H256::from_low_u64_be(43), &sk);
-        assert_ne!(out, other);
+            recent_root_references: Vec::new(),
+            ..Default::default()
+        }
     }
 
     #[test]
     fn envelope_starts_with_0x06() {
-        let tx = FrameTx {
-            chain_id: 1,
-            nonce: 0,
-            sender: sender_addr(),
-            frames: vec![],
-            max_priority_fee_per_gas: U256::zero(),
-            max_fee_per_gas: U256::zero(),
-            max_fee_per_blob_gas: U256::zero(),
-            blob_versioned_hashes: Vec::new(),
-        };
-        assert_eq!(tx.to_raw()[0], 0x06);
+        let raw = raw_canonical(self_verify_tx());
+        assert_eq!(raw[0], 0x06);
+    }
+
+    #[test]
+    fn sig_hash_elides_empty_msg_signature_bytes() {
+        // Empty-msg signature bytes must not change the sig_hash (so we can
+        // compute it with a placeholder and fill the real bytes afterward).
+        let mut a = self_verify_tx();
+        let mut b = self_verify_tx();
+        a.signatures[0].signature = Bytes::from(vec![0xaa; 65]);
+        b.signatures[0].signature = Bytes::from(vec![0xbb; 65]);
+        assert_eq!(a.compute_sig_hash(), b.compute_sig_hash());
+    }
+
+    #[test]
+    fn sig_hash_covers_sender_frame_value() {
+        let a = self_verify_tx();
+        let mut b = self_verify_tx();
+        b.frames[1].value = U256::from(2u64);
+        assert_ne!(a.compute_sig_hash(), b.compute_sig_hash());
+    }
+
+    #[test]
+    fn secp256k1_signature_is_v_r_s() {
+        let sig_hash = H256::from_low_u64_be(42);
+        let sk = SecretKey::from_slice(&[0x11; 32]).unwrap();
+        let signer = sender_addr();
+        let fs = secp256k1_signature(sig_hash, signer, &sk);
+        assert_eq!(fs.scheme, FRAME_SIG_SCHEME_SECP256K1);
+        assert_eq!(fs.signer, signer);
+        assert!(fs.msg.is_empty());
+        assert_eq!(fs.signature.len(), 65);
+        // v sits at byte 0 (ethrex parses v || r || s), already +27.
+        assert!(fs.signature[0] == 27 || fs.signature[0] == 28);
+    }
+
+    #[test]
+    fn flags_and_mode_decode() {
+        assert_eq!(mode_name(MODE_VERIFY), "VERIFY");
+        assert_eq!(mode_name(MODE_POST_TX), "POST_TX");
+        assert_eq!(flags_desc(FLAG_BOTH), "APPROVE execution+payment");
+        assert_eq!(
+            flags_desc(FLAG_PAYMENT | FLAG_ATOMIC_BATCH),
+            "APPROVE payment, atomic-batch"
+        );
     }
 }

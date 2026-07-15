@@ -32,13 +32,15 @@ manual_saturating_arithmetic = "warn"
 rex-cli = { path = "cli" }
 rex-sdk = { path = "sdk" }
 
-ethrex-common = "17.0.0"
-ethrex-blockchain = "17.0.0"
-ethrex-rlp = "17.0.0"
-ethrex-rpc = "17.0.0"
-ethrex-l2-rpc = "17.0.0"
-ethrex-sdk = "17.0.0"
-ethrex-l2-common = "17.0.0"
+# Track ethrex's hegota-devnet branch so rex's frame-tx support stays in lockstep
+# with the deployed EIP-8141/8250/8272/7906 wire format (this rex branch mirrors it).
+ethrex-common = { git = "https://github.com/lambdaclass/ethrex", branch = "hegota-devnet" }
+ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", branch = "hegota-devnet" }
+ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", branch = "hegota-devnet" }
+ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", branch = "hegota-devnet" }
+ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", branch = "hegota-devnet" }
+ethrex-sdk = { git = "https://github.com/lambdaclass/ethrex", branch = "hegota-devnet" }
+ethrex-l2-common = { git = "https://github.com/lambdaclass/ethrex", branch = "hegota-devnet" }
 
 keccak-hash = "0.11.0"
 thiserror = "2.0.11"
