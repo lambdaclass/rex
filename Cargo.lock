@@ -1241,9 +1241,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-blockchain"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f425381a3b5d1e4e7a9cfdddfcc14d62f70a9d5caffb8589e73851374840f366"
+checksum = "e2d1fb2ef8cd3776527104b58fc1c952fa9bd7b2dd88ffcaf89fd866c67f1414"
 dependencies = [
  "bytes",
  "crossbeam",
@@ -1264,9 +1264,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-common"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0221ee5723272ab439785ee1eebf43b960db7d81c438bc8bd2a8be8f801d4dae"
+checksum = "afbbfb01ebd779f1710084595deafdf2c3a352eb6b3357854127018a8a3ee26d"
 dependencies = [
  "bytes",
  "crc32fast",
@@ -1295,9 +1295,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-crypto"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e38bf0a1fb41edea3fc79c551aea0d161d715505afdc76284e2101f50e99c4ee"
+checksum = "686f9f32b0126c0f44dafdf25d758e529f302662dce97f16b7adcc597ddb7374"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -1318,9 +1318,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-l2-common"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e274b0c18a40b82a4d491bcf22eece971026a44c894a9e9cb565ecaed02072c3"
+checksum = "14812ef9d9254259d92dea1a878a6ba306f9590423e82c18b5b892eedae344f8"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1338,9 +1338,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-l2-rpc"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1002c33e1a8bbed4a0c233d25fe17a28e697184da22e53976a71112d36397012"
+checksum = "455b3a6200350d95ca0a33ecb7008ead543aed97c0326286f24598a902c55d35"
 dependencies = [
  "axum",
  "bytes",
@@ -1370,9 +1370,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-levm"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f647014431f627624ed69433b545df62af66c06b961630c333a00cf4341dcf5"
+checksum = "496faa768febce8cbdbcd59528708e98cad71df60149a4b7ec85019d449ca541"
 dependencies = [
  "bytes",
  "derive_more",
@@ -1389,9 +1389,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-metrics"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d664e28bd0fd4a53b1aefe525f238899cc784c74e5f8462723c8662af2995580"
+checksum = "d229c4ea9c28e530d99e37ceefc35dda7be1a923432eb3af71677f8484fc971c"
 dependencies = [
  "axum",
  "ethrex-common",
@@ -1406,9 +1406,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-p2p"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb5ea4f3aaea9129254e1c19506c4571c8a4ac1d9cd199b140d87b318abd8795"
+checksum = "2959233a81a936a1a3bcab73c6f9fdcc7b4f88e1ae90a9f1dda2573b0e1e7738"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1451,9 +1451,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rlp"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3899a67433164d3954baeb123bcbedcb5229d9cb5a09f949a264e367ed61d55"
+checksum = "47519e5354aa491a562a5332b076257385de18ef78dddbed7bb71c1ff21215cd"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1462,9 +1462,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rpc"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be4b370d218f7fb24be540a1f8fe3dd50d629cecbe75b899bd4d66d64f0fe19c"
+checksum = "e5adf3b2d184966d83723a1035c826b97b0f62514bcfd8c9eeb341c2161daf20"
 dependencies = [
  "axum",
  "axum-extra",
@@ -1503,9 +1503,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "069b37b915a1a2f1f3afc4e516d3120cfd69e7ae11bf41b2a1e2d72de0a71cb5"
+checksum = "a4abc002135dcb3da38ad053a42774dd1ba60038885fafed1baa087148df4bda"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1529,9 +1529,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk-contract-utils"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7c32b6b6050fde3855cf616f4ac271754456f4f3359e480186b1c95901b60a8e"
+checksum = "509585aa28393b68702051fcfaf0e7b455891d23ab534396d0a8641954941536"
 dependencies = [
  "thiserror 2.0.17",
  "tracing",
@@ -1539,9 +1539,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbfea8e7d6c94fbb25c9beddd062a8f843573dff627dbe4634764e73dd525f35"
+checksum = "6b31b84f98f554a2de2db9d9dbb5ae8b55c2eed4a9b9f30f0c0bfffa4fb6a2e2"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1562,9 +1562,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage-rollup"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "110c678066e21c1694ff72ae5733feda4c03dbfc070d5ab02d908236a7c58214"
+checksum = "421dfe7684da9242ca7a3ac5c01aac5e6b034e78cac76dd7990d6c0d61e329cf"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1579,9 +1579,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-trie"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebeecd1c65e719b70199e2e5b59011117647c919eee9bb8580aa7ad0ce5f1f5f"
+checksum = "89a743ed1c7500e476dea9c0d6efb388e2063c154d95fb1ea278067b2ae2bd07"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1599,9 +1599,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-vm"
-version = "18.0.0"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a4dab0bfd091f637a910c96c2e10a240b94256cccec688f10cf86620f1b2124"
+checksum = "23a9f2bb91d5f4401f2555a271bec01afa1d7dc512370913cecdac25f292bc9a"
 dependencies = [
  "bytes",
  "derive_more",
@@ -3343,7 +3343,7 @@ dependencies = [
 
 [[package]]
 name = "rex"
-version = "18.0.0"
+version = "19.0.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -3378,7 +3378,7 @@ dependencies = [
 
 [[package]]
 name = "rex-sdk"
-version = "18.0.0"
+version = "19.0.0"
 dependencies = [
  "clap",
  "clap_complete",
