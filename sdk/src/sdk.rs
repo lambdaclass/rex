@@ -5,6 +5,7 @@ use ethrex_common::{
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
 use ethrex_rlp::encode::RLPEncode;
 
+use ethrex_l2_sdk::{build_generic_tx, send_generic_transaction};
 use ethrex_rpc::{
     EthClient,
     clients::{EthClientError, Overrides},
@@ -13,7 +14,6 @@ use ethrex_rpc::{
         receipt::RpcReceipt,
     },
 };
-use ethrex_sdk::{build_generic_tx, send_generic_transaction};
 use keccak_hash::{H256, keccak};
 use secp256k1::SecretKey;
 

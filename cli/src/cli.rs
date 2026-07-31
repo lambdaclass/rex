@@ -1,6 +1,8 @@
-use crate::commands::l2;
-use crate::common::AuthorizeArgs;
-use crate::utils::{parse_contract_creation, parse_func_call, parse_hex, parse_hex_string};
+use crate::commands::{frame, l2, wallet};
+use crate::common::{AuthorizeArgs, BlockOverrideArgs, StateOverrideArgs};
+use crate::utils::{
+    encode_constructor_args, parse_contract_creation, parse_func_call, parse_hex, parse_hex_string,
+};
 use crate::verify::{VerifyParams, verify_contract_on_etherscan};
 use crate::{
     commands::autocomplete,
@@ -10,22 +12,24 @@ use crate::{
 use clap::{ArgAction, Parser, Subcommand};
 use ethrex_common::types::TxKind;
 use ethrex_common::types::{AuthorizationTupleEntry, TxType};
-use ethrex_common::{Address, Bytes, H256, H520, U256};
+use ethrex_common::{Address, Bytes, H256, H520, NativeCrypto, U256};
 use ethrex_l2_common::calldata::Value;
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_l2_sdk::calldata::{decode_calldata, encode_calldata};
+use ethrex_l2_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
+use ethrex_l2_sdk::{compile_contract, git_clone};
 use ethrex_rlp::encode::RLPEncode;
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
 use ethrex_rpc::types::block_identifier::{BlockIdentifier, BlockTag};
 use ethrex_rpc::types::receipt::RpcReceipt;
 use ethrex_rpc::types::transaction::RpcTransaction;
-use ethrex_sdk::calldata::{decode_calldata, encode_calldata};
-use ethrex_sdk::{build_generic_tx, create2_deploy_from_bytecode, send_generic_transaction};
-use ethrex_sdk::{compile_contract, git_clone};
 use keccak_hash::keccak;
 use rex_sdk::authorize::build_authorization_tuple;
-use rex_sdk::client::eth::get_token_balance;
+use rex_sdk::client::eth::{
+    call_with_overrides, get_token_balance, get_token_balance_with_overrides,
+};
 use rex_sdk::create::{
     DETERMINISTIC_DEPLOYER, brute_force_create2, compute_create_address, compute_create2_address,
 };
@@ -88,6 +92,10 @@ pub(crate) enum Command {
         eth: bool,
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
+        #[clap(flatten)]
+        state_overrides: StateOverrideArgs,
+        #[clap(flatten)]
+        block_overrides: BlockOverrideArgs,
     },
     #[clap(about = "Get the current block_number.", visible_alias = "bl")]
     BlockNumber {
@@ -291,6 +299,13 @@ pub(crate) enum Command {
         #[arg(long, default_value = "http://localhost:8545", env = "RPC_URL")]
         rpc_url: Url,
     },
+    #[clap(
+        subcommand,
+        about = "EIP-8141 frame transaction support (tx type 0x06)."
+    )]
+    Frame(frame::Command),
+    #[clap(subcommand, about = "Wallet utilities (mnemonic derivation, etc).")]
+    Wallet(wallet::Command),
 }
 
 impl Command {
@@ -298,16 +313,36 @@ impl Command {
         match self {
             Command::L2(cmd) => cmd.run().await?,
             Command::Autocomplete(cmd) => cmd.run()?,
+            Command::Frame(cmd) => cmd.run().await?,
+            Command::Wallet(cmd) => cmd.run()?,
             Command::Balance {
                 account,
                 token_address,
                 eth,
                 rpc_url,
+                state_overrides,
+                block_overrides,
             } => {
                 let eth_client = EthClient::new(rpc_url)?;
                 let account_balance = if let Some(token_address) = token_address {
-                    get_token_balance(&eth_client, account, token_address).await?
+                    if state_overrides.is_empty() && block_overrides.is_empty() {
+                        get_token_balance(&eth_client, account, token_address).await?
+                    } else {
+                        get_token_balance_with_overrides(
+                            &eth_client,
+                            account,
+                            token_address,
+                            &state_overrides.build()?,
+                            &block_overrides.build(),
+                        )
+                        .await?
+                    }
                 } else {
+                    if !state_overrides.is_empty() || !block_overrides.is_empty() {
+                        return Err(eyre::eyre!(
+                            "state/block overrides apply to contract calls (eth_call); use --token to query an ERC-20 balance with overrides, since eth_getBalance does not accept overrides"
+                        ));
+                    }
                     eth_client
                         .get_balance(account, BlockIdentifier::Tag(BlockTag::Latest))
                         .await?
@@ -587,19 +622,27 @@ impl Command {
                     parse_func_call(args._args)?
                 };
 
-                let result = client
-                    .call(
+                let call_overrides = Overrides {
+                    from: args.from,
+                    value: args.value.into(),
+                    gas_limit: args.gas_limit,
+                    max_fee_per_gas: args.max_fee_per_gas,
+                    ..Default::default()
+                };
+
+                let result = if args.state_overrides.is_empty() && args.block_overrides.is_empty() {
+                    client.call(args.to, calldata, call_overrides).await?
+                } else {
+                    call_with_overrides(
+                        &client,
                         args.to,
                         calldata,
-                        Overrides {
-                            from: args.from,
-                            value: args.value.into(),
-                            gas_limit: args.gas_limit,
-                            max_fee_per_gas: args.max_fee_per_gas,
-                            ..Default::default()
-                        },
+                        call_overrides,
+                        &args.state_overrides.build()?,
+                        &args.block_overrides.build(),
                     )
-                    .await?;
+                    .await?
+                };
 
                 println!("{result}");
             }
@@ -637,11 +680,12 @@ impl Command {
                         (bytecode, Some(info))
                     }
                 };
-
-                let init_args = if args._args.is_empty() {
-                    Bytes::new()
-                } else {
+                let init_args = if !args.constructor_args.is_empty() {
+                    encode_constructor_args(&args.constructor_args)?
+                } else if !args._args.is_empty() {
                     parse_contract_creation(std::mem::take(&mut args._args))?
+                } else {
+                    Bytes::new()
                 };
 
                 let (tx_hash, deployed_contract_address) = if let Some(salt) = args.salt {
@@ -875,7 +919,7 @@ fn print_transaction(tx: &RpcTransaction) {
 
     // Get from address
     let from = inner_tx
-        .sender()
+        .sender(&NativeCrypto)
         .map(|addr| format!("0x{:x}", addr))
         .unwrap_or_else(|_| "unknown".to_string());
 

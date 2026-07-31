@@ -52,6 +52,7 @@ Commands:
   create-address    Compute contract address given the deployer address and nonce.
   create2-address   Compute contract address for CREATE2 deployments.
   deploy            Deploy a contract
+  frame             Send, build, or inspect an EIP-8141 frame transaction (tx type 0x06)
   hash              Get either the keccak for a given input, the zero hash, the empty string, or a random hash [aliases: h, keccak]
   l2                L2 specific commands.
   nonce             Get the account's nonce. [aliases: n]

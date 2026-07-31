@@ -4,10 +4,10 @@ use ethrex_common::{Bytes, H160, H256, U256};
 use ethrex_l2_common::calldata::Value;
 use ethrex_l2_common::utils::get_address_from_secret_key;
 use ethrex_l2_rpc::signer::{LocalSigner, Signer};
+use ethrex_l2_sdk::calldata::encode_calldata;
+use ethrex_l2_sdk::{build_generic_tx, send_generic_transaction};
 use ethrex_rpc::EthClient;
 use ethrex_rpc::clients::Overrides;
-use ethrex_sdk::calldata::encode_calldata;
-use ethrex_sdk::{build_generic_tx, send_generic_transaction};
 use keccak_hash::keccak;
 use reqwest::Url;
 use rex_sdk::deploy;
@@ -167,8 +167,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 8. Get the log emitted by the contract call execution.
     let logs = eth_client
         .get_logs(
-            from_block,
-            to_block,
+            from_block.into(),
+            to_block.into(),
             deployed_address,
             vec![keccak("RecoveredSigner(address)")],
         )

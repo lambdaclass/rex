@@ -8,6 +8,9 @@ on:
     paths-ignore:
       - "sdk/**" # We run this in a separate workflow
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true

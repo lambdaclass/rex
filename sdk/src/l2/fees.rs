@@ -26,7 +26,7 @@ pub async fn fetch_fee_info(
     let (block_identifier, block_number) = match block {
         Some(block_number) => (BlockIdentifier::Number(block_number), block_number),
         None => {
-            let latest_block = client.get_block_number().await?.as_u64();
+            let latest_block = client.get_block_number().await?;
             (BlockIdentifier::Tag(BlockTag::Latest), latest_block)
         }
     };
