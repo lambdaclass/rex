@@ -12,7 +12,8 @@
 //!   - signature = `rlp([scheme, signer, msg, signature_bytes])`
 //!   - sig_hash  = `keccak(0x06 || rlp(envelope with empty-msg signature bytes elided))`
 //!
-//! - `mode`:  0 = DEFAULT, 1 = VERIFY, 2 = SENDER, 3 = POST_TX (EIP-7906)
+//! - `mode`:  0 = DEFAULT, 1 = VERIFY, 2 = SENDER, 3 = POST_TX (EIP-7906),
+//!            5 = UTXO (EIP-8312; 4 reserved for EIP-8288)
 //! - `flags`: bit 0 = PAYMENT approval, bit 1 = EXECUTION approval, bit 2 = atomic batch
 //! - a secp256k1 outer signature is `v(1) || r(32) || s(32)`, v = recovery_id + 27
 
@@ -36,6 +37,10 @@ pub const MODE_DEFAULT: u8 = 0;
 pub const MODE_VERIFY: u8 = 1;
 pub const MODE_SENDER: u8 = 2;
 pub const MODE_POST_TX: u8 = 3;
+/// EIP-8312 UTXO frame. Mode 5, not the draft's 3: EIP-7906 had already taken 3
+/// for POST_TX upstream, and renumbering a mode with live history is worse than
+/// diverging from a draft. Mode 4 stays reserved for EIP-8288 DEP_VERIFY.
+pub const MODE_UTXO: u8 = 5;
 
 /// Flag bitmasks (0x01 = PAYMENT, 0x02 = EXECUTION, 0x04 = atomic batch).
 pub const FLAG_PAYMENT: u8 = 0x01;
@@ -49,6 +54,7 @@ fn mode_name(mode: u8) -> &'static str {
         MODE_VERIFY => "VERIFY",
         MODE_SENDER => "SENDER",
         MODE_POST_TX => "POST_TX",
+        MODE_UTXO => "UTXO",
         _ => "RESERVED",
     }
 }
