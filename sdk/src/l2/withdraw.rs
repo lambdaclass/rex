@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use ethrex_common::{Address, Bytes, U256, types::TxType};
 use ethrex_l2_common::{
     calldata::Value, messages::L1MessageProof, utils::get_address_from_secret_key,
@@ -175,5 +177,168 @@ pub async fn claim_erc20withdraw(
 
     let signer = Signer::Local(LocalSigner::new(from_pk));
 
+    send_generic_transaction(eth_client, claim_tx, &signer).await
+}
+
+// Native rollup withdrawal support
+
+fn deserialize_u256<'de, D>(deserializer: D) -> Result<U256, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s: String = serde::Deserialize::deserialize(deserializer)?;
+    let s = s.strip_prefix("0x").unwrap_or(&s);
+    U256::from_str_radix(s, 16).map_err(serde::de::Error::custom)
+}
+
+fn deserialize_u64<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s: String = serde::Deserialize::deserialize(deserializer)?;
+    let s = s.strip_prefix("0x").unwrap_or(&s);
+    u64::from_str_radix(s, 16).map_err(serde::de::Error::custom)
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeWithdrawalProof {
+    pub from: Address,
+    pub receiver: Address,
+    #[serde(deserialize_with = "deserialize_u256")]
+    pub amount: U256,
+    #[serde(deserialize_with = "deserialize_u256")]
+    pub message_id: U256,
+    #[serde(deserialize_with = "deserialize_u64")]
+    pub block_number: u64,
+    pub account_proof: Vec<String>,
+    pub storage_proof: Vec<String>,
+}
+
+pub async fn get_native_withdrawal_proof(
+    l2_rpc_url: &str,
+    tx_hash: H256,
+) -> Result<NativeWithdrawalProof, EthClientError> {
+    #[derive(serde::Deserialize)]
+    struct JsonRpcResponse {
+        result: Option<NativeWithdrawalProof>,
+        error: Option<JsonRpcError>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct JsonRpcError {
+        message: String,
+    }
+
+    let client = reqwest::Client::new();
+    let body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "ethrex_getNativeWithdrawalProof",
+        "params": [format!("{tx_hash:#x}")],
+        "id": 1
+    });
+
+    let max_retries: u32 = 60;
+    let mut attempts: u32 = 0;
+
+    loop {
+        let response = client
+            .post(l2_rpc_url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| EthClientError::Custom(e.to_string()))?;
+
+        let rpc_response: JsonRpcResponse = response
+            .json()
+            .await
+            .map_err(|e| EthClientError::Custom(e.to_string()))?;
+
+        if let Some(error) = rpc_response.error {
+            attempts = attempts.checked_add(1).unwrap_or(u32::MAX);
+            if attempts >= max_retries {
+                return Err(EthClientError::Custom(format!(
+                    "Failed to get native withdrawal proof after {max_retries} attempts: {}",
+                    error.message
+                )));
+            }
+            println!(
+                "Waiting for native withdrawal proof (attempt {attempts}/{max_retries})..."
+            );
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            continue;
+        }
+
+        return rpc_response.result.ok_or(EthClientError::Custom(
+            "RPC response contained neither result nor error".to_owned(),
+        ));
+    }
+}
+
+pub async fn claim_native_withdraw(
+    proof: &NativeWithdrawalProof,
+    from_pk: SecretKey,
+    eth_client: &EthClient,
+    native_rollup_address: Address,
+) -> Result<H256, EthClientError> {
+    let from =
+        get_address_from_secret_key(&from_pk.secret_bytes()).map_err(EthClientError::Custom)?;
+
+    println!(
+        "Claiming native withdrawal of {} to {:#x}",
+        proof.amount, proof.receiver
+    );
+
+    const CLAIM_NATIVE_WITHDRAWAL_SIGNATURE: &str =
+        "claimWithdrawal(address,address,uint256,uint256,uint256,bytes[],bytes[])";
+
+    let account_proof: Vec<Value> = proof
+        .account_proof
+        .iter()
+        .map(|s| {
+            let hex_str = s.strip_prefix("0x").unwrap_or(s);
+            hex::decode(hex_str)
+                .map(|bytes| Value::Bytes(Bytes::from(bytes)))
+                .map_err(|e| EthClientError::Custom(e.to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let storage_proof: Vec<Value> = proof
+        .storage_proof
+        .iter()
+        .map(|s| {
+            let hex_str = s.strip_prefix("0x").unwrap_or(s);
+            hex::decode(hex_str)
+                .map(|bytes| Value::Bytes(Bytes::from(bytes)))
+                .map_err(|e| EthClientError::Custom(e.to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let calldata_values = vec![
+        Value::Address(proof.from),
+        Value::Address(proof.receiver),
+        Value::Uint(proof.amount),
+        Value::Uint(proof.message_id),
+        Value::Uint(U256::from(proof.block_number)),
+        Value::Array(account_proof),
+        Value::Array(storage_proof),
+    ];
+
+    let calldata = encode_calldata(CLAIM_NATIVE_WITHDRAWAL_SIGNATURE, &calldata_values)?;
+
+    let claim_tx = build_generic_tx(
+        eth_client,
+        TxType::EIP1559,
+        native_rollup_address,
+        from,
+        calldata.into(),
+        Overrides {
+            from: Some(from),
+            ..Default::default()
+        },
+    )
+    .await?;
+
+    let signer = Signer::Local(LocalSigner::new(from_pk));
     send_generic_transaction(eth_client, claim_tx, &signer).await
 }
