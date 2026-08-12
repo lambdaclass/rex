@@ -78,7 +78,7 @@ fn secp256k1_signature(sig_hash: H256, signer: Address, secret: &SecretKey) -> F
     bytes.extend_from_slice(&sig[32..64]); // s
     FrameSignature {
         scheme: FRAME_SIG_SCHEME_SECP256K1,
-        signer,
+        signer: Some(signer),
         msg: Bytes::new(),
         signature: Bytes::from(bytes),
     }
@@ -90,7 +90,7 @@ fn secp256k1_signature(sig_hash: H256, signer: Address, secret: &SecretKey) -> F
 fn signature_placeholder(signer: Address) -> FrameSignature {
     FrameSignature {
         scheme: FRAME_SIG_SCHEME_SECP256K1,
-        signer,
+        signer: Some(signer),
         msg: Bytes::new(),
         signature: Bytes::new(),
     }
