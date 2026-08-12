@@ -726,7 +726,7 @@ mod tests {
         let signer = sender_addr();
         let fs = secp256k1_signature(sig_hash, signer, &sk);
         assert_eq!(fs.scheme, FRAME_SIG_SCHEME_SECP256K1);
-        assert_eq!(fs.signer, signer);
+        assert_eq!(fs.signer, Some(signer));
         assert!(fs.msg.is_empty());
         assert_eq!(fs.signature.len(), 65);
         // v sits at byte 0 (ethrex parses v || r || s), already +27.
