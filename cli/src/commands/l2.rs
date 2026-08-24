@@ -17,6 +17,9 @@ use rex_sdk::{
     l2::fees::fetch_fee_info,
     l2::{
         deposit::{deposit_erc20, deposit_through_contract_call},
+        verification_key::{
+            Prover, commit_hash_from_git_sha, get_verification_key, register_verification_key,
+        },
         withdraw::{claim_erc20withdraw, claim_withdraw, withdraw, withdraw_erc20},
     },
     wait_for_transaction_receipt,
@@ -199,6 +202,63 @@ pub(crate) enum Command {
             default_value = "http://localhost:1729",
             env = "RPC_URL",
             help = "L2 RPC URL"
+        )]
+        rpc_url: Url,
+    },
+    #[clap(
+        about = "Register a prover verification key for a sequencer build.",
+        long_about = "Registers a verification key against the commit hash a sequencer build \
+commits batches under. Required on every ethrex upgrade of a deployment that verifies real \
+proofs: `commitBatch` rejects a commit hash it holds no key for, so an upgraded sequencer \
+commits nothing until its key is registered.",
+        visible_alias = "vk"
+    )]
+    RegisterVk {
+        #[arg(
+            long,
+            help = "Git sha the new build prints in `ethrex --version` (the part after `HEAD-`), \
+or an already-hashed 0x-prefixed 32-byte commit hash. Must be the full sha, not an abbreviation."
+        )]
+        commit: String,
+        #[arg(
+            long,
+            value_parser = parse_hex,
+            help = "32-byte verification key, as shipped in the release's ethrex-contracts.tar.gz."
+        )]
+        vk: Bytes,
+        #[arg(
+            long,
+            default_value = "sp1",
+            help = "Which verifier the key belongs to: sp1 or risc0."
+        )]
+        prover: String,
+        #[arg(long, env = "ON_CHAIN_PROPOSER_ADDRESS")]
+        on_chain_proposer: Address,
+        #[arg(
+            long,
+            env = "TIMELOCK_ADDRESS",
+            help = "Timelock address. Needed whenever the Timelock owns the OnChainProposer, \
+which is the default since ethrex v9.0.0: the call is routed through emergencyExecute. Omit \
+only if an EOA still owns the contract."
+        )]
+        timelock: Option<Address>,
+        #[arg(
+            long,
+            value_parser = parse_private_key,
+            env = "PRIVATE_KEY",
+            help = "Security Council key, or the owner key when there is no Timelock."
+        )]
+        private_key: SecretKey,
+        #[arg(
+            long,
+            help = "Show the derived commit hash and the key currently on-chain, without sending."
+        )]
+        dry_run: bool,
+        #[arg(
+            long,
+            default_value = "http://localhost:8545",
+            env = "L1_RPC_URL",
+            help = "L1 RPC URL"
         )]
         rpc_url: Url,
     },
@@ -566,6 +626,101 @@ impl Command {
             }
             Command::Receipt { tx_hash, rpc_url } => {
                 Box::pin(async { EthCommand::Receipt { tx_hash, rpc_url }.run().await }).await?
+            }
+            Command::RegisterVk {
+                commit,
+                vk,
+                prover,
+                on_chain_proposer,
+                timelock,
+                private_key,
+                dry_run,
+                rpc_url,
+            } => {
+                let prover = match prover.to_lowercase().as_str() {
+                    "sp1" => Prover::Sp1,
+                    "risc0" => Prover::Risc0,
+                    other => {
+                        return Err(eyre::eyre!(
+                            "unknown prover '{other}', expected sp1 or risc0"
+                        ));
+                    }
+                };
+
+                // Accept either the sha to hash or an already-hashed value, so the
+                // caller never has to know which form the contract wants.
+                let commit_hash = match commit.strip_prefix("0x") {
+                    Some(hex) if hex.len() == 64 => H256::from_slice(&parse_hex(hex)?),
+                    _ => commit_hash_from_git_sha(&commit),
+                };
+
+                if vk.len() != 32 {
+                    return Err(eyre::eyre!(
+                        "a verification key is 32 bytes, got {}",
+                        vk.len()
+                    ));
+                }
+                let verification_key = H256::from_slice(&vk);
+
+                let eth_client = EthClient::new(rpc_url)?;
+                let current =
+                    get_verification_key(&eth_client, on_chain_proposer, commit_hash, prover)
+                        .await?;
+
+                println!("commit hash: {commit_hash:#x}");
+                println!("on-chain:    {current:#x}");
+                println!("to register: {verification_key:#x}");
+
+                if dry_run {
+                    println!("Dry run, nothing sent.");
+                } else if current == verification_key {
+                    println!("Already registered, nothing to do.");
+                } else {
+                    let from = get_address_from_secret_key(&private_key.secret_bytes())
+                        .map_err(|e| eyre::eyre!(e))?;
+                    let tx_hash = register_verification_key(
+                        &eth_client,
+                        on_chain_proposer,
+                        timelock,
+                        prover,
+                        commit_hash,
+                        verification_key,
+                        from,
+                        private_key,
+                    )
+                    .await
+                    .map_err(|error| {
+                        // 0x118cdaa7 is OwnableUnauthorizedAccount(address). It means the
+                        // caller is not the owner, which for a deployment with a Timelock
+                        // is what happens when --timelock is missing. The raw revert
+                        // surfaces as an abi-decode failure, so say what to do instead.
+                        if error.to_string().contains("118cdaa7") && timelock.is_none() {
+                            eyre::eyre!(
+                                "the OnChainProposer rejected {from:#x} as not its owner. \
+Its owner is the Timelock in any deployment made since ethrex v9.0.0 — pass --timelock \
+so the call is routed through emergencyExecute."
+                            )
+                        } else {
+                            eyre::eyre!(error)
+                        }
+                    })?;
+                    println!("Sent {tx_hash:#x}");
+                    wait_for_transaction_receipt(tx_hash, &eth_client, 100, false).await?;
+
+                    // Read it back: the call can be mined without taking effect if
+                    // it was routed to the wrong owner.
+                    let after =
+                        get_verification_key(&eth_client, on_chain_proposer, commit_hash, prover)
+                            .await?;
+                    if after == verification_key {
+                        println!("Registered.");
+                    } else {
+                        return Err(eyre::eyre!(
+                            "transaction was mined but the key is still {after:#x}; \
+check that --timelock matches the OnChainProposer's owner"
+                        ));
+                    }
+                }
             }
             Command::Balance { args, rpc_url } => {
                 Box::pin(async {
