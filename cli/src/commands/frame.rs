@@ -8,7 +8,7 @@
 //! Envelope: `0x06 || rlp([chain_id, nonce_keys, nonce_seq, sender, frames,
 //! signatures, max_priority_fee, max_fee, max_fee_per_blob_gas,
 //! blob_versioned_hashes, recent_root_references])`
-//!   - frame     = `rlp([mode, flags, target, gas_limit, value, data])`
+//!   - frame     = `rlp([mode, flags, target, [execution, state], value, data])`
 //!   - signature = `rlp([scheme, signer, msg, signature_bytes])`
 //!   - sig_hash  = `keccak(0x06 || rlp(envelope with empty-msg signature bytes elided))`
 //!
@@ -18,7 +18,8 @@
 
 use clap::Subcommand;
 use ethrex_common::types::{
-    FRAME_SIG_SCHEME_SECP256K1, Frame, FrameSignature, FrameTransaction, Transaction,
+    FRAME_SIG_SCHEME_SECP256K1, Frame, FrameEncoding, FrameLimits, FrameSignature,
+    FrameTransaction, Transaction,
 };
 use ethrex_common::{Address, Bytes, H256, U256};
 use ethrex_l2_common::utils::get_address_from_secret_key;
@@ -74,15 +75,18 @@ fn flags_desc(flags: u8) -> String {
 /// `msg` is empty, so its signature bytes are elided from the sig_hash; `signer`
 /// is the account whose key signed.
 fn secp256k1_signature(sig_hash: H256, signer: Address, secret: &SecretKey) -> FrameSignature {
-    // sign_hash returns r(32) || s(32) || v(1, already +27).
+    // sign_hash returns r(32) || s(32) || v(1, already +27); the frame wire layout is
+    // v || r || s. EIP-8141 requires `v` to be a BARE recovery id (0 or 1), not the +27
+    // EVM form ecrecover takes, and the node rejects anything above 1 outright -- so the
+    // 27 has to come back off here.
     let sig = sign_hash(sig_hash, *secret);
     let mut bytes = Vec::with_capacity(65);
-    bytes.push(sig[64]); // v
+    bytes.push(sig[64].saturating_sub(27)); // v, as a bare recovery id
     bytes.extend_from_slice(&sig[0..32]); // r
     bytes.extend_from_slice(&sig[32..64]); // s
     FrameSignature {
         scheme: FRAME_SIG_SCHEME_SECP256K1,
-        signer,
+        signer: Some(signer),
         msg: Bytes::new(),
         signature: Bytes::from(bytes),
     }
@@ -94,7 +98,7 @@ fn secp256k1_signature(sig_hash: H256, signer: Address, secret: &SecretKey) -> F
 fn signature_placeholder(signer: Address) -> FrameSignature {
     FrameSignature {
         scheme: FRAME_SIG_SCHEME_SECP256K1,
-        signer,
+        signer: Some(signer),
         msg: Bytes::new(),
         signature: Bytes::new(),
     }
@@ -222,6 +226,18 @@ pub(crate) enum Command {
         frame_gas_limit: u64,
         #[arg(long, default_value_t = 200_000)]
         sponsor_gas_limit: u64,
+        #[arg(
+            long,
+            default_value_t = 500_000,
+            help = "EIP-8037 state-gas budget per frame (limits.state). Separate from the execution budget and never drawn from it: growing state -- creating an account, writing a fresh storage slot -- is paid from here, so a frame that leaves this at zero halts on its first write. A frame in the validation prefix must keep its share under MAX_VERIFY_STATE_GAS."
+        )]
+        frame_state_gas_limit: u64,
+        #[arg(
+            long,
+            default_value_t = 500_000,
+            help = "EIP-8037 state-gas budget for the sponsor frame (limits.state)."
+        )]
+        sponsor_state_gas_limit: u64,
         #[arg(long, value_parser = parse_amount)]
         max_fee_per_gas: Option<U256>,
         #[arg(
@@ -282,6 +298,11 @@ struct FrameJson {
     target: Option<Address>,
     #[serde(alias = "gasLimit", alias = "gas_limit")]
     gas_limit: u64,
+    /// EIP-8037 state-gas budget for this frame (`limits.state`). Defaults to zero, which is
+    /// correct only for a frame that grows no state; anything that creates an account or
+    /// writes a fresh slot must declare one or it halts on that write.
+    #[serde(default, alias = "stateGasLimit", alias = "state_gas_limit")]
+    state_gas_limit: u64,
     #[serde(default)]
     value: Option<String>,
     #[serde(default)]
@@ -300,6 +321,8 @@ impl Command {
                 sponsor_owner_key,
                 frame_gas_limit,
                 sponsor_gas_limit,
+                frame_state_gas_limit,
+                sponsor_state_gas_limit,
                 max_fee_per_gas,
                 max_priority_fee_per_gas,
                 private_key,
@@ -342,7 +365,11 @@ impl Command {
                                 mode: MODE_VERIFY,
                                 flags: FLAG_EXECUTION,
                                 target: Some(sender),
-                                gas_limit: frame_gas_limit,
+                                limits: FrameLimits {
+                                    execution: frame_gas_limit,
+                                    state: frame_state_gas_limit,
+                                },
+                                encoding: FrameEncoding::Limits,
                                 value: U256::zero(),
                                 data: Bytes::new(),
                             },
@@ -350,7 +377,11 @@ impl Command {
                                 mode: MODE_VERIFY,
                                 flags: FLAG_PAYMENT,
                                 target: Some(sponsor_addr),
-                                gas_limit: sponsor_gas_limit,
+                                limits: FrameLimits {
+                                    execution: sponsor_gas_limit,
+                                    state: sponsor_state_gas_limit,
+                                },
+                                encoding: FrameEncoding::Limits,
                                 value: U256::zero(),
                                 data: sponsor_calldata,
                             },
@@ -358,7 +389,11 @@ impl Command {
                                 mode: MODE_SENDER,
                                 flags: 0,
                                 target: Some(to),
-                                gas_limit: frame_gas_limit,
+                                limits: FrameLimits {
+                                    execution: frame_gas_limit,
+                                    state: frame_state_gas_limit,
+                                },
+                                encoding: FrameEncoding::Limits,
                                 value,
                                 data,
                             },
@@ -373,7 +408,11 @@ impl Command {
                                 mode: MODE_VERIFY,
                                 flags: FLAG_BOTH,
                                 target: Some(sender),
-                                gas_limit: frame_gas_limit,
+                                limits: FrameLimits {
+                                    execution: frame_gas_limit,
+                                    state: frame_state_gas_limit,
+                                },
+                                encoding: FrameEncoding::Limits,
                                 value: U256::zero(),
                                 data: Bytes::new(),
                             },
@@ -381,7 +420,11 @@ impl Command {
                                 mode: MODE_SENDER,
                                 flags: 0,
                                 target: Some(to),
-                                gas_limit: frame_gas_limit,
+                                limits: FrameLimits {
+                                    execution: frame_gas_limit,
+                                    state: frame_state_gas_limit,
+                                },
+                                encoding: FrameEncoding::Limits,
                                 value,
                                 data,
                             },
@@ -464,7 +507,11 @@ impl Command {
                         mode: f.mode,
                         flags: f.flags,
                         target: f.target,
-                        gas_limit: f.gas_limit,
+                        limits: FrameLimits {
+                            execution: f.gas_limit,
+                            state: f.state_gas_limit,
+                        },
+                        encoding: FrameEncoding::Limits,
                         value,
                         data: data_bytes,
                     });
@@ -685,7 +732,11 @@ mod tests {
                     mode: MODE_VERIFY,
                     flags: FLAG_BOTH,
                     target: Some(sender_addr()),
-                    gas_limit: 100_000,
+                    limits: FrameLimits {
+                        execution: 100_000,
+                        state: 500_000,
+                    },
+                    encoding: FrameEncoding::Limits,
                     value: U256::zero(),
                     data: Bytes::new(),
                 },
@@ -693,7 +744,11 @@ mod tests {
                     mode: MODE_SENDER,
                     flags: 0,
                     target: Some(sender_addr()),
-                    gas_limit: 30_000,
+                    limits: FrameLimits {
+                        execution: 30_000,
+                        state: 0,
+                    },
+                    encoding: FrameEncoding::Limits,
                     value: U256::from(1u64),
                     data: Bytes::new(),
                 },

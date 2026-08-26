@@ -530,8 +530,15 @@ rex frame send \
 #### `rex frame build`
 
 Builds a raw, **unsigned** frame-tx envelope from explicit frames (no RPC calls).
-`--frames` is a JSON array of `{mode, flags, target, gasLimit, value, data}`.
+`--frames` is a JSON array of `{mode, flags, target, gasLimit, stateGasLimit, value, data}`.
 Handy for inspecting the exact `0x06` encoding.
+
+A frame declares **two** budgets. `gasLimit` is `limits.execution`; `stateGasLimit` is
+`limits.state`, which pays EIP-8037's charge for growing the state — creating an account,
+writing a fresh storage slot. The pools never mix, so execution gas cannot cover state
+growth: a frame that writes new state with `stateGasLimit` at 0 halts on that write, and
+the failure looks like an exhausted execution budget rather than a missing one.
+`stateGasLimit` defaults to 0, which is correct only for a frame that writes no new state.
 
 ```Shell
 Usage: rex frame build --chain-id <CHAIN_ID> --nonce <NONCE> --sender <SENDER> --frames <FRAMES> [OPTIONS]
@@ -540,15 +547,15 @@ Options:
       --chain-id <CHAIN_ID>
       --nonce <NONCE>            nonce_seq for key 0 (the account's linear nonce)
       --sender <SENDER>
-      --frames <FRAMES>          JSON array of {mode, flags, target, gasLimit, value, data}
+      --frames <FRAMES>          JSON array of {mode, flags, target, gasLimit, stateGasLimit, value, data}
       --max-fee <MAX_FEE>        [default: 10gwei]
       --max-priority-fee <..>    [default: 1gwei]
 ```
 
 ```Shell
 rex frame build --chain-id 3151908 --nonce 0 --sender 0x… \
-  --frames '[{"mode":1,"flags":3,"gasLimit":100000,"value":"0","data":"0x"},
-             {"mode":2,"flags":0,"target":"0xRecipient","gasLimit":30000,"value":"1","data":"0x"}]'
+  --frames '[{"mode":1,"flags":3,"gasLimit":100000,"stateGasLimit":0,"value":"0","data":"0x"},
+             {"mode":2,"flags":0,"target":"0xRecipient","gasLimit":30000,"stateGasLimit":250000,"value":"1","data":"0x"}]'
 ```
 
 #### `rex frame inspect`

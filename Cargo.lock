@@ -531,9 +531,9 @@ dependencies = [
 
 [[package]]
 name = "c-kzg"
-version = "2.1.5"
+version = "2.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e00bf4b112b07b505472dbefd19e37e53307e2bfed5a79e0cc161d58ccd0e687"
+checksum = "38d04308254695569fdb9bfe3bacc1c91837a670d0806605eb82d63748fbd3a6"
 dependencies = [
  "blst",
  "cc",
@@ -1241,18 +1241,21 @@ dependencies = [
 
 [[package]]
 name = "ethrex-blockchain"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "bytes",
  "crossbeam",
  "ethrex-common",
  "ethrex-crypto",
+ "ethrex-guest-program",
  "ethrex-metrics",
  "ethrex-rlp",
  "ethrex-storage",
  "ethrex-trie",
  "ethrex-vm",
+ "libssz",
+ "libssz-merkle",
  "rayon",
  "rustc-hash",
  "thiserror 2.0.17",
@@ -1263,8 +1266,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-common"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "bytes",
  "crc32fast",
@@ -1278,6 +1281,10 @@ dependencies = [
  "indexmap 2.12.1",
  "lazy_static",
  "libc",
+ "libssz",
+ "libssz-derive",
+ "libssz-merkle",
+ "libssz-types",
  "lru",
  "once_cell",
  "rayon",
@@ -1293,8 +1300,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-crypto"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -1314,9 +1321,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethrex-guest-program"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
+dependencies = [
+ "bytes",
+ "ethereum-types",
+ "ethrex-common",
+ "ethrex-crypto",
+ "ethrex-l2-common",
+ "ethrex-rlp",
+ "ethrex-vm",
+ "hex",
+ "rkyv",
+ "serde",
+ "serde_with",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "ethrex-l2-common"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1334,8 +1360,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-l2-rpc"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "axum",
  "bytes",
@@ -1357,6 +1383,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
+ "tokio-util",
  "tower-http",
  "tracing",
  "tracing-subscriber",
@@ -1365,14 +1392,15 @@ dependencies = [
 
 [[package]]
 name = "ethrex-levm"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "bytes",
  "derive_more",
  "ethrex-common",
  "ethrex-crypto",
  "ethrex-rlp",
+ "libssz",
  "malachite",
  "rayon",
  "rustc-hash",
@@ -1383,8 +1411,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-metrics"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "axum",
  "ethrex-common",
@@ -1399,8 +1427,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-p2p"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1443,8 +1471,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rlp"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1453,8 +1481,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rpc"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "axum",
  "axum-extra",
@@ -1493,8 +1521,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1518,8 +1546,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk-contract-utils"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "thiserror 2.0.17",
  "tracing",
@@ -1527,8 +1555,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1549,8 +1577,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage-rollup"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1565,8 +1593,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-trie"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1574,18 +1602,19 @@ dependencies = [
  "ethereum-types",
  "ethrex-crypto",
  "ethrex-rlp",
- "lazy_static",
+ "hashbrown 0.15.5",
  "rayon",
  "rkyv",
  "rustc-hash",
  "serde",
+ "spin",
  "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "ethrex-vm"
-version = "17.0.0"
-source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#f5bfde5dca8a045a370a21097c7421398340ee30"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=hegota-devnet#355608da39ad11bd5bda5033ac2aa4faf9387519"
 dependencies = [
  "bytes",
  "derive_more",
@@ -2480,6 +2509,47 @@ checksum = "416f7e718bdb06000964960ffa43b4335ad4012ae8b99060261aa4a8088d5ccb"
 dependencies = [
  "bitflags",
  "libc",
+]
+
+[[package]]
+name = "libssz"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d498c0482bba87d2647ea4601ea76cf2b498065e3958798a88f49274f3ced5e9"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
+name = "libssz-derive"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ddfb5c969c28a4a54043e630f80c723352637bd1020f256ee3ac7a8814922b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "libssz-merkle"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63c6d6d5ce5d79bba66bc98c99869eedffedf7f14f0aa0915f1a62802650bdf6"
+dependencies = [
+ "libssz",
+ "sha2",
+]
+
+[[package]]
+name = "libssz-types"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "747273ab2d923e82ed147091fe0fb3e602dd2012c872cdad5efe69e27c3b4099"
+dependencies = [
+ "libssz",
+ "libssz-merkle",
+ "smallvec",
 ]
 
 [[package]]
@@ -3942,6 +4012,12 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "spin"
+version = "0.9.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
 
 [[package]]
 name = "spinoff"
