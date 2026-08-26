@@ -1241,9 +1241,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-blockchain"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab4468dc986cea66fe4d6f4b846c52e8f9438103c07f86c347b718db98e8ee94"
+checksum = "02ec3471a679ddce13ac2aecde29dd42b9ce726e3075aef0164c3607ec3d1acc"
 dependencies = [
  "bytes",
  "crossbeam",
@@ -1264,9 +1264,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-common"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90cbe0d61a9f9fdb3c2795abeda0b711e6dff0dc67f0fe543aab4e2463927026"
+checksum = "85c1e35a6c3065805a6e9a7c79cf7679dfe669d49c39c98b7179830e0008688f"
 dependencies = [
  "bytes",
  "crc32fast",
@@ -1295,9 +1295,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-crypto"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e88d1bd052fe0b42002cd43c2a4ac92316fd4c55c57d20d989a33c65052c5c32"
+checksum = "4892b28cce36b60b90fa3da1d914250e1aef03f47a33d4a6e76b66778113c921"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -1318,9 +1318,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-l2-common"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f4be7c0d04944dd4b3bf725e8101352628acc06e37e913abe869564a5c61888"
+checksum = "2888743df7e2445ae1f15310cd644267c451ce804dd707331e70cf6e8bafe5d1"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1338,9 +1338,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-l2-rpc"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b25957b65d702e4a4382c9fee5122acb4ef105b7357fb1100af7f06897873bd2"
+checksum = "d99903c52a5b53cac495a3cb8ce0a3f87e406583617dea8a4032f447e3c0ddde"
 dependencies = [
  "axum",
  "bytes",
@@ -1371,9 +1371,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-levm"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb5ee2c4edc3ce6c76466a4bc471b3e7f796b9ced1d50171a4ed12442bd3df28"
+checksum = "6a14689511ed80b02cdc5383b7cc2d44ec3afecec8080f2200e209581203f232"
 dependencies = [
  "bytes",
  "derive_more",
@@ -1390,9 +1390,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-metrics"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8c2b0fa6ae6aebbde6464d7500aa89ab416699d86a3f3abe2600406a2849a2c"
+checksum = "58da803cd2673cd0aadd464f142a687324daf1456d087fc7f133c9843619a98d"
 dependencies = [
  "axum",
  "ethrex-common",
@@ -1407,9 +1407,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-p2p"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "992a64b49edc4ef929c1f2f7211a2bcc26690d3720fe7a5514036cabb4792841"
+checksum = "8a22a9b506bab54dedee6cb9b035a4526a829e32854b94b7fd7e55935be5a711"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1452,9 +1452,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rlp"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d717b8f86f258435fff828c363c1a87fef6fc64d7375d505072065880fca6f28"
+checksum = "6e4befaa5c48096d1e185be307167fc205db55c071d5ee0fde9122cb28ca3810"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1463,9 +1463,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rpc"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd9c584b7e73b119d1a0fb02f4e36a9fa27b58403fe603a8d601dbd415175b1e"
+checksum = "5ef8fea1721d9bb7b74875ad390676d31d79d06c77efc0201af7ffdf726b07cb"
 dependencies = [
  "axum",
  "axum-extra",
@@ -1504,9 +1504,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0daa73682fa9f21e97c6263d812490b9e9b46db01e45897200078745486ec68"
+checksum = "39ff5985241e45629545ad180cdf11909194ca2d9681d6170b9271ac12693462"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1530,9 +1530,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk-contract-utils"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd8aa08a26f28cb7082a816e73f287e2a3a25da0375c1ba4d3229d612aa4e757"
+checksum = "0d0266259f7b82719fdbcb3b74c22b237f2cf07174d4b75a0331331ad45e9fb5"
 dependencies = [
  "thiserror 2.0.17",
  "tracing",
@@ -1540,9 +1540,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ec5f5391acd4634a1643dfe28db7ebb5166ebbc8f2df543bcf848cc5f763eed"
+checksum = "be2e82ab7a710954b2eb4fb12237b17abf7aa42465b176ba7dd7e086dc866c90"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1563,9 +1563,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage-rollup"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "225cb6a72342ac950356cd139bab89eea829402035b4d2c2e34ffab131673b8d"
+checksum = "6affd384ec58524a0e80385a3e132d8bbbf54f9759e83dc546ed93676c9a6006"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1580,9 +1580,9 @@ dependencies = [
 
 [[package]]
 name = "ethrex-trie"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "618c0341b11641448cdbb33e04cf3d6f3b3b4b1edbbe117d386f793b4d87c17c"
+checksum = "23e96eda5284e5fe63599caf0f758510f095ce06907cd2c938435df9a4087d6e"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1590,19 +1590,20 @@ dependencies = [
  "ethereum-types",
  "ethrex-crypto",
  "ethrex-rlp",
- "lazy_static",
+ "hashbrown 0.15.5",
  "rayon",
  "rkyv",
  "rustc-hash",
  "serde",
+ "spin",
  "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "ethrex-vm"
-version = "23.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9bfa53f420d193a594c238470fbae6097cafcf942dc3d362c737b369c500dea"
+checksum = "9790d1d2d98c34804fb68356bd2cc5b7324fa10fb1575e296160f6dbdfc43866"
 dependencies = [
  "bytes",
  "derive_more",
@@ -3344,7 +3345,7 @@ dependencies = [
 
 [[package]]
 name = "rex"
-version = "23.0.0"
+version = "24.0.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -3379,7 +3380,7 @@ dependencies = [
 
 [[package]]
 name = "rex-sdk"
-version = "23.0.0"
+version = "24.0.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -3959,6 +3960,12 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "spin"
+version = "0.9.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
 
 [[package]]
 name = "spinoff"
