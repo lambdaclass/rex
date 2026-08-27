@@ -13,7 +13,7 @@
 //!
 //! - `mode`:  0 = DEFAULT, 1 = VERIFY, 2 = SENDER (3-255 reserved)
 //! - `flags`: bit 0 = PAYMENT approval, bit 1 = EXECUTION approval, bit 2 = atomic batch
-//! - a secp256k1 outer signature is `v(1) || r(32) || s(32)`, v = recovery_id + 27
+//! - a secp256k1 outer signature is `v(1) || r(32) || s(32)`, v = bare recovery id (0/1)
 
 use clap::Subcommand;
 use ethrex_common::types::{
@@ -67,13 +67,17 @@ fn flags_desc(flags: u8) -> String {
 }
 
 /// A secp256k1 outer signature over `sig_hash`, encoded as ethrex expects
-/// (`v || r || s`, v = recovery_id + 27). `msg` is empty, so its signature bytes
-/// are elided from the sig_hash; `signer` is the account whose key signed.
+/// (`v || r || s`). `msg` is empty, so its signature bytes are elided from the
+/// sig_hash; `signer` is the account whose key signed.
+///
+/// EIP-8141 requires `v` to be a **bare recovery id** (0 or 1), not the +27 EVM
+/// form: the client rejects `v > 1` outright, so a signature carrying 27/28 is
+/// refused at signature validation and the whole transaction is invalid.
 fn secp256k1_signature(sig_hash: H256, signer: Address, secret: &SecretKey) -> FrameSignature {
     // sign_hash returns r(32) || s(32) || v(1, already +27).
     let sig = sign_hash(sig_hash, *secret);
     let mut bytes = Vec::with_capacity(65);
-    bytes.push(sig[64]); // v
+    bytes.push(sig[64].saturating_sub(27)); // v, as a bare recovery id
     bytes.extend_from_slice(&sig[0..32]); // r
     bytes.extend_from_slice(&sig[32..64]); // s
     FrameSignature {
