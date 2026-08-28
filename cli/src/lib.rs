@@ -6,3 +6,4 @@ pub mod cli;
 mod commands;
 mod common;
 mod utils;
+mod verify;

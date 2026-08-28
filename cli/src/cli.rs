@@ -3,6 +3,7 @@ use crate::common::{AuthorizeArgs, BlockOverrideArgs, StateOverrideArgs};
 use crate::utils::{
     encode_constructor_args, parse_contract_creation, parse_func_call, parse_hex, parse_hex_string,
 };
+use crate::verify::{VerifyParams, verify_contract_on_etherscan};
 use crate::{
     commands::autocomplete,
     common::{CallArgs, DeployArgs, SendArgs, TransferArgs},
@@ -645,23 +646,44 @@ impl Command {
 
                 println!("{result}");
             }
-            Command::Deploy { args, rpc_url } => {
+            Command::Deploy { mut args, rpc_url } => {
                 if args.explorer_url {
                     todo!("Display transaction URL in the explorer")
+                }
+
+                if args.verify_contract {
+                    if args.bytecode.is_some() {
+                        return Err(eyre::eyre!(
+                            "--verify-contract cannot be used with --bytecode. Use --contract-path instead."
+                        ));
+                    }
+                    if args.etherscan_api_key.is_none() {
+                        return Err(eyre::eyre!(
+                            "--verify-contract requires --etherscan-api-key or ETHERSCAN_API_KEY env var."
+                        ));
+                    }
+                    if args.cast {
+                        return Err(eyre::eyre!(
+                            "--verify-contract is incompatible with --cast (verification needs to wait for the receipt)."
+                        ));
+                    }
                 }
 
                 let deployer = Signer::Local(LocalSigner::new(args.private_key));
                 let client = EthClient::new(rpc_url)?;
 
-                let bytecode = if let Some(bytecode) = args.bytecode {
-                    bytecode
-                } else {
-                    compile_contract_from_path(args.clone()).await?
+                let (bytecode, compilation_info) = match args.bytecode.take() {
+                    Some(bytecode) => (bytecode, None),
+                    None => {
+                        let info = compile_contract_from_path(&args)?;
+                        let bytecode = info.bytecode.clone();
+                        (bytecode, Some(info))
+                    }
                 };
                 let init_args = if !args.constructor_args.is_empty() {
                     encode_constructor_args(&args.constructor_args)?
                 } else if !args._args.is_empty() {
-                    parse_contract_creation(args._args)?
+                    parse_contract_creation(std::mem::take(&mut args._args))?
                 } else {
                     Bytes::new()
                 };
@@ -676,7 +698,7 @@ impl Command {
                     )
                     .await?
                 } else {
-                    let init_code = [bytecode, init_args].concat().into();
+                    let init_code = [bytecode, init_args.clone()].concat().into();
                     deploy(
                         &client,
                         &deployer,
@@ -705,6 +727,35 @@ impl Command {
 
                 if !args.cast {
                     wait_for_transaction_receipt(tx_hash, &client, 100, silent).await?;
+                }
+
+                if args.verify_contract {
+                    // Unwraps are safe: validation above rejects bytecode and missing API key.
+                    let info = compilation_info
+                        .as_ref()
+                        .expect("compilation_info is always set when verify_contract is true");
+
+                    let chain_id: u64 = client
+                        .get_chain_id()
+                        .await?
+                        .try_into()
+                        .map_err(|_| eyre::eyre!("Chain ID too large to fit in u64"))?;
+
+                    verify_contract_on_etherscan(VerifyParams {
+                        contract_address: deployed_contract_address,
+                        contract_path: args.contract_path.unwrap(),
+                        contract_name: args.contract_name,
+                        constructor_args: init_args.to_vec(),
+                        remappings: info.remappings.clone(),
+                        optimize_runs: info.optimize_runs,
+                        etherscan_api_key: args.etherscan_api_key.unwrap(),
+                        chain_id,
+                    })
+                    .await?;
+                }
+
+                if let Some(info) = compilation_info.filter(|i| i.should_clean) {
+                    cleanup_compilation_artifacts(info.cloned_dirs);
                 }
             }
             Command::ChainId { hex, rpc_url } => {
@@ -960,16 +1011,24 @@ fn print_calldata(depth: usize, data: Value) {
     }
 }
 
-async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
+struct CompilationInfo {
+    bytecode: Bytes,
+    remappings: Vec<(String, PathBuf)>,
+    optimize_runs: Option<u64>,
+    cloned_dirs: Vec<PathBuf>,
+    should_clean: bool,
+}
+
+fn compile_contract_from_path(args: &DeployArgs) -> eyre::Result<CompilationInfo> {
     let contract_path = args
         .contract_path
         .as_ref()
         .ok_or_else(|| eyre::eyre!("Contract path is required when bytecode is not provided"))?;
 
-    let clean = !args.keep_deps;
+    let should_clean = !args.keep_deps;
     let output_dir = Path::new(".");
     let deps_dir = Path::new("rex_deps");
-    let mut solc_remappings = Vec::new();
+    let mut solc_remappings: Vec<(String, PathBuf)> = Vec::new();
     let mut cloned_dirs = Vec::new();
 
     std::fs::create_dir_all(deps_dir).ok();
@@ -1033,7 +1092,7 @@ async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
         false,
         Some(&solc_remappings_ref),
         &include_paths,
-        None,
+        args.optimizations,
     )
     .map_err(|e| eyre::eyre!("Failed to compile contract: {}", e))?;
 
@@ -1062,16 +1121,21 @@ async fn compile_contract_from_path(args: DeployArgs) -> eyre::Result<Bytes> {
         })?
         .into();
 
-    if clean {
-        for dir in cloned_dirs {
-            if dir.exists() {
-                std::fs::remove_dir_all(&dir)
-                    .map_err(|e| eyre::eyre!("Failed to clean up {}: {}", dir.display(), e))?;
-            }
-        }
-        std::fs::remove_dir_all("rex_deps").ok();
-        std::fs::remove_dir_all("solc_out").ok();
-    }
+    Ok(CompilationInfo {
+        bytecode,
+        remappings: solc_remappings,
+        optimize_runs: args.optimizations,
+        cloned_dirs,
+        should_clean,
+    })
+}
 
-    Ok(bytecode)
+fn cleanup_compilation_artifacts(cloned_dirs: Vec<PathBuf>) {
+    for dir in cloned_dirs {
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir).ok();
+        }
+    }
+    std::fs::remove_dir_all("rex_deps").ok();
+    std::fs::remove_dir_all("solc_out").ok();
 }
