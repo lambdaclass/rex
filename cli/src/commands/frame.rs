@@ -694,7 +694,7 @@ mod tests {
                     flags: FLAG_BOTH,
                     target: Some(sender_addr()),
                     gas_limit: 100_000,
-                    state_gas_limit: frame_state_gas_limit,
+                    state_gas_limit: 250_000,
                     value: U256::zero(),
                     data: Bytes::new(),
                 },
@@ -703,14 +703,14 @@ mod tests {
                     flags: 0,
                     target: Some(sender_addr()),
                     gas_limit: 30_000,
-                    state_gas_limit: frame_state_gas_limit,
+                    state_gas_limit: 250_000,
                     value: U256::from(1u64),
                     data: Bytes::new(),
                 },
             ],
             signatures: vec![signature_placeholder(sender_addr())],
-            max_priority_fee_per_gas: 1,
-            max_fee_per_gas: 2,
+            max_priority_fee_per_gas: U256::one(),
+            max_fee_per_gas: U256::from(2u64),
             max_fee_per_blob_gas: U256::zero(),
             blob_versioned_hashes: Vec::new(),
             ..Default::default()
@@ -752,8 +752,10 @@ mod tests {
         assert_eq!(fs.signer, Some(signer));
         assert!(fs.msg.is_empty());
         assert_eq!(fs.signature.len(), 65);
-        // v sits at byte 0 (ethrex parses v || r || s), already +27.
-        assert!(fs.signature[0] == 27 || fs.signature[0] == 28);
+        // v sits at byte 0 (ethrex parses v || r || s) and EIP-8141 requires it to
+        // be a bare recovery id: the client rejects v > 1 outright, so the +27 EVM
+        // form would be refused at signature validation.
+        assert!(fs.signature[0] == 0 || fs.signature[0] == 1);
     }
 
     #[test]
