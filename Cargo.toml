@@ -32,13 +32,17 @@ manual_saturating_arithmetic = "warn"
 rex-cli = { path = "cli" }
 rex-sdk = { path = "sdk" }
 
-ethrex-common = "24.0.0"
-ethrex-blockchain = "24.0.0"
-ethrex-rlp = "24.0.0"
-ethrex-rpc = "24.0.0"
-ethrex-l2-rpc = "24.0.0"
-ethrex-sdk = "24.0.0"
-ethrex-l2-common = "24.0.0"
+# Track ethrex's frames-devnet-0 branch so rex's frame-tx support stays in lockstep
+# with the wire format that chain actually speaks. The published 24.0.0 crates
+# predate EIP-8141's two-dimensional gas limits, so a rex built against them emits
+# a flat `gas_limit` and the node rejects it while decoding `limits`.
+ethrex-common = { git = "https://github.com/lambdaclass/ethrex", branch = "frames-devnet-0" }
+ethrex-blockchain = { git = "https://github.com/lambdaclass/ethrex", branch = "frames-devnet-0" }
+ethrex-rlp = { git = "https://github.com/lambdaclass/ethrex", branch = "frames-devnet-0" }
+ethrex-rpc = { git = "https://github.com/lambdaclass/ethrex", branch = "frames-devnet-0" }
+ethrex-l2-rpc = { git = "https://github.com/lambdaclass/ethrex", branch = "frames-devnet-0" }
+ethrex-sdk = { git = "https://github.com/lambdaclass/ethrex", branch = "frames-devnet-0" }
+ethrex-l2-common = { git = "https://github.com/lambdaclass/ethrex", branch = "frames-devnet-0" }
 
 keccak-hash = "0.11.0"
 thiserror = "2.0.11"

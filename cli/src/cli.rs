@@ -886,8 +886,10 @@ fn print_transaction(tx: &RpcTransaction) {
             None,
         ),
         _ => {
-            let max_fee = inner_tx.max_fee_per_gas().unwrap_or(0);
-            let max_priority = inner_tx.max_priority_fee().unwrap_or(0);
+            // Fee fields widened to U256 on the frames branch (EIP-8141 allows up
+            // to 2**256), so the fallback has to be a U256 too.
+            let max_fee = inner_tx.max_fee_per_gas().unwrap_or_default();
+            let max_priority = inner_tx.max_priority_fee().unwrap_or_default();
             (
                 None,
                 Some(format!("  max fee per gas:    {}", max_fee)),

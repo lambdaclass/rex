@@ -1241,19 +1241,21 @@ dependencies = [
 
 [[package]]
 name = "ethrex-blockchain"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02ec3471a679ddce13ac2aecde29dd42b9ce726e3075aef0164c3607ec3d1acc"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "bytes",
  "crossbeam",
  "ethrex-common",
  "ethrex-crypto",
+ "ethrex-guest-program",
  "ethrex-metrics",
  "ethrex-rlp",
  "ethrex-storage",
  "ethrex-trie",
  "ethrex-vm",
+ "libssz",
+ "libssz-merkle",
  "rayon",
  "rustc-hash",
  "thiserror 2.0.17",
@@ -1264,9 +1266,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-common"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85c1e35a6c3065805a6e9a7c79cf7679dfe669d49c39c98b7179830e0008688f"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "bytes",
  "crc32fast",
@@ -1280,6 +1281,10 @@ dependencies = [
  "indexmap 2.12.1",
  "lazy_static",
  "libc",
+ "libssz",
+ "libssz-derive",
+ "libssz-merkle",
+ "libssz-types",
  "lru",
  "once_cell",
  "rayon",
@@ -1295,9 +1300,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-crypto"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4892b28cce36b60b90fa3da1d914250e1aef03f47a33d4a6e76b66778113c921"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "ark-bn254",
  "ark-ec",
@@ -1317,10 +1321,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethrex-guest-program"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
+dependencies = [
+ "bytes",
+ "ethereum-types",
+ "ethrex-common",
+ "ethrex-crypto",
+ "ethrex-l2-common",
+ "ethrex-rlp",
+ "ethrex-vm",
+ "hex",
+ "rkyv",
+ "serde",
+ "serde_with",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "ethrex-l2-common"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2888743df7e2445ae1f15310cd644267c451ce804dd707331e70cf6e8bafe5d1"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1338,9 +1360,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-l2-rpc"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d99903c52a5b53cac495a3cb8ce0a3f87e406583617dea8a4032f447e3c0ddde"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "axum",
  "bytes",
@@ -1371,15 +1392,15 @@ dependencies = [
 
 [[package]]
 name = "ethrex-levm"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a14689511ed80b02cdc5383b7cc2d44ec3afecec8080f2200e209581203f232"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "bytes",
  "derive_more",
  "ethrex-common",
  "ethrex-crypto",
  "ethrex-rlp",
+ "libssz",
  "malachite",
  "rayon",
  "rustc-hash",
@@ -1390,9 +1411,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-metrics"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58da803cd2673cd0aadd464f142a687324daf1456d087fc7f133c9843619a98d"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "axum",
  "ethrex-common",
@@ -1407,9 +1427,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-p2p"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a22a9b506bab54dedee6cb9b035a4526a829e32854b94b7fd7e55935be5a711"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1452,9 +1471,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rlp"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e4befaa5c48096d1e185be307167fc205db55c071d5ee0fde9122cb28ca3810"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1463,9 +1481,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-rpc"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ef8fea1721d9bb7b74875ad390676d31d79d06c77efc0201af7ffdf726b07cb"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "axum",
  "axum-extra",
@@ -1504,9 +1521,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39ff5985241e45629545ad180cdf11909194ca2d9681d6170b9271ac12693462"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "bytes",
  "ethereum-types",
@@ -1530,9 +1546,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-sdk-contract-utils"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d0266259f7b82719fdbcb3b74c22b237f2cf07174d4b75a0331331ad45e9fb5"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "thiserror 2.0.17",
  "tracing",
@@ -1540,9 +1555,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be2e82ab7a710954b2eb4fb12237b17abf7aa42465b176ba7dd7e086dc866c90"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1563,9 +1577,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-storage-rollup"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6affd384ec58524a0e80385a3e132d8bbbf54f9759e83dc546ed93676c9a6006"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "async-trait",
  "bincode",
@@ -1580,9 +1593,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-trie"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23e96eda5284e5fe63599caf0f758510f095ce06907cd2c938435df9a4087d6e"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1601,9 +1613,8 @@ dependencies = [
 
 [[package]]
 name = "ethrex-vm"
-version = "24.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9790d1d2d98c34804fb68356bd2cc5b7324fa10fb1575e296160f6dbdfc43866"
+version = "23.0.0"
+source = "git+https://github.com/lambdaclass/ethrex?branch=frames-devnet-0#2e1352bdbcee42282f669a67938afb697b619ea4"
 dependencies = [
  "bytes",
  "derive_more",
@@ -2498,6 +2509,47 @@ checksum = "416f7e718bdb06000964960ffa43b4335ad4012ae8b99060261aa4a8088d5ccb"
 dependencies = [
  "bitflags",
  "libc",
+]
+
+[[package]]
+name = "libssz"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d498c0482bba87d2647ea4601ea76cf2b498065e3958798a88f49274f3ced5e9"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
+name = "libssz-derive"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ddfb5c969c28a4a54043e630f80c723352637bd1020f256ee3ac7a8814922b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "libssz-merkle"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63c6d6d5ce5d79bba66bc98c99869eedffedf7f14f0aa0915f1a62802650bdf6"
+dependencies = [
+ "libssz",
+ "sha2",
+]
+
+[[package]]
+name = "libssz-types"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "747273ab2d923e82ed147091fe0fb3e602dd2012c872cdad5efe69e27c3b4099"
+dependencies = [
+ "libssz",
+ "libssz-merkle",
+ "smallvec",
 ]
 
 [[package]]

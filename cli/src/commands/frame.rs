@@ -104,10 +104,6 @@ fn raw_canonical(tx: FrameTransaction) -> Vec<u8> {
     Transaction::FrameTransaction(tx).encode_canonical_to_vec()
 }
 
-fn u256_to_u64(v: U256, field: &str) -> eyre::Result<u64> {
-    u64::try_from(v).map_err(|_| eyre::eyre!("{field} does not fit in u64: {v}"))
-}
-
 /// Parse a "1ether"/"1.5gwei"/"0x…"/plain-wei amount into a wei `U256`.
 fn parse_amount(s: &str) -> eyre::Result<U256> {
     const UNITS: &[(&str, u32)] = &[
@@ -220,8 +216,20 @@ pub(crate) enum Command {
         sponsor_owner_key: Option<SecretKey>,
         #[arg(long, default_value_t = 100_000)]
         frame_gas_limit: u64,
+        #[arg(
+            long,
+            default_value_t = 250_000,
+            help = "EIP-8037 state-gas budget for the SENDER frame (limits.state). Separate from the execution budget and never drawn from it: creating an account or writing a fresh storage slot is paid from here. Sending value to an account that does not exist yet costs STATE_BYTES_PER_NEW_ACCOUNT * CPSB = 183,600, so a transfer to a fresh address needs more than that."
+        )]
+        frame_state_gas_limit: u64,
         #[arg(long, default_value_t = 200_000)]
         sponsor_gas_limit: u64,
+        #[arg(
+            long,
+            default_value_t = 250_000,
+            help = "EIP-8037 state-gas budget for the sponsor's VERIFY frame (limits.state)."
+        )]
+        sponsor_state_gas_limit: u64,
         #[arg(long, value_parser = parse_amount)]
         max_fee_per_gas: Option<U256>,
         #[arg(
@@ -282,6 +290,10 @@ struct FrameJson {
     target: Option<Address>,
     #[serde(alias = "gasLimit", alias = "gas_limit")]
     gas_limit: u64,
+    /// EIP-8037 state-gas budget (`limits.state`). Defaults to zero, which is
+    /// correct for a frame that grows no state.
+    #[serde(default, alias = "stateGasLimit", alias = "state_gas_limit")]
+    state_gas_limit: u64,
     #[serde(default)]
     value: Option<String>,
     #[serde(default)]
@@ -299,7 +311,9 @@ impl Command {
                 sponsor_calldata,
                 sponsor_owner_key,
                 frame_gas_limit,
+                frame_state_gas_limit,
                 sponsor_gas_limit,
+                sponsor_state_gas_limit,
                 max_fee_per_gas,
                 max_priority_fee_per_gas,
                 private_key,
@@ -343,6 +357,7 @@ impl Command {
                                 flags: FLAG_EXECUTION,
                                 target: Some(sender),
                                 gas_limit: frame_gas_limit,
+                                state_gas_limit: frame_state_gas_limit,
                                 value: U256::zero(),
                                 data: Bytes::new(),
                             },
@@ -351,6 +366,7 @@ impl Command {
                                 flags: FLAG_PAYMENT,
                                 target: Some(sponsor_addr),
                                 gas_limit: sponsor_gas_limit,
+                                state_gas_limit: sponsor_state_gas_limit,
                                 value: U256::zero(),
                                 data: sponsor_calldata,
                             },
@@ -359,6 +375,7 @@ impl Command {
                                 flags: 0,
                                 target: Some(to),
                                 gas_limit: frame_gas_limit,
+                                state_gas_limit: frame_state_gas_limit,
                                 value,
                                 data,
                             },
@@ -374,6 +391,7 @@ impl Command {
                                 flags: FLAG_BOTH,
                                 target: Some(sender),
                                 gas_limit: frame_gas_limit,
+                                state_gas_limit: frame_state_gas_limit,
                                 value: U256::zero(),
                                 data: Bytes::new(),
                             },
@@ -382,6 +400,7 @@ impl Command {
                                 flags: 0,
                                 target: Some(to),
                                 gas_limit: frame_gas_limit,
+                                state_gas_limit: frame_state_gas_limit,
                                 value,
                                 data,
                             },
@@ -400,11 +419,8 @@ impl Command {
                     sender,
                     frames,
                     signatures: signatures.clone(),
-                    max_priority_fee_per_gas: u256_to_u64(
-                        max_priority_fee_per_gas,
-                        "max_priority_fee_per_gas",
-                    )?,
-                    max_fee_per_gas: u256_to_u64(max_fee, "max_fee_per_gas")?,
+                    max_priority_fee_per_gas,
+                    max_fee_per_gas: max_fee,
                     max_fee_per_blob_gas: U256::zero(),
                     blob_versioned_hashes: Vec::new(),
                     ..Default::default()
@@ -463,6 +479,7 @@ impl Command {
                         flags: f.flags,
                         target: f.target,
                         gas_limit: f.gas_limit,
+                        state_gas_limit: f.state_gas_limit,
                         value,
                         data: data_bytes,
                     });
@@ -473,8 +490,8 @@ impl Command {
                     sender,
                     frames: out_frames,
                     signatures: Vec::new(),
-                    max_priority_fee_per_gas: u256_to_u64(max_priority_fee, "max_priority_fee")?,
-                    max_fee_per_gas: u256_to_u64(max_fee, "max_fee")?,
+                    max_priority_fee_per_gas: max_priority_fee,
+                    max_fee_per_gas: max_fee,
                     max_fee_per_blob_gas: U256::zero(),
                     blob_versioned_hashes: Vec::new(),
                     ..Default::default()
@@ -677,6 +694,7 @@ mod tests {
                     flags: FLAG_BOTH,
                     target: Some(sender_addr()),
                     gas_limit: 100_000,
+                    state_gas_limit: frame_state_gas_limit,
                     value: U256::zero(),
                     data: Bytes::new(),
                 },
@@ -685,6 +703,7 @@ mod tests {
                     flags: 0,
                     target: Some(sender_addr()),
                     gas_limit: 30_000,
+                    state_gas_limit: frame_state_gas_limit,
                     value: U256::from(1u64),
                     data: Bytes::new(),
                 },
